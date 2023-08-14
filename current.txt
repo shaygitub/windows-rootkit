@@ -1,0 +1,10 @@
+1. registry path issue of converting PUNICODE_CHAR to const char* to print in kernel mode (CHECK IF WORKS WITH WINDBG, CURRENTLY CANT ALLOCATE)
+2. module base - WORKS
+3. display string - work on converting special type into const char* correctly so the string makes sense (CHECK IF WORKS WITH WINDBG)
+4. write to memory - cannot allocate memory for reading buffer (DEBUG WITH BREAKPOINTS AND WINDBG)
+5. read from memory - MmCopyVirtualMemory failed (DEBUG WITH BREAKPOINTS AND WINDBG)
+
+todo-
+1. change signature to something equivilent to "mov rax, addr ; jmp rax" that will be alot more complex 
+and maybe would not include any suspicious jmp command , pass badlion, battleeye..
+2. look at photo to see exact
