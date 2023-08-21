@@ -1,0 +1,14 @@
+hyperv manager + hyperv quick create
+vs2022,sdk,wdk (CHECK IF PLANNING WILL WORK WITHOUT)
+create VM on windows image (try to save on diskonkey)
+create virtual switch from hyperv manager (external, allow management os.., THATS IT)
+
+in package:
+kdmapper + other
+cmd/powershell shell (maybe, if executable will run so the executable that will look like installing wizard with the UAC prompt)
+driver (look like phony, include inf)
+other phony files
+devcon (phony)
+medium program (executable)
+other parameters
+# exe will be a trojan until it stops running by user action / boot but will still do configuration 
