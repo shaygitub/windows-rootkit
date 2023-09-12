@@ -1,1 +1,1 @@
-cd C:\DriverTest\Drivers && "C:\Program Files (x86)\Windows Kits\10\Tools\10.0.22621.0\x64\devcon.exe" install kmdfdriver.inf root\kmdfdriver
+R66XTK2N14JV.TMNSEKZCPTY.9OHSMS6DKQ7.36TDZQ60R472 , PORT 50813
