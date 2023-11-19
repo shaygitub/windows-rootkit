@@ -1,0 +1,69 @@
+﻿  utils.cpp
+  LINK : 0 new modules and 1 (out of 52) modules have changed since prior linking
+  Searching libraries
+      Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\um\x64\ws2_32.lib:
+      Searching C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\lib\x64\msvcprtd.lib:
+      Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\um\x64\uuid.lib:
+      Searching C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\lib\x64\MSVCRTD.lib:
+      Searching C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\lib\x64\OLDNAMES.lib:
+      Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\um\x64\kernel32.lib:
+      Searching C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\lib\x64\vcruntimed.lib:
+      Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\ucrt\x64\ucrtd.lib:
+        Found __imp_fflush
+          Referenced in utils.obj
+          Loaded ucrtd.lib(ucrtbased.dll)
+  Finished searching libraries
+  Starting pass 2
+       utils.obj
+       MSVCRTD.lib(loadcfg.obj)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+       ucrtd.lib(ucrtbased.dll)
+  Finished pass 2
+  ActClient.vcxproj -> H:\current\ActClient\x64\Debug\ActClient.exe

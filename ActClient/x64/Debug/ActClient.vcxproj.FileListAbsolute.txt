@@ -1,0 +1,3 @@
+C:\Users\shayg\source\repos\ActClient\x64\Debug\ActClient.exe
+D:\current\ActClient\x64\Debug\ActClient.exe
+H:\current\ActClient\x64\Debug\ActClient.exe

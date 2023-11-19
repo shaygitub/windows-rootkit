@@ -1,0 +1,10 @@
+1. make sure that the used firewall is shut off
+2. make sure that visual studio is downloaded (required for debugging and for the unknown reason that the exe crashes without it)
+3. make sure to:
+a. hard code the IP addresses of the attacker machine in the script from attackerips.txt in trypack folder (if not there - run ListAttacker.exe)
+b. do a for FunEngine and for AutoService
+c. rebuild the solution on release
+d. rebuild drvmap-master and GuardMon on release (if update is needed)
+4. run powershell script with vm name to configure VT-X
+5. run virtual machine
+#make sure that debugger isnt connected when GuardMon is operating / that the debugger is not attached
