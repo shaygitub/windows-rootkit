@@ -1,4 +1,0 @@
-todo-
-1. change signature to something equivilent to "mov rax, addr ; jmp rax" that will be alot more complex 
-and maybe would not include any suspicious jmp command , pass badlion, battleeye..
-2. make executable that will actually request for UAC permissions and that he will already run PS script with administrator perms
