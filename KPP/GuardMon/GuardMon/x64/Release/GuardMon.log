@@ -1,0 +1,8 @@
+﻿  Building 'GuardMon' with toolset 'WindowsKernelModeDriver10.0' and the 'Desktop' target platform.
+  driver.cpp
+  GuardMon.vcxproj -> H:\current\KPP\GuardMon\x64\Release\GuardMon.sys
+  Done Adding Additional Store
+  Successfully signed: H:\current\KPP\GuardMon\x64\Release\GuardMon.sys
+  
+  Inf2Cat task was skipped as there were no inf files to process
+  

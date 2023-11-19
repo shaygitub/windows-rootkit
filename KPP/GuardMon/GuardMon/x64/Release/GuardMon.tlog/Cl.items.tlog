@@ -1,0 +1,12 @@
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\driver.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\driver.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\ept.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\ept.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\global_object.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\global_object.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\hotplug_callback.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\hotplug_callback.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\kernel_stl.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\kernel_stl.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\log.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\log.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\performance.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\performance.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\power_callback.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\power_callback.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\util.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\util.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\vm.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\vm.obj
+H:\current\KPP\GuardMon\HyperPlatform\HyperPlatform\vmm.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\vmm.obj
+H:\current\KPP\GuardMon\GuardMon\guard_mon.cpp;H:\current\KPP\GuardMon\GuardMon\x64\Release\guard_mon.obj
