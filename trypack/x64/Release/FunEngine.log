@@ -1,0 +1,14 @@
+﻿  configurations.cpp
+  FunEngine.cpp
+  networking.cpp
+  utils.cpp
+H:\current\trypack\utils.cpp(49,18): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+H:\current\trypack\utils.cpp(63,56): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data
+H:\current\trypack\utils.cpp(66,49): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data
+H:\current\trypack\utils.cpp(114,23): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+H:\current\trypack\utils.cpp(118,25): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 331 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  FunEngine.vcxproj -> H:\current\trypack\x64\Release\FunEngine.exe

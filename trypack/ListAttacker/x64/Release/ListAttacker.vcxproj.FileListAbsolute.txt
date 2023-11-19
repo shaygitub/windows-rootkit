@@ -1,0 +1,2 @@
+H:\current\trypack\x64\Release\ListAttacker\x64\Release\ListAttacker.exe
+H:\current\trypack\ListAttacker\x64\Release\ListAttacker.exe
