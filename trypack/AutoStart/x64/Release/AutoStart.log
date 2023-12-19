@@ -1,8 +1,8 @@
 ﻿  AutoStart.cpp
-H:\current\trypack\AutoStart\AutoStart.cpp(362,63): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
-H:\current\trypack\AutoStart\AutoStart.cpp(362,63): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
-H:\current\trypack\AutoStart\AutoStart.cpp(364,12): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
-H:\current\trypack\AutoStart\AutoStart.cpp(364,12): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(186,63): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(186,63): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(188,12): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(188,12): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
   helpers.cpp
   utils.cpp
 H:\current\trypack\AutoStart\utils.cpp(69,27): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
@@ -11,8 +11,9 @@ H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267: 'argument': conver
           [
               _Ty=int
           ]
+H:\current\trypack\AutoStart\utils.cpp(120,23): warning C4018: '<': signed/unsigned mismatch
   Generating code
   Previous IPDB not found, fall back to full compilation.
-  All 187 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 108 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
   AutoStart.vcxproj -> H:\current\trypack\AutoStart\x64\Release\AutoStart.exe

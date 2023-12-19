@@ -26,7 +26,7 @@ BOOL ValidateInfoTypeString(const char* InfoType) {
 		return FALSE;
 	}
 
-	std::string cppString("rbptcPiemCIL");
+	std::string cppString("rbptcPieIL");
 	for (int i = 0; InfoType[i] != '\0'; i++) {
 		if (cppString.find(InfoType[i]) == std::string::npos) {
 			return FALSE;

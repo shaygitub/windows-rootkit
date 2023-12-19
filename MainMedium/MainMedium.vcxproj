@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="helpers.cpp" />
+    <ClCompile Include="piping.cpp" />
     <ClCompile Include="rootreqs.cpp" />
     <ClCompile Include="internet.cpp" />
     <ClCompile Include="medium.cpp" />
@@ -140,6 +141,7 @@
     <ClInclude Include="helpers.h" />
     <ClInclude Include="internet.h" />
     <ClInclude Include="medium.h" />
+    <ClInclude Include="piping.h" />
     <ClInclude Include="rootreqs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

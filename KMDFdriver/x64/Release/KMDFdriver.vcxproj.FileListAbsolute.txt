@@ -1,1 +1,1 @@
-D:\current\KMDFdriver\x64\Release\KMDFdriver.sys
+H:\current\KMDFdriver\x64\Release\KMDFdriver.sys

@@ -1,149 +1,229 @@
 #include "memory.h"
 #pragma warning(disable:4996)
 
-/*
-=====================================================================
-=====================================================================
-INTERNAL MEMORY FUNCTIONS THAT DO NOT CORRELATE TO REQUESTS, GENERAL:
-=====================================================================
-=====================================================================
-*/
 
 
 
+PVOID SystemModuleBaseMEM(const char* ModuleName) {
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module\n");
+	ULONG Size = 0;
+	ULONG NeededSize = 0;
+	ULONG ModuleSize = 0;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	PRTL_PROCESS_MODULE_INFORMATION CurrentModule = NULL;  // CurrentModule is a pointer to the current system module when querying
+	PVOID ModuleBase = NULL;
+	PVOID ModulesInfo = NULL;
 
-PVOID SystemModuleBaseMEM(const char* module_name) {
-	//DbgPrintEx(0, 0, "KMDFdriver GET MODULE BASE\n");
 
-	ULONG bytes = 0;
-	ULONG queried_bytes = 0;
-	NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, NULL, bytes, &queried_bytes);  // returns the needed size for information to queried_bytes
-
-	if (queried_bytes == 0) {
-		return NULL;  // Query did not work correctly (size of data returned is not valid)
-	}
-	bytes = queried_bytes;
-	
-	
-	// Actual query for system information -
-	PVOID ModulesInfo = ExAllocatePoolWithTag(NonPagedPool, bytes, 0x526B506C);  // tag name is "RkPl"
-	if (ModulesInfo == NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver GET MODULE BASE CANNOT ALLOCATE BUFFER FOR ACTUAL SYSQUERY :(\n");
+	// Check for invalid parameters:
+	if (ModuleName == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (invalid parameter: NULL)\n");
 		return NULL;
 	}
-	status = ZwQuerySystemInformation(SystemModuleInformation, ModulesInfo, bytes, &queried_bytes);
 
-	if (!NT_SUCCESS(status)) {		
-		if (status == STATUS_INFO_LENGTH_MISMATCH) {
-			bytes = queried_bytes;
 
-			// reallocate the buffer so the sizes will be compatible and requery the information -
+	// Get the needed size for querying the system modules list:
+	Status = ZwQuerySystemInformation(SystemModuleInformation, NULL, Size, &NeededSize);
+	if (NeededSize == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (needed size for pool returned as 0)\n");
+		return NULL;  // Query did not work correctly (size of data returned is not valid)
+	}
+	Size = NeededSize;
+	
+	
+	// Actual query for system information:
+	ModulesInfo = ExAllocatePoolWithTag(NonPagedPool, Size, 'MmMp');
+	if (ModulesInfo == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (allocation of memory pool failed)\n");
+		return NULL;
+	}
+	Status = ZwQuerySystemInformation(SystemModuleInformation, ModulesInfo, Size, &NeededSize);
+
+
+	// Make sure that query was executed successfully, if size mismatch - query again:
+	if (!NT_SUCCESS(Status)) {
+		if (Status == STATUS_INFO_LENGTH_MISMATCH) {
+			Size = NeededSize;
 			if (ModulesInfo != NULL) {
 				ExFreePool(ModulesInfo);
 			}
-
-			ModulesInfo = ExAllocatePoolWithTag(NonPagedPool, bytes, 0x526B506C);  // tag name is "RkPl"
+			ModulesInfo = ExAllocatePoolWithTag(NonPagedPool, Size, 'MmMp');
 			if (ModulesInfo == NULL) {
+				DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (allocation of memory pool after mismatch failed)\n");
 				return NULL;
 			}
-
-			status = ZwQuerySystemInformation(SystemModuleInformation, ModulesInfo, bytes, &queried_bytes);
-			if (!NT_SUCCESS(status)) {
+			Status = ZwQuerySystemInformation(SystemModuleInformation, ModulesInfo, Size, &NeededSize);
+			if (!NT_SUCCESS(Status)) {
+				DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (query after mismatch failed: 0x%x)\n", Status);
+				ExFreePool(ModulesInfo);
 				return NULL;
 			}
 		}
 		else {
-			return NULL;  // Pool allocation for system modules did not succeed
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (query failed: 0x%x)\n", Status);
+			ExFreePool(ModulesInfo);
+			return NULL;
 		}
 	}
 	else {
-		DbgPrintEx(0, 0, "KMDFdriver INITIAL MODULE BASE QUERY SYSTEM MODULE INFORMATION SUCCEEDED :)\n");
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module query succeeded first try\n");
 	}
 
-	PRTL_PROCESS_MODULE_INFORMATION module = ((PRTL_PROCESS_MODULES)ModulesInfo)->Modules;  // Module is a pointer to the actual system modules 
-	PVOID module_base = 0;
-	ULONG module_size = 0;  // Will save information about the required module
 
+	// Search in system modules list for the driver to find (module to find):
+	CurrentModule = ((PRTL_PROCESS_MODULES)ModulesInfo)->Modules;
 	for (ULONG i = 0; i < ((PRTL_PROCESS_MODULES)ModulesInfo)->NumberOfModules; i++) {
-		if (strcmp((char*)module[i].FullPathName, module_name) == 0) {
-
-			// Found the required module in the system modules list
-			module_base = module[i].ImageBase;
-			module_size = module[i].ImageSize;
+		if (strcmp((char*)CurrentModule[i].FullPathName, ModuleName) == 0) {
+			ModuleBase = CurrentModule[i].ImageBase;
+			ModuleSize = CurrentModule[i].ImageSize;
 			break;
 		}
 	}
-
 	if (ModulesInfo != NULL) {
 		ExFreePool(ModulesInfo);
 	}
-
-	if (module_size <= 0) {
-		return NULL;  // Size specified in system modules list is incorrect
+	if (ModuleSize <= 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module failed (returned size of module is 0)\n");
+		return NULL;
 	}
-
-	return module_base;
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Get base of system module succeeded (possibly), base = %p\n", ModuleBase);
+	return ModuleBase;
 }
 
 
 
 
-PVOID SystemModuleExportMEM(const char* module_name, LPCSTR routine_name) {
-	//DbgPrintEx(0, 0, "KMDFdriver GET FUNCTION FROM MODULE\n");
+PVOID SystemModuleExportMEM(const char* ModuleName, const char* RoutineName) {
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Get function from system module\n");
+	PVOID ModuleBase = NULL;
+	PVOID RoutineAddress = NULL;
 
-	PVOID ModuleP = SystemModuleBaseMEM(module_name);
-	if (!ModuleP) {
-		return NULL;  // Couldn't get module base - cannot find a function inside a non existing module
+
+	// Check for invalid parameters:
+	if (ModuleName == NULL || RoutineName == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get function from system module failed (one or more invalid paramters: %p, %p)\n", ModuleName, RoutineName);
+		return NULL;
 	}
-	return RtlFindExportedRoutineByName(ModuleP, routine_name);  // Routine_name = function name from system module (driver)
+
+
+	// Find routine address:
+	ModuleBase = SystemModuleBaseMEM(ModuleName);
+	if (ModuleBase == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get function from system module failed (module base of relevant module returned as NULL)\n");
+		return NULL;
+	}
+	RoutineAddress = RtlFindExportedRoutineByName(ModuleBase, RoutineName);
+	if (RoutineAddress == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get function from system module failed (address = NULL)\n");
+	}
+	else {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Get function from system module succeeded, address = %p\n", RoutineAddress);
+	}
+	return RoutineAddress;
 }
 
 
 
 
-bool WriteMemoryMEM(void* address, void* buffer, size_t size) {
-	// DbgPrintEx(0, 0, "KMDFdriver WRITING TO REGULAR MEMORY\n");
-
-	if (!RtlCopyMemory(address, buffer, size)) {
-		DbgPrintEx(0, 0, "KMDFdriver FAILED WRITING TO REGULAR MEMORY :(\n");
+BOOL WriteMemoryMEM(PVOID WriteAddress, PVOID SourceBuffer, SIZE_T WriteSize) {
+	//DbgPrintEx(0, 0, "KMDFdriver Memory - Write into system memory\n");
+	
+	
+	// Check for invalid parameters:
+	if (WriteAddress == NULL || SourceBuffer == NULL || WriteSize == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Write into system memory failed (one or more invalid parameters: %p, %p, %zu)\n", WriteAddress, SourceBuffer, WriteSize);
 		return FALSE;
 	}
+
+
+	// Write to memory:
+	if (!RtlCopyMemory(WriteAddress, SourceBuffer, WriteSize)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Write into system memory failed\n");
+		return FALSE;
+	}
+	//DbgPrintEx(0, 0, "KMDFdriver Memory - Write into system memory succeeded\n");
 	return TRUE;
 }
 
 
 
 
-bool WriteToReadOnlyMemoryMEM(void* address, void* buffer, size_t size) {
-	// DbgPrintEx(0, 0, "KMDFdriver WRITING TO READ ONLY MEMORY\n");
-	PMDL Mdl = IoAllocateMdl(address, (ULONG)size, FALSE, FALSE, NULL);  // Create descriptor for a range of memory pages, required for handling a page range
+BOOL WriteToReadOnlyMemoryMEM(PVOID Address, PVOID Buffer, SIZE_T Size, BOOL IsWrite) {
+	//DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory (mostly drivers / kernel functions)\n");
+	PMDL MemoryDescriptor = NULL;
+	PVOID MappedMemory = NULL;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-	if (!Mdl) {
-		DbgPrintEx(0, 0, "KMDFdriver COULD NOT CREATE MEMORY DESCRIPTOR :(\n");
-		return FALSE;  // Descriptor couldn't be created
+
+	// Check for invalid parameters:
+	if (Address == NULL || Buffer == NULL || Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (one or more invalid parameters: %p, %p, %zu)\n", Address, Buffer, Size);
+		return FALSE;
 	}
 
-	// Lock the pages in physical memory (similar to NonPaged pool concept) -
-	MmProbeAndLockPages(Mdl, KernelMode, IoReadAccess);
+
+	// Create a memory descriptor for the memory range for operation on memory:
+	if (IsWrite) {
+		MemoryDescriptor = IoAllocateMdl(Address, (ULONG)Size, FALSE, FALSE, NULL);
+	}
+	else {
+		MemoryDescriptor = IoAllocateMdl(Buffer, (ULONG)Size, FALSE, FALSE, NULL);
+	}
+	if (MemoryDescriptor == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (cannot allocate memory descriptor)\n");
+		return FALSE;
+	}
+
+
+	// Lock the pages in physical memory (similar to NonPaged pool concept):
+	MmProbeAndLockPages(MemoryDescriptor, KernelMode, IoReadAccess);
 	
-	// Map the memory pages into other virtual memory range -
-	PVOID Mapping = MmMapLockedPagesSpecifyCache(Mdl, KernelMode, MmNonCached, NULL, FALSE, NormalPagePriority);
-	
-	// Set the protection settings of the page range to be both writeable and readable -
-	MmProtectMdlSystemAddress(Mdl, PAGE_READWRITE);
 
-	// Write into the mapped pages -
-	WriteMemoryMEM(Mapping, buffer, size);
+	// Map the memory pages into system virtual memory:
+	MappedMemory = MmMapLockedPagesSpecifyCache(MemoryDescriptor, KernelMode, MmNonCached, NULL, FALSE, NormalPagePriority);
+	if (MappedMemory == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (mapped system virtual memory is NULL)\n");
+		MmUnlockPages(MemoryDescriptor);
+		IoFreeMdl(MemoryDescriptor);
+		return FALSE;
+	}
 
-	// Unmap the page range -
-	MmUnmapLockedPages(Mapping, Mdl);
 
-	// Unlock the page range -
-	MmUnlockPages(Mdl);
+	// Set the protection settings of the memory range to be both writeable and readable:
+	Status = MmProtectMdlSystemAddress(MemoryDescriptor, PAGE_READWRITE);
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (failed to change protection settings of memory range: 0x%x)\n", Status);
+		MmUnmapLockedPages(MappedMemory, MemoryDescriptor);
+		MmUnlockPages(MemoryDescriptor);
+		IoFreeMdl(MemoryDescriptor);
+		return FALSE;
+	}
 
-	// Free the pages descriptor used for page range -
-	IoFreeMdl(Mdl);
 
+	// Write/Read into the mapped pages:
+	if (IsWrite) {
+		if (!WriteMemoryMEM(MappedMemory, Buffer, Size)) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (write to mapped memory failed)\n");
+			MmUnmapLockedPages(MappedMemory, MemoryDescriptor);
+			MmUnlockPages(MemoryDescriptor);
+			IoFreeMdl(MemoryDescriptor);
+			return FALSE;
+		}
+	}
+	else {
+		if (!WriteMemoryMEM(Address, MappedMemory, Size)) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory failed (read from mapped memory failed)\n");
+			MmUnmapLockedPages(MappedMemory, MemoryDescriptor);
+			MmUnlockPages(MemoryDescriptor);
+			IoFreeMdl(MemoryDescriptor);
+			return FALSE;
+		}
+	}
+
+	//DbgPrintEx(0, 0, "KMDFdriver Memory - Operate on system read-only memory succeeded\n");
+	MmUnmapLockedPages(MappedMemory, MemoryDescriptor);
+	MmUnlockPages(MemoryDescriptor);
+	IoFreeMdl(MemoryDescriptor);
 	return TRUE;
 }
 
@@ -151,38 +231,38 @@ bool WriteToReadOnlyMemoryMEM(void* address, void* buffer, size_t size) {
 
 
 NTSTATUS UserToKernelMEM(PEPROCESS SrcProcess, PVOID UserAddress, PVOID KernelAddress, SIZE_T Size, BOOL IsAttached) {
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from UM to KM\n");
 	KAPC_STATE SrcState = { 0 };
 
-	// Check for invalid parameters -
-	if (!SrcProcess || !UserAddress || !KernelAddress || !Size) {
-		DbgPrintEx(0, 0, "KMDFdriver GetUserToKernel FAILED - INVALID ARGS SIZE (%zu)/USER BUFFER (%p)/KERNEL BUFFER (%p)/HANDLE (%p)\n", Size, UserAddress, KernelAddress, SrcProcess);
+
+	// Check for invalid parameters:
+	if (SrcProcess == NULL || UserAddress == NULL || KernelAddress == NULL || Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from UM to KM failed (one or more invalid parameters: %p, %p, %p, %zu)\n", (PVOID)SrcProcess, UserAddress, KernelAddress, Size);
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	// Attach to the usermode process if needed -
+
+	// Attach to the usermode process if needed:
 	if (!IsAttached) {
-		KeStackAttachProcess(SrcProcess, &SrcState);  // attach to source usermode process
+		KeStackAttachProcess(SrcProcess, &SrcState);
 	}
 
-	// Perform the copying -
+
+	// Perform the transfer:
 	__try {
 		ProbeForRead(UserAddress, Size, sizeof(UCHAR));
 		RtlCopyMemory(KernelAddress, UserAddress, Size);
-
-		// Detach from the usermode process if needed -
 		if (!IsAttached) {
-			KeUnstackDetachProcess(&SrcState);  // detach from source usermode process
+			KeUnstackDetachProcess(&SrcState);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver GetUserToKernel SUCCEEDED - RtlCopyMemory SUCCEEDED\n");
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from UM to KM succeeded\n");
 		return STATUS_SUCCESS;
 	}
 
 	__except (STATUS_ACCESS_VIOLATION) {
-		DbgPrintEx(0, 0, "KMDFdriver GetUserToKernel FAILED - RtlCopyMemory ACCESS VIOLATION/USERMODE ADDRESS OUT OF PROCESS ADDRESS SPACE (%p)\n", UserAddress);
-
-		// Detach from the usermode process if needed -
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from UM to KM failed (access violation kernel exception)\n");
 		if (!IsAttached) {
-			KeUnstackDetachProcess(&SrcState);  // detach from source usermode process
+			KeUnstackDetachProcess(&SrcState);
 		}
 		return STATUS_ACCESS_VIOLATION;
 	}
@@ -192,38 +272,39 @@ NTSTATUS UserToKernelMEM(PEPROCESS SrcProcess, PVOID UserAddress, PVOID KernelAd
 
 
 NTSTATUS KernelToUserMEM(PEPROCESS DstProcess, PVOID KernelAddress, PVOID UserAddress, SIZE_T Size, BOOL IsAttached) {
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from KM to UM\n");
 	KAPC_STATE DstState = { 0 };
 
-	// Check for invalid parameters -
-	if (!DstProcess || !UserAddress || !KernelAddress || !Size) {
-		DbgPrintEx(0, 0, "KMDFdriver GetKernelToUser FAILED - INVALID ARGS SIZE (%zu)/USER BUFFER (%p)/KERNEL BUFFER (%p)/HANDLE (%p)\n", Size, UserAddress, KernelAddress, DstProcess);
+
+
+	// Check for invalid parameters:
+	if (DstProcess == NULL || KernelAddress == NULL || UserAddress == NULL || Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from KM to UM failed (one or more invalid parameters: %p, %p, %p, %zu)\n", (PVOID)DstProcess, KernelAddress, UserAddress, Size);
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	// Attach to the usermode process if needed -
+
+	// Attach to the usermode process if needed:
 	if (!IsAttached) {
-		KeStackAttachProcess(DstProcess, &DstState);  // attach to destination usermode process
+		KeStackAttachProcess(DstProcess, &DstState);
 	}
 
-	// Perform the copying -
+
+	// Perform the transfer:
 	__try {
 		ProbeForRead(UserAddress, Size, sizeof(UCHAR));
 		RtlCopyMemory(UserAddress, KernelAddress, Size);
-
-		// Detach from the usermode process if needed -
 		if (!IsAttached) {
-			KeUnstackDetachProcess(&DstState);  // detach from destination usermode process
+			KeUnstackDetachProcess(&DstState);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver GetKernelToUser SUCCEEDED - RtlCopyMemory SUCCEEDED\n");
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from KM to UM succeeded\n");
 		return STATUS_SUCCESS;
 	}
 
 	__except (STATUS_ACCESS_VIOLATION) {
-		DbgPrintEx(0, 0, "KMDFdriver GetKernelToUser FAILED - RtlCopyMemory ACCESS VIOLATION/USERMODE ADDRESS OUT OF PROCESS ADDRESS SPACE (%p)\n", UserAddress);
-
-		// Detach from the usermode process if needed -
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Transfer data from KM to UM failed (access violation kernel exception)\n");
 		if (!IsAttached) {
-			KeUnstackDetachProcess(&DstState);  // detach from destination usermode process
+			KeUnstackDetachProcess(&DstState);
 		}
 		return STATUS_ACCESS_VIOLATION;
 	}
@@ -233,65 +314,75 @@ NTSTATUS KernelToUserMEM(PEPROCESS DstProcess, PVOID KernelAddress, PVOID UserAd
 
 
 PVOID CommitMemoryRegionsADD(HANDLE ProcessHandle, PVOID Address, SIZE_T Size, ULONG AllocProt, PVOID ExistingAllocAddr, ULONG_PTR ZeroBit) {
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
-	MEMORY_BASIC_INFORMATION info = { 0 };
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process\n");
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	MEMORY_BASIC_INFORMATION MemoryInfo = { 0 };
 	PVOID InitialAddress = Address;
 	SIZE_T RequestedSize = Size;
-	if (ExistingAllocAddr != NULL) {
-		Address = ExistingAllocAddr;
-	}
 
 
-	// Allocate the actual needed pages and save them for later allocating -
-	if (Address != ExistingAllocAddr) {
-		__try {
-			ProbeForRead(Address, Size, sizeof(UCHAR));
-			status = ZwAllocateVirtualMemory(ProcessHandle, &Address, ZeroBit, &Size, MEM_RESERVE, PAGE_NOACCESS);
-		}
-		__except (STATUS_ACCESS_VIOLATION) {
-			DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUEST FAILED - ACCESS VIOLATION WITH WRITING ADDRESS IN ADDRESS RANGE OF DESTINATION (ADDRESS: %p) :(\n", Address);
-			return NULL;
-		}
-
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD INITIAL REQUEST FAILED VIRTMEM ALLOC INITIAL (GENERAL PAGE), TRYING TO GET ANY MEMORY POSSIBLE..\n");
-			Address = NULL;  // required to tell the system to choose where to allocate the memory
-			status = ZwAllocateVirtualMemory(ProcessHandle, &Address, 0, &Size, MEM_RESERVE, PAGE_NOACCESS);  // Size and Address are alligned here after the first call
-			if (!NT_SUCCESS(status)) {
-				DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUEST FAILED TO GET ANY POSSIBLE MEMORY AREA (GENERAL PAGE) :(\n");
-				return NULL;
-			}
-		}
-	}
-	DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD INITIAL ADDRESS: %p, ALLOCATION ADDRESS (NEW ADDRESS): %p\n", InitialAddress, Address);
-	DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUESTED SIZE: %zu, ALLOCATION SIZE (NEW SIZE): %zu\n", RequestedSize, Size);
-
-
-	// Allocate the range of pages in processes virtual memory with the required allocation type and protection settings -
-	status = STATUS_UNSUCCESSFUL;
-	status = ZwAllocateVirtualMemory(ProcessHandle, &Address, ZeroBit, &Size, MEM_COMMIT, AllocProt);
-	if (!NT_SUCCESS(status)) {
-		DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUEST FAILED VIRTMEM ALLOC FINAL (CHANGE TO PAGE_READWRITE) :(\n");
-		if (Address != ExistingAllocAddr) {
-			ZwFreeVirtualMemory(ProcessHandle, &Address, &Size, MEM_RELEASE);  // Release the unused memory
-		}
-		else {
-			ZwFreeVirtualMemory(ProcessHandle, &Address, &Size, MEM_DECOMMIT);  // de-commit the unused memory
-		}
+	// Check for invalid parameters:
+	if (ProcessHandle == NULL || Address == NULL || Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process failed (one or more invalid parameters: %p, %p, %zu)\n", ProcessHandle, Address, Size);
 		return NULL;
 	}
 
 
-	// Query to verify the change of memory state (NOT MANDATORY: DOES NOT CHANGE RETURN VALUE + DOES NOT FREE ALLOCATION IF FAILED) -
-	status = ZwQueryVirtualMemory(ProcessHandle, Address, MemoryBasicInformation, &info, sizeof(info), NULL);
-	if (!NT_SUCCESS(status)) {
-		DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUEST FAILED VIRTMEM QUERY :(\n");
+	// Allocate the actual needed pages and save them for committing later:
+	if (ExistingAllocAddr != NULL) {
+		Address = ExistingAllocAddr;
+	}
+	if (Address != ExistingAllocAddr) {
+		__try {
+			ProbeForRead(Address, Size, sizeof(UCHAR));
+			Status = ZwAllocateVirtualMemory(ProcessHandle, &Address, ZeroBit, &Size, MEM_RESERVE, PAGE_NOACCESS);
+		}
+		__except (STATUS_ACCESS_VIOLATION) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process failed (access violation system exception)\n");
+			return NULL;
+		}
+
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process with specific ZeroBit failed (ZwAllocateVirtualMemory returned 0x%x, ZeroBit = %llu)\n", Status, (ULONG64)ZeroBit);
+			Address = NULL;  // Required to tell the system to choose where to allocate the memory
+			ZeroBit = 0;
+			Status = ZwAllocateVirtualMemory(ProcessHandle, &Address, ZeroBit, &Size, MEM_RESERVE, PAGE_NOACCESS);  // Size and Address are alligned here after the first call
+			if (!NT_SUCCESS(Status)) {
+				DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process after trying with specific ZeroBit failed (ZwAllocateVirtualMemory returned 0x%x, no possible free memory)\n", Status);
+				return NULL;
+			}
+		}
+	}
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process: Initial addrsize = (%p, %zu), New addrsize = (%p, %zu)\n", InitialAddress, RequestedSize, Address, Size);
+
+
+	// Allocate the range of pages in processes virtual memory with the required allocation type and protection settings:
+	Status = ZwAllocateVirtualMemory(ProcessHandle, &Address, ZeroBit, &Size, MEM_COMMIT, AllocProt);
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process failed (committing memory with protection settings of %lu failed: 0x%x)\n", AllocProt, Status);
+		if (Address != ExistingAllocAddr) {
+			ZwFreeVirtualMemory(ProcessHandle, &Address, &Size, MEM_RELEASE);  // Release the unused memory
+		}
+		else {
+			ZwFreeVirtualMemory(ProcessHandle, &Address, &Size, MEM_DECOMMIT);  // De-commit the unused memory
+		}
+		return NULL;
+	}
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process succeeded (address = %p, size = %zu), checking if changed\n", Address, Size);
+
+
+	// Query to verify the change of memory state:
+	Status = ZwQueryVirtualMemory(ProcessHandle, Address, MemoryBasicInformation, &MemoryInfo, sizeof(MemoryInfo), NULL);
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process failed to query memory for checking if committed (ZwQueryVirtualMemory retuned 0x%x)\n", Status);
 		return Address;
 	}
 
-	if (!(info.State & MEM_COMMIT)) {
-		DbgPrintEx(0, 0, "KMDFdriver CommitMemoryRegionsADD REQUEST DOES NOT INCLUDE STATE SETTINGS OF MEM_COMMIT :(\n");
+	if (!(MemoryInfo.State & MEM_COMMIT)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process failed (ZwQueryVirtualMemory returned that area is not committed, but it is %lu)\n", MemoryInfo.State);
+		return NULL;
 	}
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Commit memory regions in process succeeded, verified that memory is committed\n");
 	return Address;
 }
 
@@ -299,40 +390,50 @@ PVOID CommitMemoryRegionsADD(HANDLE ProcessHandle, PVOID Address, SIZE_T Size, U
 
 
 BOOL ChangeProtectionSettingsADD(HANDLE ProcessHandle, PVOID Address, ULONG Size, ULONG ProtSettings, ULONG OldProtect) {
-	MEMORY_BASIC_INFORMATION info = { 0 };
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process\n");
+	MEMORY_BASIC_INFORMATION MemoryInfo = { 0 };
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
 
-	// Change the protection settings of the whole memory range -
+	// Check for invalid parameters:
+	if (ProcessHandle == NULL || Address == NULL || Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed (one or more invalid parameters: %p, %p, %lu)\n", ProcessHandle, Address, Size);
+		return FALSE;
+	}
+
+
+	// Change the protection settings of the whole memory range:
 	__try {
 		ProbeForRead(Address, Size, sizeof(UCHAR));
-		status = ZwProtectVirtualMemory(ProcessHandle, &Address, &Size, ProtSettings, &OldProtect);
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "KMDFdriver ChangeProtectionSettingsADD REQUEST FAILED VIRTMEM PROTECTION :(\n");
+		Status = ZwProtectVirtualMemory(ProcessHandle, &Address, &Size, ProtSettings, &OldProtect);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed (ZwProtectVirtualMemory returned 0x%x)\n", Status);
 			return FALSE;
 		}
 	}
 	__except (STATUS_ACCESS_VIOLATION) {
-		DbgPrintEx(0, 0, "KMDFdriver ChangeProtectionSettingsADD PROTECTION FAILED - VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/IS NOT READABLE\n");
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed (access violation system exception)\n");
 		return FALSE;
 	}
+	DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process succeeded, checking if changed\n");
 
-	// Query to verify that changes were done (NOT MANDATORY: DOES NOT CHANGE RETURN VALUE) -
-	status = STATUS_UNSUCCESSFUL;
+
+	// Query to verify that changes were done:
 	__try {
 		ProbeForRead(Address, Size, sizeof(UCHAR));
-		status = ZwQueryVirtualMemory(ProcessHandle, Address, MemoryBasicInformation, &info, sizeof(info), NULL);
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "KMDFdriver ChangeProtectionSettingsADD REQUEST FAILED VIRTMEM QUERY :(\n");
+		Status = ZwQueryVirtualMemory(ProcessHandle, Address, MemoryBasicInformation, &MemoryInfo, sizeof(MemoryInfo), NULL);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed to query memory to check (ZwQueryVirtualMemory returned 0x%x)\n", Status);
+			return TRUE;
 		}
 	}
 	__except (STATUS_ACCESS_VIOLATION) {
-		DbgPrintEx(0, 0, "KMDFdriver ChangeProtectionSettingsADD VERIFICATION FAILED - VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT READABLE\n");
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed to query memory to check (ZwQueryVirtualMemory caused an access violation system exception)\n");
 		return TRUE;
 	}
 
-	if (NT_SUCCESS(status) && (info.Protect & ProtSettings) && !(info.Protect & PAGE_GUARD || info.Protect & PAGE_NOACCESS)) {
-		DbgPrintEx(0, 0, "KMDFdriver ChangeProtectionSettingsADD REQUEST FAILED TO ADD WRITING PERMS (PAGE-NOACCESS/PAGE-GUARD / !PROTSETTINGS) :(\n");
+	if ((MemoryInfo.Protect & ProtSettings) && !(MemoryInfo.Protect & PAGE_GUARD || MemoryInfo.Protect & PAGE_NOACCESS)) {
+		DbgPrintEx(0, 0, "KMDFdriver Memory - Change protection of memory regions in process failed (after query memory is protected by PAGE_NOACCESS/PAGE_GUARD and/or it does not include the required protection settings of %lu)\n", ProtSettings);
 		return FALSE;
 	}
 	return TRUE;

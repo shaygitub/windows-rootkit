@@ -21,12 +21,13 @@ C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\
               _Sent=wchar_t *,
               _Size=unsigned __int64
           ]
+  piping.cpp
   rootreqs.cpp
   internet.cpp
   medium.cpp
-H:\current\MainMedium\medium.cpp(28,21): warning C4309: 'initializing': truncation of constant value
+H:\current\MainMedium\medium.cpp(32,21): warning C4309: 'initializing': truncation of constant value
   Generating code
   Previous IPDB not found, fall back to full compilation.
-  All 168 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 176 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
   MainMedium.vcxproj -> H:\current\MainMedium\x64\Release\MainMedium.exe

@@ -19,8 +19,6 @@ typedef struct _RETURN_LAST {
 DWORD CompareIpAddresses(char* LocalHost, const char* RemoteAddr);
 BOOL MatchIpAddresses(char* TargetAddress, char* AttackerAddress, const char* AttackerIps);
 BOOL GetAddresses(char* Target, char* Attacker, const char* AttackAddresses);
-BOOL FailSafe(char Fail, char* Attacker, char* Target, HANDLE* SafeHandle, DWORD* Size);
-BOOL AfterFailSafe(HANDLE SafeHandle, DWORD SafeSize, PVOID SafeBuffer, const char* Name);
 DWORD SpecialQuit(DWORD LastError, const char* StatusName, HANDLE CloseArr[], DWORD CloseSize, LogFile* CurrLog);
 RETURN_LAST RealTime(BOOL IsDisable, LogFile* LogToWrite);
 BOOL DeletePrevious(char* CurrentPath, LogFile* CurrLog);

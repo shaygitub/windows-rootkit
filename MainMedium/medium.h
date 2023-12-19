@@ -7,6 +7,7 @@
 #include <winnt.h>
 #include <iostream>
 #include <stdint.h>
+#define REGULAR_BUFFER 0xdeafbeed
 
 
 /*
@@ -215,7 +216,6 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_WRITE = 0x0B0B3456,
 	RKOP_READ = 0x0B0B1234,
 	RKOP_MDLBASE = 0x0B0B6789,
-	RKOP_DSPSTR = 0x0B0B6666,
 	RKOP_SYSINFO = 0x0B0B5454,
 	RKOP_PRCMALLOC = 0XBB00BB00,
 
@@ -244,6 +244,13 @@ typedef struct _RKSYSTEM_INFORMATION_CLASS {
 } RKSYSTEM_INFORMATION_CLASS, * PRKSYSTEM_INFORMATION_CLASS;
 
 
+// Struct for passing string data -
+typedef struct _STRING_DATA {
+	const char* String;
+	SIZE_T StrLen;
+} STRING_DATA, * PSTRING_DATA;
+
+
 /*
 ============
 MAIN STRUCT:
@@ -260,6 +267,7 @@ typedef struct _ROOTKIT_MEMORY {  // Used for communicating with the KM driver
 	ULONG64 Size; // size of memory chunk
 	USHORT MainPID; // process that works on the memory
 	USHORT SemiPID;  // (if the operation requests for reading) what is the PID of the destination process?
+	USHORT MedPID;  // If needed, provide medium process PID
 	const char* MdlName;  // (if the operation requests for a module base) what is the name of the module?
 	const char* DstMdlName;  // (if the operation requests for a module base) what is the name of the module?
 	ROOTKIT_UNEXERR Unexpected;  // data about an unexpected error that happened during the operation, is not relevant to driver

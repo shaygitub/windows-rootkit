@@ -39,6 +39,15 @@
     <ClCompile Include="helpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="piping.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="problematic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DKOM.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="definitions.h">
@@ -54,6 +63,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="piping.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="problematic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HookingGlobals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DKOM.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

