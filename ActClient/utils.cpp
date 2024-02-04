@@ -1,6 +1,103 @@
 #include "utils.h"
 
 
+int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString) {
+    int WideNameLen = MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, NULL, 0);
+    MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, ConvertedString, WideNameLen);
+    return WideNameLen;
+}
+
+
+int WcharpToCharp(char* ConvertedString, const WCHAR* ConvertString) {
+    int MultiByteLen = WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, NULL, 0, NULL, NULL);
+    WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, ConvertedString, MultiByteLen, NULL, NULL);
+    return MultiByteLen;
+}
+
+
+int GetNumFromString(char Str[]) {
+    int sum = 0;
+    for (int i = 0; i < strlen(Str); i++) {
+        if (!(Str[i] >= '0' && Str[i] <= '9')) {
+            return -1;
+        }
+        sum = sum * 10 + (Str[i] - 0x30);
+    }
+    return sum;
+}
+
+
+void ResetString(char Str[]) {
+    char StringClnChr = '\0';
+    for (int i = 0; i < strlen(Str) + 1; i++) {
+        StringClnChr = Str[i];
+        Str[i] = '\0';  // placeholder for initialization of char[]
+        if (StringClnChr == '\0') {
+            break;
+        }
+    }
+}
+
+
+void WideResetString(WCHAR Str[]) {
+    WCHAR StringClnChr = L'\0';
+    for (int i = 0; i < lstrlenW(Str) + 1; i++) {
+        StringClnChr = Str[i];
+        Str[i] = L'\0';  // placeholder for initialization of char[]
+        if (StringClnChr == L'\0') {
+            break;
+        }
+    }
+}
+
+
+BOOL ValidateFileReqPath(char FilePath[], char Type) {
+    const char* InvalidPathChrs = "|/:*?\"<>";
+    BOOL LastBacks = FALSE;
+    if (strlen(FilePath) == 0) {
+        return FALSE;
+    }
+    for (int invi = 0; invi < strlen(InvalidPathChrs); invi++) {
+        if (CountOccurrences(FilePath, InvalidPathChrs[invi]) != 0) {
+            return FALSE;
+        }
+    }
+    if (FilePath[strlen(FilePath) - 1] == '.') {
+        return FALSE;  // File name cannot end in a '.'
+    }
+
+    if (Type == 'g') {
+        if (CountOccurrences(FilePath, '\\') != 0) {
+            return FALSE;
+        }
+    }
+    else {
+        if (strlen(FilePath) == 1 || FilePath[0] != '\\') {
+            return FALSE;  // Guided by the syntax of KM functions to receive path from handle
+        }
+        if (FilePath[strlen(FilePath) - 1] == '\\') {
+            return FALSE;  // File name cannot end in a '\'
+        }
+        LastBacks = TRUE;
+
+        for (int filepi = 1; filepi < strlen(FilePath); filepi++) {
+            if (FilePath[filepi] == '\\') {
+                if (LastBacks) {
+                    return FALSE;
+                }
+                LastBacks = TRUE;
+            }
+            else {
+                if (LastBacks) {
+                    LastBacks = FALSE;
+                }
+            }
+        }
+    }
+    return TRUE;
+}
+
+
 char ReturnInput(const char* PrintfStr) {
     char inp;
 

@@ -5,6 +5,12 @@
 
 #define MAX_IPV4_SIZE 16
 
+int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString);
+int WcharpToCharp(char* ConvertString, const WCHAR* ConvertedString);
+int GetNumFromString(char Str[]);
+void ResetString(char Str[]);
+void WideResetString(WCHAR Str[]);
+BOOL ValidateFileReqPath(char FilePath[], char Type);
 char ReturnInput(const char* PrintfStr);
 DWORD CountOccurrences(const char* SearchStr, char SearchLetter);
 BOOL CheckForValidIp(char* Address);

@@ -1,7 +1,7 @@
 #pragma once
 #include "hooking.h"
 
-
+void ShrootUnload(PDRIVER_OBJECT DriverObject);
 NTSTATUS ShowDominanceADD(PCWSTR DomFileName);  // SHOW DOMINANCE, RAAA
 BOOL ShouldRenewDriverADD(PCWSTR DomFileName, BOOL Silent);  // Returns TRUE if a newer driver has dominance over current driver, else FALSE
 NTSTATUS OpenPipe(HANDLE* PipeHandle, POBJECT_ATTRIBUTES PipeNameAttr, PIO_STATUS_BLOCK PipeStatusBlock, BOOL Silent);

@@ -9,6 +9,68 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 */
 
 
+// Parsing main data from an EPROCESS:
+void ParseEprocess(BYTE ProcessData[EPROCESS_SIZE]) {
+	ULONG64 CurrentProcessId = 0;
+	ULONG64 BeforeVirtualSize = 0;
+	ULONG64 PeakVirtualSize = 0;
+	ULONG64 CurrentCookie = 0;
+	ULONG64 CurrentOwnerProcessId = 0;
+	ULONG64 PageDirectoryPte = 0;
+	BYTE CurrentPriorityClass = 0;
+	char CurrentImageName[15] = { 0 };
+	PVOID CurrentHighestUsermodeAddress = NULL;
+	ULONG CurrentActiveThreads = 0;
+	ULONG LastThreadExitStatus = 0;
+	ULONG CurrentExitStatus = 0;
+	ULONG CurrentFlags = 0;
+	LARGE_INTEGER CurrentReadCount = { 0 };
+	LARGE_INTEGER CurrentWriteCount = { 0 };
+	LARGE_INTEGER CurrentOtherCount = { 0 };
+	LARGE_INTEGER CurrentCreateTime = { 0 };
+
+
+	// Parsing actual data:
+	RtlCopyMemory(&CurrentProcessId, (PVOID)((ULONG64)ProcessData + EPOF_UniqueProcessId), sizeof(CurrentProcessId));
+	RtlCopyMemory(&BeforeVirtualSize, (PVOID)((ULONG64)ProcessData + EPOF_VirtualSize), sizeof(BeforeVirtualSize));
+	RtlCopyMemory(&PeakVirtualSize, (PVOID)((ULONG64)ProcessData + EPOF_PeakVirtualSize), sizeof(PeakVirtualSize));
+	RtlCopyMemory(&CurrentCookie, (PVOID)((ULONG64)ProcessData + EPOF_Cookie), sizeof(CurrentCookie));
+	RtlCopyMemory(&CurrentOwnerProcessId, (PVOID)((ULONG64)ProcessData + EPOF_OwnerProcessId), sizeof(CurrentOwnerProcessId));
+	RtlCopyMemory(&PageDirectoryPte, (PVOID)((ULONG64)ProcessData + EPOF_PageDirectoryPte), sizeof(PageDirectoryPte));
+	RtlCopyMemory(&CurrentPriorityClass, (PVOID)((ULONG64)ProcessData + EPOF_PriorityClass), sizeof(CurrentPriorityClass));
+	RtlCopyMemory(CurrentImageName, (PVOID)((ULONG64)ProcessData + EPOF_ImageFileName), 15);
+	RtlCopyMemory(&CurrentHighestUsermodeAddress, (PVOID)((ULONG64)ProcessData + EPOF_HighestUserAddress), sizeof(CurrentHighestUsermodeAddress));
+	RtlCopyMemory(&CurrentActiveThreads, (PVOID)((ULONG64)ProcessData + EPOF_ActiveThreads), sizeof(CurrentActiveThreads));
+	RtlCopyMemory(&LastThreadExitStatus, (PVOID)((ULONG64)ProcessData + EPOF_LastThreadExitStatus), sizeof(LastThreadExitStatus));
+	RtlCopyMemory(&CurrentExitStatus, (PVOID)((ULONG64)ProcessData + EPOF_ExitStatus), sizeof(CurrentExitStatus));
+	RtlCopyMemory(&CurrentFlags, (PVOID)((ULONG64)ProcessData + EPOF_Flags), sizeof(CurrentFlags));
+	RtlCopyMemory(&CurrentReadCount, (PVOID)((ULONG64)ProcessData + EPOF_ReadOperationCount), sizeof(CurrentReadCount));
+	RtlCopyMemory(&CurrentWriteCount, (PVOID)((ULONG64)ProcessData + EPOF_WriteOperationCount), sizeof(CurrentWriteCount));
+	RtlCopyMemory(&CurrentOtherCount, (PVOID)((ULONG64)ProcessData + EPOF_OtherOperationCount), sizeof(CurrentOtherCount));
+	RtlCopyMemory(&CurrentCreateTime, (PVOID)((ULONG64)ProcessData + EPOF_CreateTime), sizeof(CurrentCreateTime));
+
+
+	// Print parsed data:
+	printf("Process ID: %llu\n"
+		"\"Current\" virtual size: %llu\n"
+		"Peak virtual size: %llu\n"
+		"Process cookie: %llu\n"
+		"Owner process ID: %llu\n"
+		"Page directory PTE: %llu\n"
+		"Priority class: %hhu\n"
+		"Process image name: %s\n"
+		"Highest usermode address: %p\n"
+		"Active threads: %lu\n"
+		"Last thread exit status: %lu\n"
+		"Process exit status: %lu\n"
+		"Process flags: %lu\n"
+		"Read operations count: %llu\n"
+		"Write operations count: %llu\n"
+		"Other operations count: %llu\n"
+		"Process start time: %llu\n", CurrentProcessId, BeforeVirtualSize, PeakVirtualSize, CurrentCookie, CurrentOwnerProcessId, PageDirectoryPte, CurrentPriorityClass, CurrentImageName, CurrentHighestUsermodeAddress, CurrentActiveThreads, LastThreadExitStatus, CurrentExitStatus, CurrentFlags, CurrentReadCount.QuadPart, CurrentWriteCount.QuadPart, CurrentOtherCount.QuadPart, CurrentCreateTime.QuadPart);
+}
+
+
 // Parsing ROOTKIT_STATUS return status:
 void PrintStatusCode(ROOTKIT_STATUS status_code) {
 	switch (status_code) {
@@ -363,32 +425,6 @@ void PrintExceptionInfo(PVOID ExcInf, ULONG64 EntrySize) {
 }
 
 
-// Print system modules info of target -
-void PrintModulesInfo(PVOID MdlInf, ULONG64 EntrySize) {
-	ULONG unslong = 0;
-	ULONG MdlOffs = 0;
-	PVOID ModuleArr = (PVOID)((ULONG64)MdlInf + 4);
-	RTL_PROCESS_MODULE_INFORMATION CurrMdl;
-	memcpy(&CurrMdl, (PVOID)((ULONG64)ModuleArr + MdlOffs), sizeof(RTL_PROCESS_MODULE_INFORMATION));
-	GetBufferValue(MdlInf, &unslong, sizeof(unslong));  printf("Information on system modules on target (number of system modules = %lu):\n", unslong);
-	for (ULONG m = 0; m < unslong; m++) {
-		printf("System module number %lu (name = %s) -\n", m, CurrMdl.FullPathName);
-		printf("  Section data PVOID -> %p\n", CurrMdl.Section);
-		printf("  Mapped Base address (actual base in memory, loader) PVOID -> %p\n", CurrMdl.MappedBase);
-		printf("  Image base address (preferred base in memory, linker) PVOID -> %p\n", CurrMdl.ImageBase);
-		printf("  Size of image ULONG -> %lu\n", CurrMdl.ImageSize);
-		printf("  Module flags ULONG -> %lu\n", CurrMdl.Flags);
-		printf("  Index in loading order (when the module is loaded into memory) USHORT -> %hu\n", CurrMdl.LoadOrderIndex);
-		printf("  Index in initialization order (when the module's DriverEntry is called after booting the target machine) USHORT -> %hu\n", CurrMdl.InitOrderIndex);
-		printf("  Offset (distance in bytes) of FullPathName from the beginning of the structure USHORT -> %hu\n", CurrMdl.OffsetToFileName);
-		printf("  Load count (how much times is the module refernced/loaded by the process running the driver) USHORT -> %hu\n", CurrMdl.LoadCount);
-
-		MdlOffs += sizeof(RTL_PROCESS_MODULE_INFORMATION);
-		memcpy(&CurrMdl, (PVOID)((ULONG64)ModuleArr + MdlOffs), sizeof(RTL_PROCESS_MODULE_INFORMATION));
-	}
-}
-
-
 // Print system lookaside info of target -
 void PrintLookasideInfo(PVOID LookasdInfo, ULONG64 EntrySize) {
 	ULONG LookasdOffs = 0;
@@ -442,20 +478,6 @@ void PrintCodeIntgrInfo(PVOID CodeintgrInfo, ULONG64 EntrySize) {
 }
 
 
-// Print system policy info of target -
-void PrintPolicyInfo(PVOID PolicyInfo, ULONG64 EntrySize) {
-	SYSTEM_POLICY_INFORMATION Polinf;
-	memcpy(&Polinf, PolicyInfo, sizeof(SYSTEM_POLICY_INFORMATION));
-
-	printf("Information on system policy on target:\n");
-	printf("  Policy input data PVOID -> %p\n", Polinf.Reserved1[0]);
-	printf("  Policy output data PVOID -> %p\n", Polinf.Reserved1[1]);
-	printf("  Policy input data size ULONG -> %lu\n", Polinf.Reserved2[0]);
-	printf("  Policy output data size ULONG -> %lu\n", Polinf.Reserved2[1]);
-	printf("  Policy version ULONG -> %lu\n", Polinf.Reserved2[2]);
-}
-
-
 // General function for printing info -
 void PrintSystemInformation(PVOID Response, char c, ULONG64 status, DWORD n, ULONG64 Size, char* ProcessorsNum) {
 	printf("\n");
@@ -486,9 +508,6 @@ void PrintSystemInformation(PVOID Response, char c, ULONG64 status, DWORD n, ULO
 
 		case 'e':
 			PrintExceptionInfo(Response, Size); break;
-
-		case 'm':
-			PrintModulesInfo(Response, Size); break;
 		}
 	}
 	printf("=====System Data Number %lu END=====\n\n", n);
@@ -521,17 +540,11 @@ SYSTEM_INFORMATION_CLASS ReturnSystemInfo(char InfoType) {
 	case 'e':
 		return SystemExceptionInformation;
 
-	case 'm':
-		return SystemModuleInformation;
-
 	case 'L':
 		return SystemLookasideInformation;
 
 	case 'I':
 		return SystemCodeIntegrityInformation;
-
-	case 'C':
-		return SystemPolicyInformation;
 
 	default:
 		return (SYSTEM_INFORMATION_CLASS)9999;

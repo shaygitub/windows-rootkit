@@ -35,7 +35,6 @@ int main() {
     }
 
 
-
     // Create sending socket -
     ssckt = socket(AF_INET, SOCK_STREAM, 0);
     if (ssckt == INVALID_SOCKET) {
@@ -55,16 +54,8 @@ int main() {
         return 1;
     }
 
-    result = InitConn(NetArr[0], NetArr[1]);
-    CleanNetStack(NetArr[0].AsoSock);
 
-    if (result != 0) {
-        printf("Initialization of connection did not work correctly (socket/server/conninfo errors)\n");
-        closesocket(NetArr[0].AsoSock);
-        WSACleanup();
-        return 1;
-    }
-
+    // Start main operations -
     printf("Initialization of connection succeeded, proceeding to start sending requests..\n");
     while (1 == 1) {
         result = ReqAct(NetArr[0], NetArr[1]);

