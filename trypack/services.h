@@ -7,10 +7,6 @@
 #pragma warning( disable : 4267)
 #pragma warning( disable : 4244)
 #pragma comment(lib, "ntdll.lib")
-using LoadServiceDriver = NTSTATUS(__fastcall*)(PUNICODE_STRING);  // definition of NtLoadDriver function (used for converting pointer and calling)
-using UnloadServiceDriver = NTSTATUS(__fastcall*)(PUNICODE_STRING);  // definition of NtUnloadDriver function (used for converting pointer and calling)
-
-
 class RootService {
 private:
     char ServiceFile[MAX_PATH] = { 0 };

