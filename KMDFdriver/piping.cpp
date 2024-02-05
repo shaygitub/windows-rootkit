@@ -8,7 +8,6 @@ BOOL DestroyDriver = FALSE;
 void ShrootUnload(PDRIVER_OBJECT DriverObject) {
 	UNREFERENCED_PARAMETER(DriverObject);
 	DestroyDriver = TRUE;
-	roothook::CleanAllHooks();
 }
 
 

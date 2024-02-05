@@ -404,7 +404,7 @@ PVOID memory_helpers::FindUnusedMemoryADD(BYTE* SearchSection, ULONG SectionSize
 			sequencecount = 0;  // If sequence does not include nop/int3 instruction for long enough - start a new sequence
 		}
 		if (sequencecount == NeededLength) {
-			(PVOID)((ULONG64)SearchSection + sectioni - SectionSize + 1);  // Get starting address of the matching sequence
+			return (PVOID)((ULONG64)SearchSection + sectioni - SectionSize + 1);  // Get starting address of the matching sequence
 		}
 	}
 	return NULL;
@@ -413,36 +413,32 @@ PVOID memory_helpers::FindUnusedMemoryADD(BYTE* SearchSection, ULONG SectionSize
 
 PVOID memory_helpers::GetModuleBaseAddressADD(const char* ModuleName) {
 	PSYSTEM_MODULE_INFORMATION SystemModulesInfo = NULL;
-	PSYSTEM_MODULE CurrentSystemModule = { 0 };
+	PSYSTEM_MODULE CurrentSystemModule = NULL;
 	ULONG InfoSize = 0;
 	NTSTATUS Status = ZwQuerySystemInformation(SystemModuleInformation, 0, InfoSize, &InfoSize);
-	if (InfoSize == 0){
+	if (InfoSize == 0) {
 		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - did not return the needed size\n");
 		return NULL;
 	}
-
-	SystemModulesInfo = (PSYSTEM_MODULE_INFORMATION)ExAllocatePoolWithTag(NonPagedPool, InfoSize, 'MbAp');
-	if (SystemModulesInfo == NULL){
+	SystemModulesInfo = (PSYSTEM_MODULE_INFORMATION)ExAllocatePoolWithTag(PagedPool, InfoSize, 'MbAp');
+	if (SystemModulesInfo == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - cannot allocate memory for system modules information\n");
 		return NULL;
 	}
-
 	Status = ZwQuerySystemInformation(SystemModuleInformation, SystemModulesInfo, InfoSize, &InfoSize);
-	if (!NT_SUCCESS(Status)){
+	if (!NT_SUCCESS(Status)) {
 		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - query failed with status 0x%x\n", Status);
 		ExFreePool(SystemModulesInfo);
 		return NULL;
 	}
-
 	for (ULONG modulei = 0; modulei < SystemModulesInfo->ModulesCount; ++modulei)
 	{
 		CurrentSystemModule = &SystemModulesInfo->Modules[modulei];
-		if (strcmp(CurrentSystemModule->ImageName, ModuleName) == 0){
+		if (_stricmp(CurrentSystemModule->ImageName, ModuleName) == 0) {
 			ExFreePool(SystemModulesInfo);
 			return CurrentSystemModule->Base;
 		}
 	}
-	ExFreePool(SystemModulesInfo);
 	return NULL;
 }
 
@@ -452,13 +448,8 @@ PIMAGE_SECTION_HEADER memory_helpers::GetSectionHeaderFromName(PVOID ModuleBaseA
 		return NULL;
 	}
 	PIMAGE_DOS_HEADER DosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(ModuleBaseAddress);
-	PIMAGE_NT_HEADERS NtHeader = (PIMAGE_NT_HEADERS)(ModuleBaseAddress + DosHeader->e_lfanew);
+	PIMAGE_NT_HEADERS NtHeader = (PIMAGE_NT_HEADERS)((ULONG64)ModuleBaseAddress + DosHeader->e_lfanew);
 	PIMAGE_SECTION_HEADER CurrentSection = IMAGE_FIRST_SECTION(NtHeader);
-
-	PIMAGE_SECTION_HEADER psection_hdr = nullptr;
-
-	const auto NumberOfSections = NtHeader->FileHeader.NumberOfSections;
-
 	for (ULONG sectioni = 0; sectioni < NtHeader->FileHeader.NumberOfSections; ++sectioni){
 		if (strcmp((char*)CurrentSection->Name, SectionName)) {
 			return CurrentSection;
@@ -482,7 +473,7 @@ PVOID memory_helpers::GetTextSectionOfSystemModuleADD(PVOID ModuleBaseAddress, U
 	if (TextSectionSize != NULL) {
 		*TextSectionSize = TextSectionBase->Misc.VirtualSize;
 	}
-	return (ULONG64)ModuleBaseAddress + TextSectionBase->VirtualAddress;
+	return (PVOID)((ULONG64)ModuleBaseAddress + TextSectionBase->VirtualAddress);
 }
 
 

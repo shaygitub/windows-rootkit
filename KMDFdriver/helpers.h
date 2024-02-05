@@ -1,5 +1,4 @@
 #pragma once
-#include <ntimage.h>
 #include "memory.h"
 
 

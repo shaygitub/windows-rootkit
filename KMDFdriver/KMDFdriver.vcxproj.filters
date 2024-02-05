@@ -48,9 +48,6 @@
     <ClCompile Include="DKOM.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="minifilter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="definitions.h">
@@ -81,12 +78,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ProcDkomGlobals.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="minifilter.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MinifilterGlobals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

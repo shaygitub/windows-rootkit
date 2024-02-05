@@ -1,1 +1,14 @@
-﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(456,5): error MSB8020: The build tools for WindowsKernelModeDriver10.0 (Platform Toolset = 'WindowsKernelModeDriver10.0') cannot be found. To build using the WindowsKernelModeDriver10.0 build tools, please install WindowsKernelModeDriver10.0 build tools.  Alternatively, you may upgrade to the current Visual Studio tools by selecting the Project menu or right-click the solution, and then selecting "Retarget solution".
+﻿  Building 'KMDFdriver' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
+  Stamping x64\Release\KMDFdriver.inf
+  Stamping [Version] section with DriverVer=02/04/2024,22.12.36.730
+  DKOM.cpp
+  Driver.cpp
+  helpers.cpp
+  hooking.cpp
+  memory.cpp
+  problematic.cpp
+  piping.cpp
+  requests.cpp
+  Generating Code...
+  KMDFdriver.vcxproj -> H:\current\KMDFdriver\x64\Release\KMDFdriver.sys
+  Driver is 'Universal'.

