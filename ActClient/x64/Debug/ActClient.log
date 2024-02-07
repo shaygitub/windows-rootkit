@@ -3,12 +3,11 @@
   client.cpp
   parsing.cpp
   requests.cpp
-H:\current\ActClient\requests.cpp(460,32): warning C4312: 'type cast': conversion from 'int' to 'PVOID' of greater size
-H:\current\ActClient\requests.cpp(500,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
-H:\current\ActClient\requests.cpp(603,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(461,32): warning C4312: 'type cast': conversion from 'int' to 'PVOID' of greater size
+H:\current\ActClient\requests.cpp(501,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(606,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
   utils.cpp
   Generating Code...
-  LINK : ILK file not built by this linker; performing full link
   Starting pass 1
   Processed /DEFAULTLIB:msvcprtd
   Processed /DEFAULTLIB:uuid.lib
@@ -947,25 +946,25 @@ H:\current\ActClient\requests.cpp(603,49): warning C4244: 'argument': conversion
    /v
    /x
    /fo
-   "C:\Users\shayg\AppData\Local\Temp\lnk{32938862-53F6-40BD-A771-400E9D9DD841}.tmp"
-   "C:\Users\shayg\AppData\Local\Temp\lnk{79B2501C-12D7-42C8-92EF-DAE063F83C7E}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{FA63C4EA-5340-42BC-82E9-E1C95B47F93B}.tmp"
   Microsoft (R) Windows (R) Resource Compiler Version 10.0.10011.16384
   
   Copyright (C) Microsoft Corporation.  All rights reserved.
   
   
   Using codepage 1252 as default
-  Creating C:\Users\shayg\AppData\Local\Temp\lnk{32938862-53F6-40BD-A771-400E9D9DD841}.tmp
+  Creating C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp
   
   
-  C:\Users\shayg\AppData\Local\Temp\lnk{79B2501C-12D7-42C8-92EF-DAE063F83C7E}.tmp.
+  C:\Users\shayg\AppData\Local\Temp\lnk{FA63C4EA-5340-42BC-82E9-E1C95B47F93B}.tmp.
   Writing 24:1,	lang:0x409,	size 381
   Invoking cvtres.exe:
    /machine:amd64
    /verbose
-   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{77C69DFA-6852-4F31-80CD-7E18C0B74EC2}.tmp"
+   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{316CDE19-CE7E-40CF-9555-D4254A157477}.tmp"
    /readonly
-   "C:\Users\shayg\AppData\Local\Temp\lnk{32938862-53F6-40BD-A771-400E9D9DD841}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp"
   Microsoft (R) Windows Resource To Object Converter Version 14.38.33135.0
   Copyright (C) Microsoft Corporation.  All rights reserved.
   

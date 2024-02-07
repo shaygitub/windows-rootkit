@@ -340,12 +340,12 @@ int ReqAct(NETWORK_INFO Sender, NETWORK_INFO Server) {
                             std::cin >> ReqType;
                             if (ReqType != 'l') {
                                 ResetString(InputStr);
-                                printf("Write PID of process to remove ->");
+                                printf("Write PID of process to remove/add ->");
                                 std::cin >> InputStr;
                                 RemoveProcessId = GetNumFromString(InputStr);
                                 while (RemoveProcessId == -1 || RemoveProcessId == 0 || RemoveProcessId >= 65535) {
                                     ResetString(InputStr);
-                                    printf("Write PID of process to remove ->");
+                                    printf("Write PID of process to remove/add ->");
                                     std::cin >> InputStr;
                                     RemoveProcessId = GetNumFromString(InputStr);
                                 }

@@ -5,13 +5,13 @@
 // Memory functions pool structure is 'Hl..'
 namespace general_helpers {
 	NTSTATUS ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst);  // general function to exit gracefully from a request
-	NTSTATUS OpenProcessHandleADD(HANDLE* Process, USHORT PID);  // Get process handle with PID of the process
+	NTSTATUS OpenProcessHandleADD(HANDLE* Process, ULONG64 PID);  // Get process handle with PID of the process
 	NTSTATUS CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char);  // Copy substring after last apearance of defined character
 	BOOL CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength);  // Compare two unicode strings
 	BOOL IsExistFromIndexADD(PUNICODE_STRING Inner, PUNICODE_STRING Outer, USHORT StartIndex);  // Find inner in outer from start index
 	BOOL ComparePathFileToFullPathADD(PUNICODE_STRING FullPath, PUNICODE_STRING Path, PUNICODE_STRING FileName);  // Compare between a path and a file inside it to a full path
 	void PrintUnicodeStringADD(PUNICODE_STRING Str);  // Print a UNICODE_STRING letter-by-letter
-	NTSTATUS GetPidNameFromListADD(USHORT* ProcessId, char ProcessName[15], BOOL NameGiven);  // Get the PID of a process from its name
+	NTSTATUS GetPidNameFromListADD(ULONG64* ProcessId, char ProcessName[15], BOOL NameGiven);  // Get the PID of a process from its name
 	ULONG GetActualLengthADD(PUNICODE_STRING String);  // Get the actual length of the string
 }
 

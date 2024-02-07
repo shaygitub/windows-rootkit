@@ -10,7 +10,7 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 
 
 // Parsing main data from an EPROCESS:
-void ParseEprocess(BYTE ProcessData[EPROCESS_SIZE]);
+void ParseEprocess(BYTE ProcessData[EPROCESS1809_SIZE]);
 
 
 // Parsing ROOTKIT_STATUS return status:

@@ -21,7 +21,7 @@ REQUIRED DEFINITIONS:
 */
 
 
-#define EPROCESS_SIZE 0x850 // Size of an EPROCESS structure in 1809
+#define EPROCESS1809_SIZE 0x850 // Size of an EPROCESS structure in 1809
 #define EPROCESS22H2_SIZE 0xa30 // Size of an EPROCESS structure in 22H2
 
 
@@ -791,6 +791,7 @@ typedef enum _ROOTKIT_STATUS {
 	ROOTKSTATUS_NOTSUPPORTED = 0xFF000011,
 	ROOTKSTATUS_NOTINRELRANGE = 0xFF000012,
 	ROOTKSTATUS_PROCESSEPRC = 0XFF000013,
+	ROOTKSTATUS_USERSPACE = 0XFF000014,
 }ROOTKIT_STATUS, * PROOTKIT_STATUS;
 
 
@@ -851,9 +852,9 @@ typedef struct _ROOTKIT_MEMORY {  // Used for communicating with the KM driver
 	PVOID Buffer;  // buffer address (used for example in inputs)
 	PVOID Out;  // pointer in memory to the output of the memory function
 	ULONG64 Size; // size of memory chunk
-	USHORT MainPID; // process that works on the memory
-	USHORT SemiPID;  // (if the operation requests for reading) what is the PID of the destination process?
-	USHORT MedPID;  // If needed, provide medium process PID
+	ULONG64 MainPID; // process that works on the memory
+	ULONG64 SemiPID;  // (if the operation requests for reading) what is the PID of the destination process?
+	ULONG64 MedPID;  // If needed, provide medium process PID
 	const char* MdlName;  // (if the operation requests for a module base) what is the name of the module?
 	const char* DstMdlName;  // (if the operation requests for a module base) what is the name of the module?
 	ROOTKIT_UNEXERR Unexpected;  // data about an unexpected error that happened during the operation, is not relevant to driver

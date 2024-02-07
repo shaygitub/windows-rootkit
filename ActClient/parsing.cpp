@@ -10,7 +10,7 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 
 
 // Parsing main data from an EPROCESS:
-void ParseEprocess(BYTE ProcessData[EPROCESS_SIZE]) {
+void ParseEprocess(BYTE ProcessData[EPROCESS1809_SIZE]) {
 	ULONG64 CurrentProcessId = 0;
 	ULONG64 BeforeVirtualSize = 0;
 	ULONG64 PeakVirtualSize = 0;
@@ -92,6 +92,7 @@ void PrintStatusCode(ROOTKIT_STATUS status_code) {
 	case ROOTKSTATUS_NOTSUPPORTED: printf("Operation FAILED - status of operation is not supported by machine\n"); break;
 	case ROOTKSTATUS_NOTINRELRANGE: printf("Operation FAILED - an address (mainly) / other value was passed that is not in the relative range for the operation\n"); break;
 	case ROOTKSTATUS_PROCESSEPRC: printf("Operation FAILED - driver could not get the EPROCESS of a relevant process/processes\n"); break;
+	case ROOTKSTATUS_USERSPACE: printf("Operation FAILED - tried to access userspace memory area when systemspace was expected\n"); break;
 	default: printf("Operation SUCCEES\n");
 	}
 	printf("\n");

