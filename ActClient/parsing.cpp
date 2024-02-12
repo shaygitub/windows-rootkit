@@ -10,64 +10,41 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 
 
 // Parsing main data from an EPROCESS:
-void ParseEprocess(BYTE ProcessData[EPROCESS1809_SIZE]) {
-	ULONG64 CurrentProcessId = 0;
-	ULONG64 BeforeVirtualSize = 0;
-	ULONG64 PeakVirtualSize = 0;
-	ULONG64 CurrentCookie = 0;
-	ULONG64 CurrentOwnerProcessId = 0;
-	ULONG64 PageDirectoryPte = 0;
-	BYTE CurrentPriorityClass = 0;
-	char CurrentImageName[15] = { 0 };
-	PVOID CurrentHighestUsermodeAddress = NULL;
-	ULONG CurrentActiveThreads = 0;
-	ULONG LastThreadExitStatus = 0;
-	ULONG CurrentExitStatus = 0;
-	ULONG CurrentFlags = 0;
-	LARGE_INTEGER CurrentReadCount = { 0 };
-	LARGE_INTEGER CurrentWriteCount = { 0 };
-	LARGE_INTEGER CurrentOtherCount = { 0 };
-	LARGE_INTEGER CurrentCreateTime = { 0 };
-
-
-	// Parsing actual data:
-	RtlCopyMemory(&CurrentProcessId, (PVOID)((ULONG64)ProcessData + EPOF_UniqueProcessId), sizeof(CurrentProcessId));
-	RtlCopyMemory(&BeforeVirtualSize, (PVOID)((ULONG64)ProcessData + EPOF_VirtualSize), sizeof(BeforeVirtualSize));
-	RtlCopyMemory(&PeakVirtualSize, (PVOID)((ULONG64)ProcessData + EPOF_PeakVirtualSize), sizeof(PeakVirtualSize));
-	RtlCopyMemory(&CurrentCookie, (PVOID)((ULONG64)ProcessData + EPOF_Cookie), sizeof(CurrentCookie));
-	RtlCopyMemory(&CurrentOwnerProcessId, (PVOID)((ULONG64)ProcessData + EPOF_OwnerProcessId), sizeof(CurrentOwnerProcessId));
-	RtlCopyMemory(&PageDirectoryPte, (PVOID)((ULONG64)ProcessData + EPOF_PageDirectoryPte), sizeof(PageDirectoryPte));
-	RtlCopyMemory(&CurrentPriorityClass, (PVOID)((ULONG64)ProcessData + EPOF_PriorityClass), sizeof(CurrentPriorityClass));
-	RtlCopyMemory(CurrentImageName, (PVOID)((ULONG64)ProcessData + EPOF_ImageFileName), 15);
-	RtlCopyMemory(&CurrentHighestUsermodeAddress, (PVOID)((ULONG64)ProcessData + EPOF_HighestUserAddress), sizeof(CurrentHighestUsermodeAddress));
-	RtlCopyMemory(&CurrentActiveThreads, (PVOID)((ULONG64)ProcessData + EPOF_ActiveThreads), sizeof(CurrentActiveThreads));
-	RtlCopyMemory(&LastThreadExitStatus, (PVOID)((ULONG64)ProcessData + EPOF_LastThreadExitStatus), sizeof(LastThreadExitStatus));
-	RtlCopyMemory(&CurrentExitStatus, (PVOID)((ULONG64)ProcessData + EPOF_ExitStatus), sizeof(CurrentExitStatus));
-	RtlCopyMemory(&CurrentFlags, (PVOID)((ULONG64)ProcessData + EPOF_Flags), sizeof(CurrentFlags));
-	RtlCopyMemory(&CurrentReadCount, (PVOID)((ULONG64)ProcessData + EPOF_ReadOperationCount), sizeof(CurrentReadCount));
-	RtlCopyMemory(&CurrentWriteCount, (PVOID)((ULONG64)ProcessData + EPOF_WriteOperationCount), sizeof(CurrentWriteCount));
-	RtlCopyMemory(&CurrentOtherCount, (PVOID)((ULONG64)ProcessData + EPOF_OtherOperationCount), sizeof(CurrentOtherCount));
-	RtlCopyMemory(&CurrentCreateTime, (PVOID)((ULONG64)ProcessData + EPOF_CreateTime), sizeof(CurrentCreateTime));
-
-
-	// Print parsed data:
+void ParseEprocess(SHORTENEDACTEPROCESS ProcessData) {
 	printf("Process ID: %llu\n"
 		"\"Current\" virtual size: %llu\n"
 		"Peak virtual size: %llu\n"
 		"Process cookie: %llu\n"
 		"Owner process ID: %llu\n"
 		"Page directory PTE: %llu\n"
-		"Priority class: %hhu\n"
+		"Priority class: %d\n"
 		"Process image name: %s\n"
 		"Highest usermode address: %p\n"
 		"Active threads: %lu\n"
-		"Last thread exit status: %lu\n"
-		"Process exit status: %lu\n"
+		"Last thread exit status: %d\n"
+		"Process exit status: %d\n"
 		"Process flags: %lu\n"
 		"Read operations count: %llu\n"
 		"Write operations count: %llu\n"
 		"Other operations count: %llu\n"
-		"Process start time: %llu\n", CurrentProcessId, BeforeVirtualSize, PeakVirtualSize, CurrentCookie, CurrentOwnerProcessId, PageDirectoryPte, CurrentPriorityClass, CurrentImageName, CurrentHighestUsermodeAddress, CurrentActiveThreads, LastThreadExitStatus, CurrentExitStatus, CurrentFlags, CurrentReadCount.QuadPart, CurrentWriteCount.QuadPart, CurrentOtherCount.QuadPart, CurrentCreateTime.QuadPart);
+		"Process start time: %llu\n",
+		(ULONG64)ProcessData.UniqueProcessId,
+		ProcessData.VirtualSize,
+		ProcessData.PeakVirtualSize,
+		ProcessData.Cookie,
+		ProcessData.OwnerProcessId,
+		ProcessData.PageDirectoryPte,
+		ProcessData.PriorityClass,
+		ProcessData.ImageFileName,
+		ProcessData.HighestUserAddress,
+		ProcessData.ActiveThreads,
+		ProcessData.LastThreadExitStatus,
+		ProcessData.ExitStatus,
+		ProcessData.Flags,
+		ProcessData.ReadOperationCount.QuadPart,
+		ProcessData.WriteOperationCount.QuadPart,
+		ProcessData.OtherOperationCount.QuadPart,
+		ProcessData.CreateTime.QuadPart);
 }
 
 

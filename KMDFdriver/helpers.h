@@ -4,7 +4,6 @@
 
 // Memory functions pool structure is 'Hl..'
 namespace general_helpers {
-	NTSTATUS ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst);  // general function to exit gracefully from a request
 	NTSTATUS OpenProcessHandleADD(HANDLE* Process, ULONG64 PID);  // Get process handle with PID of the process
 	NTSTATUS CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char);  // Copy substring after last apearance of defined character
 	BOOL CompareUnicodeStringsADD(PUNICODE_STRING First, PUNICODE_STRING Second, USHORT CheckLength);  // Compare two unicode strings
@@ -29,4 +28,5 @@ namespace memory_helpers {
 namespace requests_helpers {
 	RKSYSTEM_INFORET RequestSystemInfoADD(SYSTEM_INFORMATION_CLASS InfoType, ULONG64 Flag);  // request specific system information (part 1)
 	SIZE_T GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoType);  // returns the expected system information buffer size needed for the query, only if the first call to get required size does not work
+	NTSTATUS ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst);  // general function to exit gracefully from a request
 }

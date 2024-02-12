@@ -946,25 +946,25 @@ H:\current\ActClient\requests.cpp(606,49): warning C4244: 'argument': conversion
    /v
    /x
    /fo
-   "C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp"
-   "C:\Users\shayg\AppData\Local\Temp\lnk{FA63C4EA-5340-42BC-82E9-E1C95B47F93B}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{0CD8C458-943F-4F89-84DB-600C332D11A7}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{1BEDD267-942C-4E46-BEE3-625210E80313}.tmp"
   Microsoft (R) Windows (R) Resource Compiler Version 10.0.10011.16384
   
   Copyright (C) Microsoft Corporation.  All rights reserved.
   
   
   Using codepage 1252 as default
-  Creating C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp
+  Creating C:\Users\shayg\AppData\Local\Temp\lnk{0CD8C458-943F-4F89-84DB-600C332D11A7}.tmp
   
   
-  C:\Users\shayg\AppData\Local\Temp\lnk{FA63C4EA-5340-42BC-82E9-E1C95B47F93B}.tmp.
+  C:\Users\shayg\AppData\Local\Temp\lnk{1BEDD267-942C-4E46-BEE3-625210E80313}.tmp.
   Writing 24:1,	lang:0x409,	size 381
   Invoking cvtres.exe:
    /machine:amd64
    /verbose
-   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{316CDE19-CE7E-40CF-9555-D4254A157477}.tmp"
+   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{A8EF8870-55E0-474B-A3C7-B8B121C8FEA1}.tmp"
    /readonly
-   "C:\Users\shayg\AppData\Local\Temp\lnk{B4731129-8A06-4160-91A0-50EBE53C861C}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{0CD8C458-943F-4F89-84DB-600C332D11A7}.tmp"
   Microsoft (R) Windows Resource To Object Converter Version 14.38.33135.0
   Copyright (C) Microsoft Corporation.  All rights reserved.
   

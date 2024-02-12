@@ -5,9 +5,9 @@
 
 
 BOOL DestroyDriver = FALSE;
-void ShrootUnload(PDRIVER_OBJECT DriverObject) {
-	UNREFERENCED_PARAMETER(DriverObject);
+void ShrootUnload() {
 	DestroyDriver = TRUE;
+	roothook::CleanAllHooks();
 }
 
 
@@ -205,7 +205,7 @@ void PipeClient() {
 		ExFreePool(CurrentRequest);
 		CurrentRequest = NULL;
 	}
-	//RtlFreeUnicodeString(&PipeName);
 	ClosePipe(&PipeHandle);
 	DbgPrintEx(0, 0, "KMDFdriver Piping - PipeClient() terminated\n");
+	ShrootUnload();
 }
