@@ -529,6 +529,11 @@ typedef struct _SHORTENEDACTEPROCESS {
 #define UNHIDE_PROCESS ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding process
 #define HIDE_PROCESS ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding process
 #define SHOWHIDDEN_PROCESS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden processes
+#define REMOVE_BY_INDEX_PID 0xFCFCFCCFCFCFDB  // Value of PID when asking to remove by index and not by PID
+#define UnhideProcess 0xC0C0C0C00C0C0C0C
+#define HideProcess 0xCDCDCDCDDCDCDCDC
+#define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
+
 
 #define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
 

