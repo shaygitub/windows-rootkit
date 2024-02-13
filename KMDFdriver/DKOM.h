@@ -10,7 +10,7 @@ namespace kernelobjs_hiding {
 
 
 namespace process {
-	NTSTATUS HideProcess(ULONG64 ProcessId, BOOL IsStrict);
-	NTSTATUS UnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex);
-	NTSTATUS ListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress);
+	NTSTATUS DKHideProcess(ULONG64 ProcessId, BOOL IsStrict);
+	NTSTATUS DKUnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex);
+	NTSTATUS DKListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress);
 }

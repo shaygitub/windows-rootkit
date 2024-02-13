@@ -2,7 +2,7 @@
 #include "definitions.h"
 
 
-class HideProcess {
+class HiddenProcesses {
 public:
 	PVOID HiddenList = NULL;
 	ULONG HiddenCount = 0;
@@ -87,4 +87,4 @@ public:
 		return TRUE;
 	}
 };
-HideProcess ProcessHide = { 0 };
+HiddenProcesses ProcessHide = { 0 };

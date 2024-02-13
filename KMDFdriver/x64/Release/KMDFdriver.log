@@ -1,6 +1,6 @@
 ﻿  Building 'KMDFdriver' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KMDFdriver.inf
-  Stamping [Version] section with DriverVer=02/11/2024,20.13.10.6
+  Stamping [Version] section with DriverVer=02/13/2024,17.28.56.625
   DKOM.cpp
   Driver.cpp
   helpers.cpp

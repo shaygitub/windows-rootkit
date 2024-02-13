@@ -9,7 +9,34 @@ def index():
         <html>
         <body>
             <a href="/download">
-                <img src="/static/image.jpg" alt="Are you bored? try to guess the random letter this quantum-computer powered AI model guessed!">
+                <img src="/static/intro1.jpg">
+            </a>
+            <a href="/">
+                <img src="/static/intro2.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro3.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro4.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro5.jpg">
+            </a>
+            <a href="/">
+                <img src="/static/intro6.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro7.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro8.jpg">
+            </a>
+            <a href="/">
+                <img src="/static/intro9.jpg">
+            </a>
+            <a href="/download">
+                <img src="/static/intro10.jpg">
             </a>
         </body>
         </html>

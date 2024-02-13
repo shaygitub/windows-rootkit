@@ -27,7 +27,7 @@ extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING Re
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
-    if (!NT_SUCCESS(process::HideProcess(MediumPID, TRUE))) {
+    if (!NT_SUCCESS(process::DKHideProcess(MediumPID, TRUE))) {
         //ShrootUnload(DriverObject);
         return STATUS_UNSUCCESSFUL;
     }
