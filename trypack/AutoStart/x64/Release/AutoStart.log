@@ -2,21 +2,26 @@
 H:\current\trypack\AutoStart\AutoStart.cpp(60,16): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
 H:\current\trypack\AutoStart\AutoStart.cpp(60,16): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
   helpers.cpp
-C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\include\xstring(2733,53): warning C4244: 'argument': conversion from 'wchar_t' to 'const _Elem', possible loss of data
-          with
-          [
-              _Elem=char
-          ]
-C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\include\xstring(2733,53): message : the template instantiation context (the oldest one first) is
-H:\current\trypack\AutoStart\helpers.cpp(13,34): message : see reference to function template instantiation 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)' being compiled
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244: 'argument': conversion from 'wchar_t' to 'const _Elem', possible loss of data
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244:         with
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244:         [
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244:             _Elem=char
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244:         ]
+  (compiling source file 'helpers.cpp')
+  C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53):
+  the template instantiation context (the oldest one first) is
+  	H:\current\trypack\AutoStart\helpers.cpp(13,34):
+  	see reference to function template instantiation 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)' being compiled
           with
           [
               _Elem=wchar_t,
               _Iter=std::_String_iterator<std::_String_val<std::_Simple_types<wchar_t>>>,
               _Alloc=std::allocator<char>
           ]
-H:\current\trypack\AutoStart\helpers.cpp(13,34): message : see the first reference to 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string' in 'GetPID'
-C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\include\xstring(2583,17): message : see reference to function template instantiation 'void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)' being compiled
+  		H:\current\trypack\AutoStart\helpers.cpp(13,34):
+  		see the first reference to 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string' in 'GetPID'
+  	C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2590,17):
+  	see reference to function template instantiation 'void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)' being compiled
           with
           [
               _Size_type=unsigned __int64,
@@ -24,13 +29,14 @@ C:\Program Files\Microsoft Visual Studio\2022\Preview\VC\Tools\MSVC\14.38.33030\
               _Sent=wchar_t *,
               _Size=unsigned __int64
           ]
+  
   utils.cpp
 H:\current\trypack\AutoStart\utils.cpp(69,27): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
 H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
-          with
-          [
-              _Ty=int
-          ]
+H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         with
+H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         [
+H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:             _Ty=int
+H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         ]
 H:\current\trypack\AutoStart\utils.cpp(120,23): warning C4018: '<': signed/unsigned mismatch
 H:\current\trypack\AutoStart\utils.cpp(156,29): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
 H:\current\trypack\AutoStart\utils.cpp(160,37): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data

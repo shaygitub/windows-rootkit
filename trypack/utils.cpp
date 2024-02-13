@@ -3,8 +3,8 @@
 
 RETURN_LAST RealTime(BOOL IsDisable) {
 	RETURN_LAST LastError = { 0, ERROR_SUCCESS };
-	const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\"";
-	const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\"";
+	const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\" > nul";
+	const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\" > nul";
 	if (IsDisable) {
 		LastError.LastError = system(Disable);
 	}

