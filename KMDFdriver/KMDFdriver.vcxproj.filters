@@ -77,7 +77,7 @@
     <ClInclude Include="DKOM.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ProcDkomGlobals.h">
+    <ClInclude Include="ProcessGlobals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

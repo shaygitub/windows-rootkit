@@ -338,7 +338,7 @@ int main(int argc, char *argv[]) {
     if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
         return FALSE;
     }
-    if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys > c:\\myfilefile.txt") == -1) {
+    if (system("C:\\nosusfolder\\verysus\\kdmapper.exe --PassAllocationPtr C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
         MediumLog.WriteError("MainMedium pipe - Failed to activate service manager with driver as parameter", GetLastError());
         MediumLog.CloseLog();
         return 0;

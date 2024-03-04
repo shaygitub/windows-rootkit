@@ -6,12 +6,16 @@
 #include <ntimage.h>
 #include <minwindef.h>
 #include "problematic.h"
+#define IS_DKOM 1  // TRUE, 0 = NtQuerySystemInformation hook
 #define NTQUERY_TAG 'HkQr'
 #define NTQUERYEX_TAG 'HkQx'
+#define NTQUERYSYSINFO_TAG 'HkSi'
 #define NTQUERYEX_SYSCALL22H2 0x014b
 #define NTQUERYEX_SYSCALL1809 0x013b 
 #define NTQUERY_SYSCALL22H2 0x0035
 #define NTQUERY_SYSCALL1809 0x0035
+#define NTQUERYSYSINFO_SYSCALL22H2 0x0036
+#define NTQUERYSYSINFO_SYSCALL1809 0x0036
 #define REGULAR_BUFFER 0xDEAFBEED  // Represents a normal buffer
 
 

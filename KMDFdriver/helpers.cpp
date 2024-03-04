@@ -153,13 +153,14 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
+	LIST_ENTRY* LastProcessFlink = &((PACTEPROCESS)PsInitialSystemProcess)->ActiveProcessLinks;
 	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
 	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
 	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 	NextList = CurrentList->Flink;
 
-	while (CurrentList != NULL) {
+	while (CurrentList != LastProcessFlink) {
 		if (!NameGiven) {
 			if ((ULONG64)CurrentProcess->UniqueProcessId == *ProcessId) {
 				RtlCopyMemory(ProcessName, &CurrentProcess->ImageFileName, 15);
@@ -178,10 +179,8 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 		}
 		PreviousList = CurrentList;
 		CurrentList = NextList;
-		if (CurrentList != NULL) {
-			NextList = CurrentList->Flink;
-			CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
-		}
+		NextList = CurrentList->Flink;
+		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
 	}
 	return STATUS_NOT_FOUND;
 }

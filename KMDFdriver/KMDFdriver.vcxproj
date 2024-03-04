@@ -147,7 +147,7 @@
     <ClInclude Include="memory.h" />
     <ClInclude Include="problematic.h" />
     <ClInclude Include="piping.h" />
-    <ClInclude Include="ProcDkomGlobals.h" />
+    <ClInclude Include="ProcessGlobals.h" />
     <ClInclude Include="requests.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

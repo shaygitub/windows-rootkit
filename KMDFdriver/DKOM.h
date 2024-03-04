@@ -13,4 +13,8 @@ namespace process {
 	NTSTATUS DKHideProcess(ULONG64 ProcessId, BOOL IsStrict);
 	NTSTATUS DKUnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex);
 	NTSTATUS DKListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress);
+	BOOL SIIsInHiddenProcesses(ULONG64 ProcessId);
+	NTSTATUS SIHideProcess(ULONG64 ProcessId);
+	NTSTATUS SIUnhideProcess(ULONG64* ProcessId, ULONG* HiddenIndex);
+	NTSTATUS SIListHiddenProcesses(ULONG64* ListSize, PVOID* ListAddress);
 }

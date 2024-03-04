@@ -17,13 +17,14 @@ NTSTATUS ShowDominanceADD(PCWSTR DomFileName) {
 	UNICODE_STRING FileName = { 0 };
 	OBJECT_ATTRIBUTES FileAttr = { 0 };
 	IO_STATUS_BLOCK FileStatusBlock = { 0 };
-	ULONG IntendedEvil = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;  // 0x56800865;
 	LARGE_INTEGER DelayTime = { 0 };
 	DelayTime.QuadPart = 2000000000;  // 2 seconds
 
 	RtlInitUnicodeString(&FileName, DomFileName);
 	InitializeObjectAttributes(&FileAttr, &FileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, IntendedEvil, FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock,
+		NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_SUPERSEDE, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 	if (!NT_SUCCESS(Status) || DomHandle == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver Piping - ShowDominanceADD() failed: 0x%x\n", Status);
 		if (DomHandle != NULL) {

