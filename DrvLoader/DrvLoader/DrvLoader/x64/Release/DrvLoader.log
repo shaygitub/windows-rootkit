@@ -1,8 +1,0 @@
-﻿  stdafx.cpp
-  DrvLoader.cpp
-H:\current\DrvLoader\DrvLoader\DrvLoader\DrvLoader.cpp(235,67): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data
-  Generating code
-  Previous IPDB not found, fall back to full compilation.
-  All 314 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Finished generating code
-  DrvLoader.vcxproj -> H:\current\DrvLoader\DrvLoader\x64\Release\DrvLoader.exe
