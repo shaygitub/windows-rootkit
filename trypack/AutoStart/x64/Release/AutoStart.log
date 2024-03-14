@@ -1,6 +1,6 @@
 ﻿  AutoStart.cpp
-H:\current\trypack\AutoStart\AutoStart.cpp(60,16): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
-H:\current\trypack\AutoStart\AutoStart.cpp(60,16): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(55,16): warning C4311: 'type cast': pointer truncation from 'HINSTANCE' to 'DWORD'
+H:\current\trypack\AutoStart\AutoStart.cpp(55,16): warning C4302: 'type cast': truncation from 'HINSTANCE' to 'DWORD'
   helpers.cpp
 C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244: 'argument': conversion from 'wchar_t' to 'const _Elem', possible loss of data
 C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\xstring(2749,53): warning C4244:         with
@@ -31,17 +31,17 @@ C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.3313
           ]
   
   utils.cpp
-H:\current\trypack\AutoStart\utils.cpp(69,27): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
-H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
-H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         with
-H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         [
-H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:             _Ty=int
-H:\current\trypack\AutoStart\utils.cpp(97,58): warning C4267:         ]
-H:\current\trypack\AutoStart\utils.cpp(120,23): warning C4018: '<': signed/unsigned mismatch
-H:\current\trypack\AutoStart\utils.cpp(156,29): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
-H:\current\trypack\AutoStart\utils.cpp(160,37): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+H:\current\trypack\AutoStart\utils.cpp(64,27): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+H:\current\trypack\AutoStart\utils.cpp(92,58): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
+H:\current\trypack\AutoStart\utils.cpp(92,58): warning C4267:         with
+H:\current\trypack\AutoStart\utils.cpp(92,58): warning C4267:         [
+H:\current\trypack\AutoStart\utils.cpp(92,58): warning C4267:             _Ty=int
+H:\current\trypack\AutoStart\utils.cpp(92,58): warning C4267:         ]
+H:\current\trypack\AutoStart\utils.cpp(115,23): warning C4018: '<': signed/unsigned mismatch
+H:\current\trypack\AutoStart\utils.cpp(151,29): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+H:\current\trypack\AutoStart\utils.cpp(155,37): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
   Generating code
   Previous IPDB not found, fall back to full compilation.
-  All 33 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 31 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
   AutoStart.vcxproj -> H:\current\trypack\AutoStart\x64\Release\AutoStart.exe

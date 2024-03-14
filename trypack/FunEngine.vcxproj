@@ -142,7 +142,6 @@
   <ItemGroup>
     <ClInclude Include="configurations.h" />
     <ClInclude Include="networking.h" />
-    <ClInclude Include="services.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

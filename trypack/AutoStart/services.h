@@ -22,7 +22,7 @@ public:
 
     void InitiateService(WCHAR* Name) {
         RtlZeroMemory(ServiceName, MAX_PATH);
-        memcpy(ServiceName, Name, lstrlenW(Name) + 1);
+        RtlCopyMemory(ServiceName, Name, (wcslen(Name) + 1) * sizeof(WCHAR));
     }
 };
 AutoService AutomaticService;

