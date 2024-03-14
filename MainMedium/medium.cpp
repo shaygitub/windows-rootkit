@@ -316,11 +316,7 @@ int main(int argc, char *argv[]) {
 
 
     // Make sure that all depended-on files exist on target machine (folders + files):
-    LastError = VerfifyDepDirs();
-    if (LastError != 0) {
-        return LastError;
-    }
-    LastError = VerfifyDepFiles(SndIP);
+    LastError = VerifyDependencies(SndIP);
     if (LastError != 0) {
         return LastError;
     }

