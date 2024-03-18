@@ -12,6 +12,7 @@ namespace general_helpers {
 	void PrintUnicodeStringADD(PUNICODE_STRING Str);  // Print a UNICODE_STRING letter-by-letter
 	NTSTATUS GetPidNameFromListADD(ULONG64* ProcessId, char ProcessName[15], BOOL NameGiven);  // Get the PID of a process from its name
 	ULONG GetActualLengthADD(PUNICODE_STRING String);  // Get the actual length of the string
+	PDRIVER_OBJECT GetDriverObjectADD(PUNICODE_STRING DriverName);  // Get DRIVER_OBJECT of the driver
 }
 
 namespace memory_helpers {

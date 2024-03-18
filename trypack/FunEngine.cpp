@@ -97,7 +97,7 @@ int main()
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
 
      // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
-    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1";
+    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1~192.168.1.32";
     const char* DebugPort = "50003";
     const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK1111";
 

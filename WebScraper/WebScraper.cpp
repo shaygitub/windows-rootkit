@@ -82,7 +82,7 @@ int DownloadFileFromHost(char* FilePath, char* FileHostIp, char* FileHostingPort
         system(CurlCommand) == -1) {
         return 0;
     }
-    printf("[+] Downloaded file into %s\n", AbsoluteDownloadPath);
+    printf("[+] Downloaded file into %s, curl command: %s\n", AbsoluteDownloadPath, CurlCommand);
     return (int)DownloadFilePaths.find("\n") + 1;  // Skip the '\n' character to get to the next line
 }
 

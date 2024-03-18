@@ -202,6 +202,27 @@ ULONG general_helpers::GetActualLengthADD(PUNICODE_STRING String) {
 }
 
 
+PDRIVER_OBJECT general_helpers::GetDriverObjectADD(PUNICODE_STRING DriverName) {
+	OBJECT_ATTRIBUTES DriverAttr = { 0 };
+	IO_STATUS_BLOCK DriverStatus = { 0 };
+	PDRIVER_OBJECT DriverObject = NULL;
+	HANDLE DriverHandle = NULL;
+	InitializeObjectAttributes(&DriverAttr, DriverName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+
+	// Get the DRIVER_OBJECT for the driver:
+	if (!NT_SUCCESS(ZwCreateFile(&DriverHandle, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, &DriverAttr, &DriverStatus, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0)) || DriverHandle == NULL) {
+		RtlFreeUnicodeString(DriverName);
+		return NULL;
+	}
+	if (!NT_SUCCESS(ObReferenceObjectByHandle(DriverHandle, FILE_ALL_ACCESS, *IoFileObjectType, KernelMode, (PVOID*)&DriverObject, NULL))) {
+		RtlFreeUnicodeString(DriverName);
+		return NULL;
+	}
+	return DriverObject;
+}
+
+
 
 
 BOOL memory_helpers::FreeAllocatedMemoryADD(PEPROCESS EpDst, ULONG OldState, PVOID BufferAddress, SIZE_T BufferSize) {

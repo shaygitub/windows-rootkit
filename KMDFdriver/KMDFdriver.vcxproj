@@ -133,6 +133,7 @@
     <ClCompile Include="Driver.cpp" />
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="hooking.cpp" />
+    <ClCompile Include="irp.cpp" />
     <ClCompile Include="memory.cpp" />
     <ClCompile Include="problematic.cpp" />
     <ClCompile Include="piping.cpp" />
@@ -144,6 +145,7 @@
     <ClInclude Include="helpers.h" />
     <ClInclude Include="hooking.h" />
     <ClInclude Include="HookingGlobals.h" />
+    <ClInclude Include="irp.h" />
     <ClInclude Include="memory.h" />
     <ClInclude Include="problematic.h" />
     <ClInclude Include="piping.h" />

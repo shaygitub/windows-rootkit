@@ -15,7 +15,7 @@ typedef struct _RETURN_LAST {
 } RETURN_LAST, * PRETURN_LAST;
 
 
-// Class used to write log files -
+// Class used to write log files:
 class LogFile {
 public:
     HANDLE FileHandle = INVALID_HANDLE_VALUE;
@@ -83,7 +83,7 @@ public:
 };
 
 
-// Get process handle -
+// Get process handle:
 struct GetHandle {  // iterates through possible handles 
     using pointer = HANDLE;
     void operator()(HANDLE Handle) const {
@@ -109,3 +109,6 @@ BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const 
 int VerifyDependencies(const char* AttackerIp);
 BOOL WINAPI CtrlHandler(DWORD ControlType);
 RETURN_LAST RealTime(BOOL IsDisable);
+void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode);
+BOOL ShouldQuit();
+int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);

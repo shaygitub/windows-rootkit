@@ -142,7 +142,7 @@ int GetPidByName(const char* Name) {
     HANDLE CurrentProc = INVALID_HANDLE_VALUE;
     HMODULE CurrentProcMod = NULL;
 
-    // Get the list of PIDs of all running processes -   
+    // Get the list of PIDs of all running processes: 
     if (!EnumProcesses(Procs, sizeof(Procs), &BytesReturned))
         return 0;
     ProcessesNum = BytesReturned / sizeof(DWORD);
@@ -270,4 +270,67 @@ RETURN_LAST RealTime(BOOL IsDisable) {
     }
     LastError.LastError = 0;
     return LastError;
+}
+
+
+void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode) {
+    printf(Message);
+    if (MediumLog != NULL) {
+        if (IsError) {
+            if (ErrorCode == 0) {
+                MediumLog->WriteError(Message, GetLastError());
+            }
+            else {
+                MediumLog->WriteError(Message, ErrorCode);
+            }
+        }
+        else {
+            MediumLog->WriteLog((PVOID)Message, strlen(Message) + 1);  // Also write null terminator
+        }
+    }
+}
+
+
+BOOL ShouldQuit() {
+    // Returns if the medium should stop working (debugging, forensics, special errors..) -
+    return FALSE;
+}
+
+
+int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
+    DWORD OperationOutput = 0;
+    if (FileHandle == NULL || FilePath == NULL || FileData == NULL || FileDataSize == NULL) {
+        return -1;
+    }
+    if (IsWrite) {
+        *FileHandle = CreateFileA(FilePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+    else {
+        *FileHandle = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+    if (*FileHandle == INVALID_HANDLE_VALUE) {
+        return 1;  // Invalid handle
+    }
+    *FileDataSize = GetFileSize(*FileHandle, 0);
+    if (*FileDataSize == 0) {
+        CloseHandle(*FileHandle);
+        return 2;  // File size = 0
+    }
+    *FileData = malloc(*FileDataSize);
+    if (*FileData == NULL) {
+        CloseHandle(*FileHandle);
+        return 3;  // Malloc failed
+    }
+    if ((!IsWrite && (!ReadFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+        OperationOutput != *FileDataSize)) ||
+        (IsWrite && (!WriteFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+            OperationOutput != *FileDataSize))) {
+        CloseHandle(*FileHandle);
+        free(*FileData);
+        return 4;  // Actual operation failed
+    }
+    CloseHandle(*FileHandle);
+    return 0;
 }

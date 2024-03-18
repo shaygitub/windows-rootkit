@@ -1,180 +1,185 @@
-
 #include "internet.h"
 
 
-BOOL IsQuickTerm(PASS_DATA result) {
+BOOL IsQuickTerminate(PASS_DATA result) {
     return result.err && (result.value == 10054 || result.value == 10060 || result.value == 10053 || result.value == 0);
 }
 
 
-PASS_DATA root_internet::RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Silent, int Flags) {
-    PASS_DATA RecRes;
+PASS_DATA root_internet::RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Silent, int Flags, LogFile* MediumLog) {
+    PASS_DATA RecvDataResult;
 
-    // Receive data -
-    int result = recv(GetFrom, (char*)ToBuf, Size, Flags);
-    if (result > 0) {
-        // size > 0 = received some data -
+    // Receive data:
+    int ReceiveResult = recv(GetFrom, (char*)ToBuf, Size, Flags);
+    if (ReceiveResult > 0) {
 
-        RecRes.err = FALSE;
-        RecRes.value = result;
+        // size > 0 = received some data:
+        RecvDataResult.err = FALSE;
+        RecvDataResult.value = ReceiveResult;
         if (!Silent) {
-            printf("Successfully received %u bytes of data (REMEMBER TO FORMAT CORRECTLY)\n", result);
-            if (result != Size) {
-                printf("Mismatch between sizes (expected %llu, received %llu)\n", (ULONG64)Size, (ULONG64)result);
+            printf("Successfully received %u bytes of data\n", ReceiveResult);
+            if (ReceiveResult != Size) {
+                printf("Mismatch between sizes (expected %llu, received %llu)\n", (ULONG64)Size, (ULONG64)ReceiveResult);
             }
         }
     }
 
-    else if (result == 0) {
-        // size = 0 = did not receive any data -
+    else if (ReceiveResult == 0) {
 
-        RecRes.err = TRUE;
-        RecRes.value = result;
+        // size = 0 = did not receive any data:
+        RecvDataResult.err = TRUE;
+        RecvDataResult.value = ReceiveResult;
         if (!Silent) {
-            printf("Socket connection to sending socket was closed\n");
+            LogMessage("Socket connection to sending socket was closed while receiving data\n", MediumLog, FALSE, 0);
         }
     }
 
     else {
-        // size < 0 = error -
 
-        RecRes.err = TRUE;
-        RecRes.value = WSAGetLastError();
+        // size < 0 = error:
+        RecvDataResult.err = TRUE;
+        RecvDataResult.value = WSAGetLastError();
         if (!Silent) {
-            std::cerr << "Error receiving data from sending socket: " << RecRes.value << "\n";
+            LogMessage("Error receiving data from sending socket\n", MediumLog, TRUE, RecvDataResult.value);
         }
     }
 
-    RecRes.Term = IsQuickTerm(RecRes);
-    return RecRes;
+    RecvDataResult.Term = IsQuickTerminate(RecvDataResult);
+    return RecvDataResult;
 }
 
 
-PASS_DATA root_internet::SendData(SOCKET SendTo, PVOID SrcData, int Size, BOOL Silent, int Flags) {
-    PASS_DATA SndRes;
+PASS_DATA root_internet::SendData(SOCKET SendTo, PVOID SrcData, int Size, BOOL Silent, int Flags, LogFile* MediumLog) {
+    PASS_DATA SendDataResult = { 0 };
 
-    // Send data -
-    int sendResult = send(SendTo, (char*)SrcData, Size, Flags);
-    if (sendResult == SOCKET_ERROR) {
-        SndRes.value = WSAGetLastError();
-        SndRes.err = TRUE;
+
+    // Send data:
+    int SendResult = send(SendTo, (char*)SrcData, Size, Flags);
+    if (SendResult == SOCKET_ERROR) {
+        SendDataResult.value = WSAGetLastError();
+        SendDataResult.err = TRUE;
         if (!Silent) {
-            std::cerr << "Error sending data: " << SndRes.value << "\n";
+            LogMessage("Error sending data\n", MediumLog, TRUE, SendDataResult.value);
         }
     }
     else {
-        SndRes.value = sendResult;
-        SndRes.err = FALSE;
+        SendDataResult.value = SendResult;
+        SendDataResult.err = FALSE;
         if (!Silent) {
-            printf("Successfully sent %llu bytes\n", (ULONG64)SndRes.value);
+            printf("Successfully sent %llu bytes\n", (ULONG64)SendDataResult.value);
         }
     }
-    SndRes.Term = IsQuickTerm(SndRes);
-    return SndRes;
+    SendDataResult.Term = IsQuickTerminate(SendDataResult);
+    return SendDataResult;
 }
 
 
-NETWORK_INFO root_internet::InitNetInfo(sockaddr_in AddrInfo, USHORT Port, const char* IP, SOCKET Sock) {
-    // ASSUMES: AddrInfo is initialized correctly (port number, ipv4, value of ip address)
-    NETWORK_INFO Info;
-    Info.AddrInfo = AddrInfo;
+NETWORK_INFO root_internet::InitNetInfo(sockaddr_in AddressInfo, USHORT Port, const char* IP, SOCKET Socket) {
+    NETWORK_INFO Info = { 0 };
+
+
+    // ASSUMES - AddressInfo is populated correctly (port number, ipv4, value of ip address):
+    Info.AddrInfo = AddressInfo;
     Info.IP = IP;
     Info.Port = Port;
-    Info.AsoSock = Sock;
+    Info.AsoSock = Socket;
     return Info;
 }
 
 
-void root_internet::CleanNetStack(SOCKET sockfrom) {
+void root_internet::CleanNetStack(SOCKET SocketToClean, LogFile* MediumLog) {
     char LastChr = NULL;
-    PASS_DATA result;
+    PASS_DATA RecvResult = { 0 };
     ULONG LastBytes = 0;
-    BOOL Err = FALSE;
+    BOOL RecvError = FALSE;
 
-    int res = ioctlsocket(sockfrom, FIONREAD, &LastBytes);  // Get size of unreceived data in network stack
-    if (res == 0) {
+    int UnreceivedDataSize = ioctlsocket(SocketToClean, FIONREAD, &LastBytes);  // Get size of unreceived data in network stack
+    if (UnreceivedDataSize == 0) {
         while (LastBytes > 0) {
-            result = RecvData(sockfrom, 1, &LastChr, TRUE, 0);
-            if (result.err) {
-                printf("Could not get the last bytes out of the network stack\n");
-                Err = TRUE;
+            RecvResult = RecvData(SocketToClean, 1, &LastChr, TRUE, 0, MediumLog);
+            if (RecvResult.err) {
+                LogMessage("Could not get the last bytes out of the network stack\n", MediumLog, TRUE, WSAGetLastError());
+                RecvError = TRUE;
                 break;
             }
 
-            if (result.value <= 0) {
+            if (RecvResult.value <= 0) {
                 break;
             }
-            LastBytes -= result.value;
+            LastBytes -= RecvResult.value;
         }
-        if (!Err) {
-            printf("Network stack freed\n");
+        if (!RecvError) {
+            LogMessage("Network stack freed\n", MediumLog, FALSE, 0);
         }
     }
     else {
-        printf("Could not get the amount of bytes to clear from network stack\n");
+        LogMessage("Could not get the amount of bytes to clear from network stack\n", MediumLog, TRUE, WSAGetLastError());
     }
 }
 
 
 void root_internet::SetNetStructs(const char* SrvIP, const char* SndIP, USHORT SrvPort, USHORT SndPort, NETWORK_INFO* NetArr) {
-
-    // Medium information -
-    sockaddr_in Addr;
-    Addr.sin_family = AF_INET;
-    Addr.sin_port = SrvPort;
-    inet_pton(AF_INET, SrvIP, &(Addr.sin_addr));
-    NetArr[0] = InitNetInfo(Addr, SrvPort, SrvIP, NULL);
+    sockaddr_in MediumAddress = { 0 };
+    sockaddr_in ClientAddress = { 0 };
 
 
-    // Current information -
-    sockaddr_in SndAddr;
-    SndAddr.sin_family = AF_INET;
-    SndAddr.sin_port = SndPort;
-    inet_pton(AF_INET, SndIP, &(SndAddr.sin_addr));
-    NetArr[1] = InitNetInfo(SndAddr, SndPort, SndIP, NULL);
-    NetArr[2] = InitNetInfo(SndAddr, SndPort, SndIP, NULL);
+    // Medium information:
+    MediumAddress.sin_family = AF_INET;
+    MediumAddress.sin_port = SrvPort;
+    inet_pton(AF_INET, SrvIP, &(MediumAddress.sin_addr));
+    NetArr[0] = InitNetInfo(MediumAddress, SrvPort, SrvIP, NULL);
+
+
+    // Client information:
+    ClientAddress.sin_family = AF_INET;
+    ClientAddress.sin_port = SndPort;
+    inet_pton(AF_INET, SndIP, &(ClientAddress.sin_addr));
+    NetArr[1] = InitNetInfo(ClientAddress, SndPort, SndIP, NULL);
+    NetArr[2] = InitNetInfo(ClientAddress, SndPort, SndIP, NULL);
 }
 
 
-int root_internet::StartComms(NETWORK_INFO* NetArr) {
-    // Initialize Winsock (required for using sockets and socket functions) -
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "Winsock initialization process failed\n";
-        return 1;
+BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
+    WSADATA WSAData = { 0 };
+    SOCKET MediumSocket = 0;
+
+
+    // Initialize Winsock (required for using sockets and socket functions):
+    if (WSAStartup(MAKEWORD(2, 2), &WSAData) != 0) {
+        LogMessage("Winsock initialization process failed\n", MediumLog, TRUE, WSAGetLastError());
+        return FALSE;
     }
 
 
-
-    // Create listening socket -
-    SOCKET lsckt = socket(AF_INET, SOCK_STREAM, 0);
-    if (lsckt == INVALID_SOCKET) {
-        std::cerr << "Could not create socket object: " << WSAGetLastError() << "\n";
+    // Create medium socket:
+    MediumSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (MediumSocket == INVALID_SOCKET) {
+        LogMessage("Could not create socket object\n", MediumLog, TRUE, WSAGetLastError());
         WSACleanup();
-        return 1;
+        return FALSE;
     }
-    NetArr[0].AsoSock = lsckt;
+    NetArr[0].AsoSock = MediumSocket;
 
 
 
-    // Bind socket -
+    // Bind medium socket:
     if (bind(NetArr[0].AsoSock, (sockaddr*)&NetArr[0].AddrInfo, sizeof(sockaddr)) == SOCKET_ERROR) {
-        std::cerr << "Could not bind socket object: " << WSAGetLastError() << "\n";
+        LogMessage("Could not bind socket object\n", MediumLog, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
-        return 1;
+        return FALSE;
     }
 
 
 
-    // Listen with socket for requests - (SOMAXCONN for backlog for max listening conc)
+    // Listen with socket for requests - (backlog is the amount of maxixum listening connections at a time):
     if (listen(NetArr[0].AsoSock, 2) == SOCKET_ERROR) {
-        std::cerr << "Could not start listening with socket object: " << WSAGetLastError() << "\n";
+        LogMessage("Could not start listening with socket object\n", MediumLog, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
-        return 1;
+        return FALSE;
     }
-    return 0;
+    return TRUE;
 }
 
 
@@ -223,10 +228,10 @@ DWORD address_config::CompareIpAddresses(char* LocalHost, const char* RemoteAddr
 
 BOOL address_config::MatchIpAddresses(char* TargetAddress, char* AttackerAddress, const char* AttackerIps) {
     char LocalHostName[80];
-    char* CurrIp = NULL;
-    char CurrAttacker[MAXIPV4_ADDRESS_SIZE] = { 0 };
-
-    struct hostent* LocalIpsList = NULL;
+    char* CurrentIP = NULL;
+    char CurrentAttackerIP[MAXIPV4_ADDRESS_SIZE] = { 0 };
+    in_addr CurrentAddress = { 0 };
+    hostent* LocalIpsList = NULL;
     DWORD CompareScore = 0;
     DWORD CurrentScore = 0;
     DWORD AddrIndex = 0;
@@ -237,9 +242,8 @@ BOOL address_config::MatchIpAddresses(char* TargetAddress, char* AttackerAddress
     }
 
 
-    // Get the hostname of the local machine to get ip addresses -
+    // Get the hostname of the local machine to get ip addresses:
     if (gethostname(LocalHostName, sizeof(LocalHostName)) == SOCKET_ERROR) {
-        printf("%d when getting local host name!", WSAGetLastError());
         WSACleanup();
         return FALSE;
     }
@@ -250,30 +254,29 @@ BOOL address_config::MatchIpAddresses(char* TargetAddress, char* AttackerAddress
     }
 
 
-    // Find the address pair with the most similar bits in the address -
+    // Find the address pair with the most similar bits in the address:
     while (AddrIndex < strlen(AttackerIps)) {
         while (AttackerIps[AddrIndex] != '~' && AttackerIps[AddrIndex] != '\0') {
-            CurrAttacker[AttackIndex] = AttackerIps[AddrIndex];
+            CurrentAttackerIP[AttackIndex] = AttackerIps[AddrIndex];
             AddrIndex++;
             AttackIndex++;
         }
-        CurrAttacker[AttackIndex] = '\0';
+        CurrentAttackerIP[AttackIndex] = '\0';
         AttackIndex = 0;
         if (AttackerIps[AddrIndex] == '~') {
             AddrIndex++;
         }
 
-        for (int i = 0; LocalIpsList->h_addr_list[i] != 0; ++i) {
-            struct in_addr addr;
-            memcpy(&addr, LocalIpsList->h_addr_list[i], sizeof(struct in_addr));
-            CurrIp = inet_ntoa(addr);
-            CurrentScore = CompareIpAddresses(CurrIp, CurrAttacker);
+        for (int AddressListIndex = 0; LocalIpsList->h_addr_list[AddressListIndex] != 0; ++AddressListIndex) {
+            memcpy(&CurrentAddress, LocalIpsList->h_addr_list[AddressListIndex], sizeof(in_addr));
+            CurrentIP = inet_ntoa(CurrentAddress);
+            CurrentScore = CompareIpAddresses(CurrentIP, CurrentAttackerIP);
             if (CurrentScore > CompareScore) {
                 CompareScore = CurrentScore;
                 RtlZeroMemory(TargetAddress, MAXIPV4_ADDRESS_SIZE);
                 RtlZeroMemory(AttackerAddress, MAXIPV4_ADDRESS_SIZE);
-                memcpy(TargetAddress, CurrIp, strlen(CurrIp) + 1);
-                memcpy(AttackerAddress, CurrAttacker, strlen(CurrAttacker) + 1);
+                memcpy(TargetAddress, CurrentIP, strlen(CurrentIP) + 1);
+                memcpy(AttackerAddress, CurrentAttackerIP, strlen(CurrentAttackerIP) + 1);
             }
         }
     }

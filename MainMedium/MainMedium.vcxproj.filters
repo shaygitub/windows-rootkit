@@ -30,6 +30,9 @@
     <ClCompile Include="piping.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="regularrequests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="internet.h">
@@ -38,13 +41,13 @@
     <ClInclude Include="medium.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="rootreqs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="piping.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="requests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

