@@ -30,7 +30,7 @@ PASS_DATA root_internet::RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Si
         RecvDataResult.err = TRUE;
         RecvDataResult.value = ReceiveResult;
         if (!Silent) {
-            LogMessage("Socket connection to sending socket was closed while receiving data\n", MediumLog, FALSE, 0);
+            RequestHelpers::LogMessage("Socket connection to sending socket was closed while receiving data\n", MediumLog, FALSE, 0);
         }
     }
 
@@ -40,7 +40,7 @@ PASS_DATA root_internet::RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Si
         RecvDataResult.err = TRUE;
         RecvDataResult.value = WSAGetLastError();
         if (!Silent) {
-            LogMessage("Error receiving data from sending socket\n", MediumLog, TRUE, RecvDataResult.value);
+            RequestHelpers::LogMessage("Error receiving data from sending socket\n", MediumLog, TRUE, RecvDataResult.value);
         }
     }
 
@@ -59,7 +59,7 @@ PASS_DATA root_internet::SendData(SOCKET SendTo, PVOID SrcData, int Size, BOOL S
         SendDataResult.value = WSAGetLastError();
         SendDataResult.err = TRUE;
         if (!Silent) {
-            LogMessage("Error sending data\n", MediumLog, TRUE, SendDataResult.value);
+            RequestHelpers::LogMessage("Error sending data\n", MediumLog, TRUE, SendDataResult.value);
         }
     }
     else {
@@ -71,6 +71,38 @@ PASS_DATA root_internet::SendData(SOCKET SendTo, PVOID SrcData, int Size, BOOL S
     }
     SendDataResult.Term = IsQuickTerminate(SendDataResult);
     return SendDataResult;
+}
+
+
+BOOL root_internet::GetString(SOCKET tosock, char** String, LogFile* MediumLog) {
+    ULONG StringSize = 0;
+    char MallocConfirm = 0;
+    PASS_DATA SocketResult = { 0 };
+
+    if (String == NULL || MediumLog == NULL) {
+        root_internet::SendData(tosock, &MallocConfirm, sizeof(MallocConfirm), FALSE, 0, MediumLog);
+        return FALSE;  // MallocConfirm = 0: medium was not able to allocate memory for string
+    }
+    SocketResult = root_internet::RecvData(tosock, sizeof(StringSize), &StringSize, FALSE, 0, MediumLog);
+    if (SocketResult.err || SocketResult.value != sizeof(StringSize)) {
+        return FALSE;
+    }
+    *String = (char*)malloc(StringSize);
+    if (*String != NULL) {
+        MallocConfirm = 1;  // Malloc has succeeded
+    }
+    SocketResult = root_internet::SendData(tosock, &MallocConfirm, sizeof(MallocConfirm), FALSE, 0, MediumLog);
+    if (SocketResult.err || SocketResult.value != sizeof(MallocConfirm) || MallocConfirm == 0) {
+        if (*String != NULL) {
+            free(*String);
+        }
+        return FALSE;  // MallocConfirm = 0: no need to continue as malloc() failed
+    }
+    SocketResult = root_internet::RecvData(tosock, StringSize, (PVOID)*String, FALSE, 0, MediumLog);
+    if (SocketResult.err || SocketResult.value != StringSize) {
+        return FALSE;
+    }
+    return TRUE;
 }
 
 
@@ -98,7 +130,7 @@ void root_internet::CleanNetStack(SOCKET SocketToClean, LogFile* MediumLog) {
         while (LastBytes > 0) {
             RecvResult = RecvData(SocketToClean, 1, &LastChr, TRUE, 0, MediumLog);
             if (RecvResult.err) {
-                LogMessage("Could not get the last bytes out of the network stack\n", MediumLog, TRUE, WSAGetLastError());
+                RequestHelpers::LogMessage("Could not get the last bytes out of the network stack\n", MediumLog, TRUE, WSAGetLastError());
                 RecvError = TRUE;
                 break;
             }
@@ -109,11 +141,11 @@ void root_internet::CleanNetStack(SOCKET SocketToClean, LogFile* MediumLog) {
             LastBytes -= RecvResult.value;
         }
         if (!RecvError) {
-            LogMessage("Network stack freed\n", MediumLog, FALSE, 0);
+            RequestHelpers::LogMessage("Network stack freed\n", MediumLog, FALSE, 0);
         }
     }
     else {
-        LogMessage("Could not get the amount of bytes to clear from network stack\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not get the amount of bytes to clear from network stack\n", MediumLog, TRUE, WSAGetLastError());
     }
 }
 
@@ -146,7 +178,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Initialize Winsock (required for using sockets and socket functions):
     if (WSAStartup(MAKEWORD(2, 2), &WSAData) != 0) {
-        LogMessage("Winsock initialization process failed\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Winsock initialization process failed\n", MediumLog, TRUE, WSAGetLastError());
         return FALSE;
     }
 
@@ -154,7 +186,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
     // Create medium socket:
     MediumSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (MediumSocket == INVALID_SOCKET) {
-        LogMessage("Could not create socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not create socket object\n", MediumLog, TRUE, WSAGetLastError());
         WSACleanup();
         return FALSE;
     }
@@ -164,7 +196,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Bind medium socket:
     if (bind(NetArr[0].AsoSock, (sockaddr*)&NetArr[0].AddrInfo, sizeof(sockaddr)) == SOCKET_ERROR) {
-        LogMessage("Could not bind socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not bind socket object\n", MediumLog, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
         return FALSE;
@@ -174,7 +206,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Listen with socket for requests - (backlog is the amount of maxixum listening connections at a time):
     if (listen(NetArr[0].AsoSock, 2) == SOCKET_ERROR) {
-        LogMessage("Could not start listening with socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not start listening with socket object\n", MediumLog, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
         return FALSE;

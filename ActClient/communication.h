@@ -6,4 +6,4 @@
 #include <Windows.h>
 
 
-int ReqAct(NETWORK_INFO Sender, NETWORK_INFO Server);
+int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server);

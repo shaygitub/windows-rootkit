@@ -139,7 +139,6 @@ void SetNetStructs(const char* SrvIP, const char* SndIP, USHORT SrvPort, USHORT 
 }
 
 
-// Pass the module name used for operation (string = const char *, passes the VA) -
 BOOL PassString(SOCKET tosock, const char* String) {
     ULONG StringSize = (ULONG)strlen(String) + 1;
     char MallocConfirm = 0;

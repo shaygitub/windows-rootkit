@@ -93,22 +93,32 @@ struct GetHandle {  // iterates through possible handles
     }
 };
 using UniqueHndl = std::unique_ptr<HANDLE, GetHandle>;
-std::uint32_t GetPID(std::string PrcName);
-BOOL ValidateInfoTypeString(const char* InfoType);
-int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString);
-int WcharpToCharp(char* ConvertString, const WCHAR* ConvertedString);
-std::wstring GetCurrentPath();
-int CountOccurrences(const char* SearchStr, char SearchLetter);
-void GetServiceName(char* Path, char* Buffer);
-void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size);
-DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size);
-void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension);
-int GetPidByName(const char* Name);
-int CheckLetterInArr(char Chr, const char* Arr);
-BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
-int VerifyDependencies(const char* AttackerIp);
-BOOL WINAPI CtrlHandler(DWORD ControlType);
-RETURN_LAST RealTime(BOOL IsDisable);
-void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode);
-BOOL ShouldQuit();
-int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);
+
+
+namespace GeneralHelpers {
+    std::uint32_t GetPID(std::string PrcName);
+    int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString);
+    int WcharpToCharp(char* ConvertString, const WCHAR* ConvertedString);
+    std::wstring GetCurrentPath();
+    int CountOccurrences(const char* SearchStr, char SearchLetter);
+    void GetServiceName(char* Path, char* Buffer);
+    void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size);
+    DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size);
+    void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension);
+    int GetPidByName(const char* Name);
+    int CheckLetterInArr(char Chr, const char* Arr);
+    BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
+}
+
+namespace RootkitInstall {
+    int VerifyDependencies(const char* AttackerIp);
+    BOOL WINAPI CtrlHandler(DWORD ControlType);
+    RETURN_LAST RealTime(BOOL IsDisable);
+}
+namespace RequestHelpers {
+    BOOL ValidateInfoTypeString(const char* InfoType);
+    void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode);
+    BOOL ShouldQuit();
+    int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);
+    ROOTKIT_UNEXERR ResolvePID(char* ModuleName, ULONG64* ProcessId);
+}

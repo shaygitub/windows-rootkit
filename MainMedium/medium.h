@@ -9,6 +9,8 @@
 #include <winnt.h>
 #include <iostream>
 #include <stdint.h>
+#define MEDIUM_AS_SOURCE_MODULE "mymyymym"
+#define REGULAR_BUFFER_WRITE "regular"
 #define REGULAR_BUFFER 0xDEAFBEED
 
 

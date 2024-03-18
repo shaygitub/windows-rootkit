@@ -1,21 +1,21 @@
 #include "utils.h"
 
 
-int CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString) {
+int GeneralUtils::CharpToWcharp(const char* ConvertString, WCHAR* ConvertedString) {
     int WideNameLen = MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, NULL, 0);
     MultiByteToWideChar(CP_UTF8, 0, ConvertString, -1, ConvertedString, WideNameLen);
     return WideNameLen;
 }
 
 
-int WcharpToCharp(char* ConvertedString, const WCHAR* ConvertString) {
+int GeneralUtils::WcharpToCharp(char* ConvertedString, const WCHAR* ConvertString) {
     int MultiByteLen = WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, NULL, 0, NULL, NULL);
     WideCharToMultiByte(CP_UTF8, 0, ConvertString, -1, ConvertedString, MultiByteLen, NULL, NULL);
     return MultiByteLen;
 }
 
 
-int GetNumFromString(char Str[]) {
+int GeneralUtils::GetNumFromString(char Str[]) {
     int sum = 0;
     for (int i = 0; i < strlen(Str); i++) {
         if (!(Str[i] >= '0' && Str[i] <= '9')) {
@@ -27,7 +27,7 @@ int GetNumFromString(char Str[]) {
 }
 
 
-void ResetString(char Str[]) {
+void GeneralUtils::ResetString(char Str[]) {
     char StringClnChr = '\0';
     for (int i = 0; i < strlen(Str) + 1; i++) {
         StringClnChr = Str[i];
@@ -39,9 +39,9 @@ void ResetString(char Str[]) {
 }
 
 
-void WideResetString(WCHAR Str[]) {
+void GeneralUtils::WideResetString(WCHAR Str[]) {
     WCHAR StringClnChr = L'\0';
-    for (int i = 0; i < lstrlenW(Str) + 1; i++) {
+    for (int i = 0; i < wcslen(Str) + 1; i++) {
         StringClnChr = Str[i];
         Str[i] = L'\0';  // placeholder for initialization of char[]
         if (StringClnChr == L'\0') {
@@ -51,7 +51,7 @@ void WideResetString(WCHAR Str[]) {
 }
 
 
-BOOL ValidateFileReqPath(char FilePath[], char Type) {
+BOOL GeneralUtils::ValidateFileReqPath(char FilePath[], char Type) {
     const char* InvalidPathChrs = "|/:*?\"<>";
     BOOL LastBacks = FALSE;
     if (strlen(FilePath) == 0) {
@@ -98,7 +98,7 @@ BOOL ValidateFileReqPath(char FilePath[], char Type) {
 }
 
 
-char ReturnInput(const char* PrintfStr) {
+char GeneralUtils::ReturnInput(const char* PrintfStr) {
     char inp;
 
     printf(PrintfStr);
@@ -108,7 +108,7 @@ char ReturnInput(const char* PrintfStr) {
 }
 
 
-DWORD CountOccurrences(const char* SearchStr, char SearchLetter) {
+DWORD GeneralUtils::CountOccurrences(const char* SearchStr, char SearchLetter) {
 	DWORD Count = 0;
 	for (int i = 0; i < strlen(SearchStr); i++) {
 		if (SearchStr[i] == SearchLetter) {
@@ -119,9 +119,9 @@ DWORD CountOccurrences(const char* SearchStr, char SearchLetter) {
 }
 
 
-BOOL IsValidIp(char* Address) {
+BOOL IpAddresses::IsValidIp(char* Address) {
 	DWORD CurrChunkValue = 0;
-	if (CountOccurrences(Address, '.') != 3) {
+	if (GeneralUtils::CountOccurrences(Address, '.') != 3) {
 		printf("\nIPV4 address chunks are not seperated correctly with dots, check format ..\n");
 		return FALSE;
 	}
@@ -147,7 +147,7 @@ BOOL IsValidIp(char* Address) {
 }
 
 
-DWORD CompareIpAddresses(char* LocalHost, char* RemoteAddr) {
+DWORD IpAddresses::CompareIpAddresses(char* LocalHost, char* RemoteAddr) {
     DWORD Score = 0;
     DWORD LocalInd = 0;
     DWORD RemoteInd = 0;
@@ -190,7 +190,7 @@ DWORD CompareIpAddresses(char* LocalHost, char* RemoteAddr) {
 }
 
 
-BOOL MatchIpAddresses(char* AttackerAddress, char* TargetAddress) {
+BOOL IpAddresses::MatchIpAddresses(char* AttackerAddress, char* TargetAddress) {
     char LocalHostName[80];
     char NewLine = '\n';
     char NullTerm = '\0';
@@ -205,7 +205,7 @@ BOOL MatchIpAddresses(char* AttackerAddress, char* TargetAddress) {
     }
 
 
-    // Get the hostname of the local machine to get ip addresses -
+    // Get the hostname of the local machine to get ip addresses:
     if (gethostname(LocalHostName, sizeof(LocalHostName)) == SOCKET_ERROR) {
         printf("%d when getting local host name!", WSAGetLastError());
         WSACleanup();
@@ -218,7 +218,7 @@ BOOL MatchIpAddresses(char* AttackerAddress, char* TargetAddress) {
     }
 
 
-    // Find the address pair with the most similar bits in the address -
+    // Find the address pair with the most similar bits in the address:
     for (int i = 0; LocalIpsList->h_addr_list[i] != 0; ++i) {
         struct in_addr addr;
         memcpy(&addr, LocalIpsList->h_addr_list[i], sizeof(struct in_addr));

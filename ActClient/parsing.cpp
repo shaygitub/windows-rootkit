@@ -12,8 +12,8 @@ PARSING DATA AND BUFFERS USED FOR DIFFERENT STUFF:
 // Parsing main data from an EPROCESS:
 void ParseEprocess(SHORTENEDACTEPROCESS ProcessData) {
 	printf("Process ID: %llu\n"
-		"\"Current\" virtual size: 0x%x\n"
-		"Peak virtual size: 0x%x\n"
+		"\"Current\" virtual size: %llu\n"
+		"Peak virtual size: %llu\n"
 		"Process cookie: %llu\n"
 		"Owner process ID: %llu\n"
 		"Page directory PTE: %llu\n"
@@ -29,8 +29,8 @@ void ParseEprocess(SHORTENEDACTEPROCESS ProcessData) {
 		"Other operations count: %llu\n"
 		"Process start time: %llu\n",
 		(ULONG64)ProcessData.UniqueProcessId,
-		ProcessData.VirtualSize,
-		ProcessData.PeakVirtualSize,
+		(ULONG64)ProcessData.VirtualSize,
+		(ULONG64)ProcessData.PeakVirtualSize,
 		ProcessData.Cookie,
 		ProcessData.OwnerProcessId,
 		ProcessData.PageDirectoryPte,

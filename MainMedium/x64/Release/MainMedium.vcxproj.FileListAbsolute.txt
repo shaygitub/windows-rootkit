@@ -1,2 +1,1 @@
-D:\current\MainMedium\x64\Release\MainMedium.exe
 H:\current\MainMedium\x64\Release\MainMedium.exe
