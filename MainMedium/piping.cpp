@@ -24,13 +24,6 @@ BOOL OpenPipe(HANDLE* PipeHandle, const char* PipeName, LogFile* MediumLog) {
 }
 
 
-void ClosePipe(HANDLE* PipeHandle) {
-	if (*PipeHandle != INVALID_HANDLE_VALUE) {
-		CloseHandle(*PipeHandle);
-		*PipeHandle = INVALID_HANDLE_VALUE;
-	}
-}
-
 DWORD WritePipe(HANDLE* PipeHandle, PVOID InputBuffer, SIZE_T BufferSize, LogFile* MediumLog) {
     DWORD BytesWritten = 0;
     DWORD LastError = 0;

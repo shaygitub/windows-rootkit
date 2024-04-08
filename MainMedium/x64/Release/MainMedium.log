@@ -1,12 +1,12 @@
 ﻿  helpers.cpp
-H:\current\MainMedium\helpers.cpp(138,23): warning C4018: '<': signed/unsigned mismatch
+H:\current\MainMedium\helpers.cpp(139,23): warning C4018: '<': signed/unsigned mismatch
+H:\current\MainMedium\helpers.cpp(573,24): warning C4312: 'type cast': conversion from 'ULONG' to 'PVOID' of greater size
   piping.cpp
-  regularrequests.cpp
   rootreqs.cpp
   internet.cpp
   medium.cpp
   Generating code
   Previous IPDB not found, fall back to full compilation.
-  All 184 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 183 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
   MainMedium.vcxproj -> H:\current\MainMedium\x64\Release\MainMedium.exe

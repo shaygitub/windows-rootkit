@@ -30,9 +30,6 @@
     <ClCompile Include="piping.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="regularrequests.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="internet.h">

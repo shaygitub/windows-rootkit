@@ -119,6 +119,105 @@ DWORD GeneralUtils::CountOccurrences(const char* SearchStr, char SearchLetter) {
 }
 
 
+int GeneralUtils::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
+    DWORD OperationOutput = 0;
+    if (FileHandle == NULL || FilePath == NULL || FileData == NULL || FileDataSize == NULL) {
+        return -1;
+    }
+    if (IsWrite) {
+        *FileHandle = CreateFileA(FilePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+    else {
+        *FileHandle = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+    if (*FileHandle == INVALID_HANDLE_VALUE) {
+        return 1;  // Invalid handle
+    }
+    *FileDataSize = GetFileSize(*FileHandle, 0);
+    if (*FileDataSize == 0) {
+        CloseHandle(*FileHandle);
+        return 2;  // File size = 0
+    }
+    *FileData = malloc(*FileDataSize);
+    if (*FileData == NULL) {
+        CloseHandle(*FileHandle);
+        return 3;  // Malloc failed
+    }
+    if ((!IsWrite && (!ReadFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+        OperationOutput != *FileDataSize)) ||
+        (IsWrite && (!WriteFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+            OperationOutput != *FileDataSize))) {
+        CloseHandle(*FileHandle);
+        free(*FileData);
+        return 4;  // Actual operation failed
+    }
+    CloseHandle(*FileHandle);
+    return 0;
+}
+
+
+ULONG GeneralUtils::CalculateAddressValue(char* IpAddress) {
+    BYTE IpFields[4] = { 0 };
+    BYTE CurrentField = 0;
+    int CurrentFieldIndex = 0;
+    if (IpAddress == NULL) {
+        return 0;
+    }
+    for (int CurrentDigit = 0; CurrentDigit < strlen(IpAddress); CurrentDigit++) {
+        if (IpAddress[CurrentDigit] == '.') {
+            IpFields[CurrentFieldIndex] = CurrentField;
+            CurrentField = 0;
+            CurrentFieldIndex++;
+        }
+        else {
+            CurrentField *= 10;
+            CurrentField += (IpAddress[CurrentDigit] - 0x30);
+        }
+    }
+    IpFields[3] = CurrentField;
+    return *(ULONG*)(IpFields);
+}
+
+
+BOOL GeneralUtils::CalculateAddressString(char* IpAddress, ULONG AddressValue) {
+    BYTE IpFields[4] = { 0 };
+    char LocalIpAddress[MAX_PATH] = { 0 };
+    char CurrentIpField[4] = { 0 };  // Maximum length of an IP address field
+    const char* IpFieldDivider = ".";
+    if (IpAddress == NULL || AddressValue == 0) {
+        return FALSE;
+    }
+    RtlCopyMemory(IpFields, &AddressValue, sizeof(AddressValue));
+
+
+    for (int CurrentFieldIndex = 0; CurrentFieldIndex < 4; CurrentFieldIndex++) {
+        CurrentIpField[3] = '\0';
+        CurrentIpField[2] = (IpFields[CurrentFieldIndex] % 10) + 0x30;
+        CurrentIpField[1] = ((IpFields[CurrentFieldIndex] / 10) % 10) + 0x30;
+        CurrentIpField[0] = (IpFields[CurrentFieldIndex] / 100) + 0x30;
+
+        if (CurrentIpField[0] == '0') {
+            CurrentIpField[0] = CurrentIpField[1];
+            CurrentIpField[1] = CurrentIpField[2];
+            CurrentIpField[2] = CurrentIpField[3];  // Null terminator
+
+            if (CurrentIpField[0] == '0') {
+                CurrentIpField[0] = CurrentIpField[1];
+                CurrentIpField[1] = CurrentIpField[2]; // Null terminator
+            }
+        }
+        strcat_s(LocalIpAddress, CurrentIpField);
+        if (CurrentFieldIndex != 3) {
+            strcat_s(LocalIpAddress, IpFieldDivider);
+        }
+    }
+    RtlCopyMemory(IpAddress, LocalIpAddress, strlen(LocalIpAddress) + 1);
+    return TRUE;
+}
+
+
 BOOL IpAddresses::IsValidIp(char* Address) {
 	DWORD CurrChunkValue = 0;
 	if (GeneralUtils::CountOccurrences(Address, '.') != 3) {

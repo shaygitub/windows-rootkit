@@ -15,7 +15,7 @@ int main() {
 
     // Get IP address of target and match it to one of the attacker's IP addresses:
     printf("[!] Write IP address of target (see in the web server requests logs) -> ");
-    scanf_s("%s", TargetIP);
+    std::cin >> TargetIP;
     if (!IpAddresses::IsValidIp(TargetIP)) {
         printf("\n[-] Wrong format of IPV4 address, format should consist of:\n"
                "1. 4 one digit - triple digit numerical values in the range of 1-255\n"
@@ -24,6 +24,7 @@ int main() {
                "Example address: 192.1.178.49\n");
         return 0;
     }
+
     if (!IpAddresses::MatchIpAddresses(AttackerIP, TargetIP)) {
         printf("\n[-] Could not get the address of the attacker machine relatively to the target machine!\n");
         return 0;

@@ -14,6 +14,9 @@ namespace GeneralUtils {
 	BOOL ValidateFileReqPath(char FilePath[], char Type);
 	char ReturnInput(const char* PrintfStr);
 	DWORD CountOccurrences(const char* SearchStr, char SearchLetter);
+	int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);
+	ULONG CalculateAddressValue(char* IpAddress);
+	BOOL CalculateAddressString(char* IpAddress, ULONG AddressValue);
 }
 namespace IpAddresses {
 	BOOL IsValidIp(char* Address);

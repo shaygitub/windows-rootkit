@@ -134,7 +134,6 @@
   <ItemGroup>
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="piping.cpp" />
-    <ClCompile Include="regularrequests.cpp" />
     <ClCompile Include="rootreqs.cpp" />
     <ClCompile Include="internet.cpp" />
     <ClCompile Include="medium.cpp" />

