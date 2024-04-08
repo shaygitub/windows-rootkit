@@ -3,6 +3,11 @@
 
 
 // Memory functions pool structure is 'Hl..'
+namespace unicode_helpers {
+	NTSTATUS InitiateUnicode(LPWSTR String, ULONG PoolTag, PUNICODE_STRING UnicodeString);
+	void FreeUnicode(PUNICODE_STRING String);
+}
+
 namespace general_helpers {
 	NTSTATUS OpenProcessHandleADD(HANDLE* Process, ULONG64 PID);  // Get process handle with PID of the process
 	NTSTATUS CopyStringAfterCharADD(PUNICODE_STRING OgString, PUNICODE_STRING NewString, WCHAR Char);  // Copy substring after last apearance of defined character
@@ -13,6 +18,7 @@ namespace general_helpers {
 	NTSTATUS GetPidNameFromListADD(ULONG64* ProcessId, char ProcessName[15], BOOL NameGiven);  // Get the PID of a process from its name
 	ULONG GetActualLengthADD(PUNICODE_STRING String);  // Get the actual length of the string
 	PDRIVER_OBJECT GetDriverObjectADD(PUNICODE_STRING DriverName);  // Get DRIVER_OBJECT of the driver
+	BOOL CalculateAddressString(WCHAR* IpAddress, ULONG AddressValue);  // Convert address value to a UNICODE_STRING
 }
 
 namespace memory_helpers {
@@ -24,6 +30,7 @@ namespace memory_helpers {
 	PVOID GetModuleBaseAddressADD(const char* ModuleName);  // Get the base address of a system module/ntoskrnl.exe
 	PVOID GetTextSectionOfSystemModuleADD(PVOID ModuleBaseAddress, ULONG* TextSectionSize);  // Get the address of the code (.text) section of a system module
 	PIMAGE_SECTION_HEADER GetSectionHeaderFromName(PVOID ModuleBaseAddress, const char* SectionName);  // Get the section by the name from a system module
+	void LogMemory(BYTE* MemoryAddress, ULONG64 MemorySize);  // Print memory
 }
 
 namespace requests_helpers {

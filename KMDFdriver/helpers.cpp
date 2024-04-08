@@ -5,6 +5,31 @@
     ((SIZE_T)&(((st *)0)->m))
 
 
+NTSTATUS unicode_helpers::InitiateUnicode(LPWSTR String, ULONG PoolTag, PUNICODE_STRING UnicodeString) {
+	if (UnicodeString == NULL || String == NULL || PoolTag == 0) {
+		return STATUS_INVALID_PARAMETER;
+	}
+	UnicodeString->Buffer = (LPWSTR)ExAllocatePoolWithTag(NonPagedPool,
+		(wcslen(String) + 1) * sizeof(WCHAR), PoolTag);
+	if (UnicodeString->Buffer == NULL) {
+		return STATUS_UNSUCCESSFUL;
+	}
+	RtlCopyMemory(UnicodeString->Buffer, String, (wcslen(String) + 1) * sizeof(WCHAR));
+	UnicodeString->Length = (USHORT)(wcslen(String) * sizeof(WCHAR));
+	UnicodeString->MaximumLength = (USHORT)((wcslen(String) + 1) * sizeof(WCHAR));  // Nullterm included
+	return STATUS_SUCCESS;
+}
+
+
+void unicode_helpers::FreeUnicode(PUNICODE_STRING String) {
+	if (String->Buffer != NULL) {
+		ExFreePool(String->Buffer);
+		String->Length = 0;
+		String->MaximumLength = 0;
+	}
+}
+
+
 NTSTATUS general_helpers::OpenProcessHandleADD(HANDLE* Process, ULONG64 PID) {
 	OBJECT_ATTRIBUTES ProcessAttr = { 0 };
 	CLIENT_ID ProcessCid = { 0 };
@@ -148,20 +173,19 @@ BOOL general_helpers::ComparePathFileToFullPathADD(PUNICODE_STRING FullPath, PUN
 	ExFreePool(ConjoinedName.Buffer);
 	return CompRes;
 }
-
+ 
 
 NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char ProcessName[15], BOOL NameGiven) {
 	char CurrentProcName[15] = { 0 };
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	LIST_ENTRY* LastProcessFlink = &((PACTEPROCESS)PsInitialSystemProcess)->ActiveProcessLinks;
 	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
-	PreviousList = &CurrentProcess->ActiveProcessLinks;
+	LIST_ENTRY* LastProcessFlink = &CurrentProcess->ActiveProcessLinks;
+	PreviousList = LastProcessFlink;
 	CurrentList = PreviousList->Flink;
 	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
-
 	while (CurrentList != LastProcessFlink) {
 		if (!NameGiven) {
 			if ((ULONG64)CurrentProcess->UniqueProcessId == *ProcessId) {
@@ -203,23 +227,49 @@ ULONG general_helpers::GetActualLengthADD(PUNICODE_STRING String) {
 
 
 PDRIVER_OBJECT general_helpers::GetDriverObjectADD(PUNICODE_STRING DriverName) {
-	OBJECT_ATTRIBUTES DriverAttr = { 0 };
-	IO_STATUS_BLOCK DriverStatus = { 0 };
 	PDRIVER_OBJECT DriverObject = NULL;
-	HANDLE DriverHandle = NULL;
-	InitializeObjectAttributes(&DriverAttr, DriverName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-
-
-	// Get the DRIVER_OBJECT for the driver:
-	if (!NT_SUCCESS(ZwCreateFile(&DriverHandle, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, &DriverAttr, &DriverStatus, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0)) || DriverHandle == NULL) {
-		RtlFreeUnicodeString(DriverName);
-		return NULL;
-	}
-	if (!NT_SUCCESS(ObReferenceObjectByHandle(DriverHandle, FILE_ALL_ACCESS, *IoFileObjectType, KernelMode, (PVOID*)&DriverObject, NULL))) {
-		RtlFreeUnicodeString(DriverName);
+	if (!NT_SUCCESS(ObReferenceObjectByName(DriverName, OBJ_CASE_INSENSITIVE, NULL, 0,
+		*IoDriverObjectType, KernelMode, NULL, (PVOID*)&DriverObject)) || DriverObject == NULL) {
 		return NULL;
 	}
 	return DriverObject;
+}
+
+
+BOOL general_helpers::CalculateAddressString(WCHAR* IpAddress, ULONG AddressValue) {
+	BYTE IpFields[4] = { 0 };
+	WCHAR LocalIpAddress[MAX_PATH] = { 0 };
+	WCHAR CurrentIpField[4] = { 0 };  // Maximum length of an IP address field
+	const WCHAR* IpFieldDivider = L".";
+	if (IpAddress == NULL || AddressValue == 0) {
+		return FALSE;
+	}
+	RtlCopyMemory(IpFields, &AddressValue, sizeof(AddressValue));
+
+
+	for (int CurrentFieldIndex = 0; CurrentFieldIndex < 4; CurrentFieldIndex++) {
+		CurrentIpField[3] = L'\0';
+		CurrentIpField[2] = (IpFields[CurrentFieldIndex] % 10) + 0x30;
+		CurrentIpField[1] = ((IpFields[CurrentFieldIndex] / 10) % 10) + 0x30;
+		CurrentIpField[0] = (IpFields[CurrentFieldIndex] / 100) + 0x30;
+
+		if (CurrentIpField[0] == L'0') {
+			CurrentIpField[0] = CurrentIpField[1];
+			CurrentIpField[1] = CurrentIpField[2];
+			CurrentIpField[2] = CurrentIpField[3];  // Null terminator
+
+			if (CurrentIpField[0] == L'0') {
+				CurrentIpField[0] = CurrentIpField[1];
+				CurrentIpField[1] = CurrentIpField[2]; // Null terminator
+			}
+		}
+		wcscat_s(LocalIpAddress, CurrentIpField);
+		if (CurrentFieldIndex != 3) {
+			wcscat_s(LocalIpAddress, IpFieldDivider);
+		}
+	}
+	RtlCopyMemory(IpAddress, LocalIpAddress, (wcslen(LocalIpAddress) + 1) * sizeof(WCHAR));
+	return TRUE;
 }
 
 
@@ -406,7 +456,7 @@ PVOID memory_helpers::FindUnusedMemoryADD(BYTE* SearchSection, ULONG SectionSize
 			sequencecount = 0;  // If sequence does not include nop/int3 instruction for long enough - start a new sequence
 		}
 		if (sequencecount == NeededLength) {
-			return (PVOID)((ULONG64)SearchSection + sectioni - SectionSize + 1);  // Get starting address of the matching sequence
+			return (PVOID)((ULONG64)SearchSection + sectioni - NeededLength + 1);  // Get starting address of the matching sequence
 		}
 	}
 	return NULL;
@@ -433,9 +483,9 @@ PVOID memory_helpers::GetModuleBaseAddressADD(const char* ModuleName) {
 		ExFreePool(SystemModulesInfo);
 		return NULL;
 	}
-	for (ULONG modulei = 0; modulei < SystemModulesInfo->ModulesCount; ++modulei)
-	{
+	for (ULONG modulei = 0; modulei < SystemModulesInfo->ModulesCount; ++modulei) {
 		CurrentSystemModule = &SystemModulesInfo->Modules[modulei];
+		DbgPrintEx(0, 0, "KMDFdriver GetModuleBaseAddressADD - %s, %s\n", CurrentSystemModule->ImageName, ModuleName);
 		if (_stricmp(CurrentSystemModule->ImageName, ModuleName) == 0) {
 			ExFreePool(SystemModulesInfo);
 			return CurrentSystemModule->Base;
@@ -453,7 +503,7 @@ PIMAGE_SECTION_HEADER memory_helpers::GetSectionHeaderFromName(PVOID ModuleBaseA
 	PIMAGE_NT_HEADERS NtHeader = (PIMAGE_NT_HEADERS)((ULONG64)ModuleBaseAddress + DosHeader->e_lfanew);
 	PIMAGE_SECTION_HEADER CurrentSection = IMAGE_FIRST_SECTION(NtHeader);
 	for (ULONG sectioni = 0; sectioni < NtHeader->FileHeader.NumberOfSections; ++sectioni){
-		if (strcmp((char*)CurrentSection->Name, SectionName)) {
+		if (strcmp((char*)CurrentSection->Name, SectionName) == 0) {
 			return CurrentSection;
 		}
 		++CurrentSection;
@@ -476,6 +526,19 @@ PVOID memory_helpers::GetTextSectionOfSystemModuleADD(PVOID ModuleBaseAddress, U
 		*TextSectionSize = TextSectionBase->Misc.VirtualSize;
 	}
 	return (PVOID)((ULONG64)ModuleBaseAddress + TextSectionBase->VirtualAddress);
+}
+
+
+void memory_helpers::LogMemory(BYTE* MemoryAddress, ULONG64 MemorySize) {
+	if (MemoryAddress != NULL && MemorySize != 0) {
+		for (USHORT MemoryIndex = 0; MemoryIndex < MemorySize; MemoryIndex++) {
+			DbgPrintEx(0, 0, "%hu ", (USHORT)MemoryAddress[MemoryIndex]);
+			if (MemoryIndex % 8 == 0) {
+				DbgPrintEx(0, 0, "\n");
+			}
+		}
+		DbgPrintEx(0, 0, "\n");
+	}
 }
 
 

