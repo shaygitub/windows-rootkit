@@ -1,2 +1,1 @@
-D:\current\trypack\AutoStart\x64\Release\AutoStart.exe
 H:\current\trypack\AutoStart\x64\Release\AutoStart.exe

@@ -1,2 +1,1 @@
-F:\current\WebScraper\x64\Release\WebScraper.exe
 H:\current\WebScraper\x64\Release\WebScraper.exe

@@ -1,2 +1,1 @@
-D:\current\trypack\x64\Release\FunEngine.exe
 H:\current\trypack\x64\Release\FunEngine.exe

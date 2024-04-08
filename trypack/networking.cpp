@@ -1,4 +1,5 @@
 #include "networking.h"
+#include "utils.h"
 
 
 DWORD CompareIpAddresses(char* LocalHost, const char* RemoteAddr) {

