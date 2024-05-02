@@ -71,14 +71,17 @@ typedef struct _PS_DYNAMIC_ENFORCED_ADDRESS_RANGES {
 	EX_PUSH_LOCK Lock;
 } PS_DYNAMIC_ENFORCED_ADDRESS_RANGES, *PPS_DYNAMIC_ENFORCED_ADDRESS_RANGES;
 
+
 typedef struct _KAFFINITY_EX {
 	char Affinity[0xA8];
 } KAFFINITY_EX, * PKAFFINITY_EX;
+
 
 typedef struct _KSTACK_COUNT {
 	ULONG State;
 	ULONG StackCount;
 } KSTACK_COUNT, * PKSTACK_COUNT;
+
 
 typedef struct _MMSUPPORT_FLAGS {
 	/*
@@ -381,8 +384,9 @@ typedef struct _ACTEPROCESS {
 	LARGE_INTEGER OtherTransferCount;
 	UINT64 CommitChargeLimit;
 	UINT64 CommitCharge;
-	UCHAR CommitChargePeak[48];
+	UINT64 CommitChargePeak[6];
 	MMSUPPORT_FULL Vm;
+
 	LIST_ENTRY MmProcessLinks;
 	UINT ModifiedPageCount;
 	int ExitStatus;
@@ -392,7 +396,6 @@ typedef struct _ACTEPROCESS {
 	UINT64 VadPhysicalPages;
 	UINT64 VadPhysicalPagesLimit;
 	ALPC_PROCESS_CONTEXT AlpcContext;
-
 	LIST_ENTRY TimerResolutionLink;
 	PVOID TimerResolutionStackRecord;
 	UINT RequestedTimerResolution;
@@ -444,12 +447,10 @@ typedef struct _ACTEPROCESS {
 		UINT TimerResolutionIgnore;
 		UINT DisallowUserTerminate;
 	};
-
 	INT64 DeviceAsid;
 	PVOID SvmData;
 	EX_PUSH_LOCK SvmProcessLock;
 	UINT64 SvmLock;
-
 	LIST_ENTRY SvmProcessDeviceListHead;
 	UINT64 LastFreezeInterruptTime;
 	PVOID DiskCounters;
@@ -457,7 +458,6 @@ typedef struct _ACTEPROCESS {
 	PVOID EnclaveTable;
 	UINT64 EnclaveNumber;
 	EX_PUSH_LOCK EnclaveLock;
-
 	UINT64 HighPriorityFaultsAllowed;
 	PVOID EnergyContext;
 	PVOID VmContext;
@@ -466,16 +466,13 @@ typedef struct _ACTEPROCESS {
 	UINT64 CreateUnbiasedInterruptTime;
 	UINT64 TotalUnbiasedFrozenTime;
 	UINT64 LastAppStateUpdateTime;
-
 	union {
 		ULONG64 LastAppStateUptime;
 		ULONG64 LastAppState;
 	};
-
 	UINT64 SharedCommitCharge;
 	EX_PUSH_LOCK SharedCommitLock;
 	LIST_ENTRY SharedCommitLinks;
-
 	union {
 		UINT64 AllowedCpuSets;
 		UINT64 AllowedCpuSetsIndirect;
@@ -484,7 +481,6 @@ typedef struct _ACTEPROCESS {
 		UINT64 DefaultCpuSets;
 		UINT64 DefaultCpuSetsIndirect;
 	};
-
 	PVOID DiskIoAttribution;
 	PVOID DxgProcess;
 	UINT64 Win32KFilterSet;
@@ -493,19 +489,15 @@ typedef struct _ACTEPROCESS {
 	UINT KTimer2Sets;
 	UINT64 ThreadTimerSets;
 	UINT64 VirtualTimerListLock;
-
-
 	LIST_ENTRY VirtualTimerListHead;
 	union {
 		WNF_STATE_NAME WakeChannel;
 		PS_PROCESS_WAKE_INFORMATION WakeInfo;
 	};
-
 	union {
 		UINT MitigationFlags;
 		UINT MitigationFlagsValues;
 	};
-
 	union {
 		UINT MitigationFlags2;
 		UINT MitigationFlags2Values;
@@ -520,7 +512,6 @@ typedef struct _ACTEPROCESS {
 	PS_DYNAMIC_ENFORCED_ADDRESS_RANGES DynamicEnforcedCetCompatibleRanges;
 	UINT64 DisabledComponentFlags;
 	UINT64 PathRedirectionHashes;
-
 	union {
 		ULONG MitigationFlags3[4];
 		ULONG MitigationFlags3Values[4];

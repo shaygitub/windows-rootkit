@@ -186,11 +186,13 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 	CurrentList = PreviousList->Flink;
 	CurrentProcess = (PACTEPROCESS)((ULONG64)CurrentList - offsetof(struct _ACTEPROCESS, ActiveProcessLinks));
 	NextList = CurrentList->Flink;
+	DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - %p, %p, %p\n", PreviousList, CurrentList, NextList);
+
 	while (CurrentList != LastProcessFlink) {
 		if (!NameGiven) {
 			if ((ULONG64)CurrentProcess->UniqueProcessId == *ProcessId) {
 				RtlCopyMemory(ProcessName, &CurrentProcess->ImageFileName, 15);
-				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name %s for PID %llu\n", ProcessName, *ProcessId);
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found name for PID %llu\n", *ProcessId);
 				return STATUS_SUCCESS;
 			}
 		}
@@ -198,7 +200,7 @@ NTSTATUS general_helpers::GetPidNameFromListADD(ULONG64* ProcessId, char Process
 			RtlCopyMemory(CurrentProcName, &CurrentProcess->ImageFileName, 15);
 			if (_stricmp(CurrentProcName, ProcessName) == 0) {
 				*ProcessId = (ULONG64)CurrentProcess->UniqueProcessId;
-				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %llu for name %s\n", *ProcessId, ProcessName);
+				DbgPrintEx(0, 0, "KMDFdriver GetPidNameFromListADD - Found PID %llu for name\n", *ProcessId);
 				return STATUS_SUCCESS;
 			}
 			RtlZeroMemory(CurrentProcName, 15);

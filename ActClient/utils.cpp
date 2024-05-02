@@ -235,7 +235,7 @@ BOOL IpAddresses::IsValidIp(char* Address) {
 			CurrChunkValue += (Address[i] - 0x30);
 		}
 		else {
-			if (!(CurrChunkValue > 0 && CurrChunkValue <= 255)) {
+			if (!(CurrChunkValue >= 0 && CurrChunkValue <= 255)) {
 				printf("\nOne or more chunk consists of a value outside the 0-255 range for each chunk, check format ..\n");
 				return FALSE;
 			}

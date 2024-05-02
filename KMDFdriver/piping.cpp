@@ -47,10 +47,10 @@ BOOL ShouldRenewDriverADD(PCWSTR DomFileName, BOOL Silent) {
 	UNICODE_STRING FileName = { 0 };
 	OBJECT_ATTRIBUTES FileAttr = { 0 };
 	IO_STATUS_BLOCK FileStatusBlock = { 0 };
-	ULONG IntendedEvil = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;  // 0x56800865;
 	RtlInitUnicodeString(&FileName, DomFileName);
 	InitializeObjectAttributes(&FileAttr, &FileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr, &FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, IntendedEvil, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
+	Status = ZwCreateFile(&DomHandle, SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE, &FileAttr,
+		&FileStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 	if (!NT_SUCCESS(Status) || DomHandle == NULL) {
 		if (!Silent) {
 			DbgPrintEx(0, 0, "KMDFdriver Piping - ShouldRenewDriverADD() returned an error, no need to renew (status = 0x%x)\n", Status);
@@ -135,7 +135,7 @@ void PipeClient() {
 	PVOID CurrentRequest = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	PCWSTR Name = L"\\Device\\NamedPipe\\ShrootPipe";
-	PCWSTR DomName = L"\\DosDevices\\C:\\nosusfolder\\verysus\\DriverDominance.txt";
+	PCWSTR DomName = L"\\DosDevices\\C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\DriverDominance.txt";
 	UNICODE_STRING PipeName = { 0 };
 	OBJECT_ATTRIBUTES PipeAttr = { 0 };
 	IO_STATUS_BLOCK PipeStatusBlock = { 0 };

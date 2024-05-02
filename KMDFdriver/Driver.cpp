@@ -6,7 +6,6 @@
 
 
 BOOL HookRelease() {
-    // roothook::InfinityWrap::ReleaseInfinityHooks();
     roothook::SSDT::SystemServiceDTUnhook(NTQUERY_TAG);
     roothook::SSDT::SystemServiceDTUnhook(NTQUERYEX_TAG);
     roothook::SSDT::SystemServiceDTUnhook(NTQUERYSYSINFO_TAG);
@@ -39,7 +38,7 @@ extern "C" NTSTATUS DriverEntry(_In_ DRIVER_OBJECT * DriverObject, _In_ PUNICODE
         return STATUS_UNSUCCESSFUL;
     }
 
-    
+
     // Get PID of medium and delete it from list by default:
     DbgPrintEx(0, 0, "KMDFdriver - trying to resolve medium PID\n");
     if (!NT_SUCCESS(general_helpers::GetPidNameFromListADD(&MediumPID, "MainMedium.exe", TRUE)) || MediumPID == 0) {

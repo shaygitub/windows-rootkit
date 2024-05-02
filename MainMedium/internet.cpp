@@ -40,7 +40,7 @@ PASS_DATA root_internet::RecvData(SOCKET GetFrom, int Size, PVOID ToBuf, BOOL Si
         RecvDataResult.err = TRUE;
         RecvDataResult.value = WSAGetLastError();
         if (!Silent) {
-            RequestHelpers::LogMessage("Error receiving data from sending socket\n", MediumLog, TRUE, RecvDataResult.value);
+            RequestHelpers::LogMessage("Error receiving data from sending socket\n", NULL, TRUE, RecvDataResult.value);
         }
     }
 
@@ -130,7 +130,7 @@ void root_internet::CleanNetStack(SOCKET SocketToClean, LogFile* MediumLog) {
         while (LastBytes > 0) {
             RecvResult = RecvData(SocketToClean, 1, &LastChr, TRUE, 0, MediumLog);
             if (RecvResult.err) {
-                RequestHelpers::LogMessage("Could not get the last bytes out of the network stack\n", MediumLog, TRUE, WSAGetLastError());
+                RequestHelpers::LogMessage("Could not get the last bytes out of the network stack\n", NULL, TRUE, WSAGetLastError());
                 RecvError = TRUE;
                 break;
             }
@@ -141,11 +141,11 @@ void root_internet::CleanNetStack(SOCKET SocketToClean, LogFile* MediumLog) {
             LastBytes -= RecvResult.value;
         }
         if (!RecvError) {
-            RequestHelpers::LogMessage("Network stack freed\n", MediumLog, FALSE, 0);
+            RequestHelpers::LogMessage("Network stack freed\n", NULL, FALSE, 0);
         }
     }
     else {
-        RequestHelpers::LogMessage("Could not get the amount of bytes to clear from network stack\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not get the amount of bytes to clear from network stack\n", NULL, TRUE, WSAGetLastError());
     }
 }
 
@@ -178,7 +178,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Initialize Winsock (required for using sockets and socket functions):
     if (WSAStartup(MAKEWORD(2, 2), &WSAData) != 0) {
-        RequestHelpers::LogMessage("Winsock initialization process failed\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Winsock initialization process failed\n", NULL, TRUE, WSAGetLastError());
         return FALSE;
     }
 
@@ -186,7 +186,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
     // Create medium socket:
     MediumSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (MediumSocket == INVALID_SOCKET) {
-        RequestHelpers::LogMessage("Could not create socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not create socket object\n", NULL, TRUE, WSAGetLastError());
         WSACleanup();
         return FALSE;
     }
@@ -196,7 +196,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Bind medium socket:
     if (bind(NetArr[0].AsoSock, (sockaddr*)&NetArr[0].AddrInfo, sizeof(sockaddr)) == SOCKET_ERROR) {
-        RequestHelpers::LogMessage("Could not bind socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not bind socket object\n", NULL, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
         return FALSE;
@@ -206,7 +206,7 @@ BOOL root_internet::StartComms(NETWORK_INFO* NetArr, LogFile* MediumLog) {
 
     // Listen with socket for requests - (backlog is the amount of maxixum listening connections at a time):
     if (listen(NetArr[0].AsoSock, 2) == SOCKET_ERROR) {
-        RequestHelpers::LogMessage("Could not start listening with socket object\n", MediumLog, TRUE, WSAGetLastError());
+        RequestHelpers::LogMessage("Could not start listening with socket object\n", NULL, TRUE, WSAGetLastError());
         closesocket(NetArr[0].AsoSock);
         WSACleanup();
         return FALSE;

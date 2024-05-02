@@ -55,8 +55,7 @@ def download():
     while currpath[pathind] != '\\':
         pathind -= 1
 
-    filepath = currpath[0: pathind + 1] + 'trypack\\x64\\Release\\FunEngine.exe'
-    os.system(currpath[0: pathind + 1] + 'trypack\\elevate.bat')
+    filepath = currpath[0: pathind + 1] + '\\trypack\\x64\\Release\\FunEngine.exe'
     return send_file(filepath, as_attachment=True)
 
 
